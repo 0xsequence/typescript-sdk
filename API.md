@@ -26,9 +26,9 @@
 The top-level SDK class. Instantiate once and reuse across your application.
 
 ```typescript
-import { OmsWallet } from './OmsWallet'
+import { OMSClient } from './omsWallet'
 
-const sdk = new OmsWallet({ projectAccessKey: 'your-key' })
+const oms = new OMSClient({ projectAccessKey: 'your-key' })
 ```
 
 ---

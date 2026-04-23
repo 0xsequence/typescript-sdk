@@ -21,7 +21,7 @@ import {
     SignMessageRequest,
     SendTransactionRequest,
     CallContractRequest,
-    CredentialInfo,
+    CredentialInfo, AbiArg,
 } from '../generated/waas.gen'
 
 export class WalletClient {
@@ -68,7 +68,7 @@ export class WalletClient {
      *
      * After this resolves, show your OTP entry UI and pass the code to `completeEmailSignIn`.
      */
-    async signInWithEmail(email: string): Promise<void> {
+    async startEmailAuth(email: string): Promise<void> {
         const params: CommitVerifierRequest = {
             identityType: IdentityType.Email,
             authMode: AuthMode.OTP,
@@ -86,7 +86,7 @@ export class WalletClient {
      * Must be called after `signInWithEmail`. On success, call `createWallet`
      * or `useWallet` to activate a wallet.
      */
-    async completeEmailSignIn(code: string, walletType: WalletType = WalletType.Ethereum): Promise<void> {
+    async completeEmailAuth(code: string, walletType: WalletType = WalletType.Ethereum): Promise<void> {
         const answer = await RequestUtils.hashEmailAuthAnswer(this.challenge, code);
 
         const params: CompleteAuthRequest = {
@@ -111,7 +111,7 @@ export class WalletClient {
         }
     }
 
-    clearSession(): void {
+    signOut(): void {
         this.storage.delete(Constants.walletIdStorageKey)
         this.storage.delete(Constants.walletAddressStorageKey)
         this.storage.delete(Constants.signerStorageKey)
@@ -136,40 +136,32 @@ export class WalletClient {
         await this.client.revokeAccess(params)
     }
 
-    /**
-     * Signs an arbitrary message using the wallet's session key.
-     *
-     * @param network - Network identifier, e.g. `"mainnet"` or `"polygon"`.
-     * @param message - The plaintext message to sign.
-     * @returns A hex-encoded signature string.
-     */
-    async signMessage(network: string, message: string): Promise<string> {
-        const params: SignMessageRequest = {
-            network,
+    async signMessage(params: {
+        network: string
+        message: string
+    }): Promise<string> {
+        const request: SignMessageRequest = {
+            network: params.network,
             walletId: this.walletId,
-            message,
+            message: params.message,
         }
-        const response = await this.client.signMessage(params)
+        const response = await this.client.signMessage(request)
         return response.signature
     }
 
-    /**
-     * Sends a native token transfer via the Sequence relayer (no gas tokens required).
-     *
-     * @param network - Network to submit on, e.g. `"mainnet"` or `"polygon"`.
-     * @param to      - Recipient address.
-     * @param value   - Amount in the network's smallest denomination (e.g. wei).
-     * @returns The transaction hash.
-     */
-    async sendTransaction(network: string, to: string, value: string): Promise<string> {
-        const params: SendTransactionRequest = {
-            network,
+    async sendTransaction(params: {
+        network: string
+        to: string
+        value: string
+    }): Promise<string> {
+        const request: SendTransactionRequest = {
+            network: params.network,
             walletId: this.walletId,
-            to,
-            value,
+            to: params.to,
+            value: params.value,
             mode: TransactionMode.Relayer,
         }
-        const response = await this.client.sendTransaction(params)
+        const response = await this.client.sendTransaction(request)
         return response.txHash
     }
 
@@ -179,8 +171,25 @@ export class WalletClient {
      * @param params - Full request describing the target contract, method, args, and network.
      * @returns The transaction hash.
      */
-    async callContract(params: CallContractRequest): Promise<string> {
-        const response = await this.client.callContract(params)
+    async callContract(params: {
+        network: string
+        contractAddress: string
+        method: string
+        args?: Array<AbiArg>
+        value?: string
+        feeCeiling?: string
+        nonce?: string
+    }): Promise<string> {
+        const request: CallContractRequest = {
+            network: params.network,
+            walletId: this.walletId,
+            contractAddress: params.contractAddress,
+            method: params.method,
+            args: params.args,
+            value, 
+        }
+
+        const response = await this.client.callContract(request)
         return response.txHash
     }
 
