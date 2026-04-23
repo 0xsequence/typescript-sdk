@@ -1,10 +1,10 @@
-import {OmsEnvironment} from "./omsEnvironment";
-import {LocalStorageManager, StorageManager} from "./storageManager";
-import {createSignedFetch} from "./signedFetch";
-import {Constants} from "./utils/constants";
-import {RequestUtils} from "./utils/requestUtils";
-import {ByteUtils} from "./utils/byteUtils";
-import {EvmHelper} from "./utils/EvmHelper";
+import {OmsEnvironment} from "../omsEnvironment";
+import {LocalStorageManager, StorageManager} from "../storageManager";
+import {createSignedFetch} from "../signedFetch";
+import {Constants} from "../utils/constants";
+import {RequestUtils} from "../utils/requestUtils";
+import {ByteUtils} from "../utils/byteUtils";
+import {EvmHelper} from "../utils/EvmHelper";
 
 import {
     Wallet as Walletclient,
@@ -22,7 +22,7 @@ import {
     SendTransactionRequest,
     CallContractRequest,
     CredentialInfo,
-} from './generated/waas.gen'
+} from '../generated/waas.gen'
 
 export class WalletClient {
     private readonly client: Walletclient
@@ -38,12 +38,12 @@ export class WalletClient {
     private verifier = ''
     private challenge = ''
 
-    constructor(params: {
-        projectAccessKey: string
-        environment: OmsEnvironment
+    constructor(
+        projectAccessKey: string,
+        environment: OmsEnvironment,
         storage?: StorageManager
-    }) {
-        this.storage = params.storage ?? new LocalStorageManager()
+    ) {
+        this.storage = storage ?? new LocalStorageManager()
 
         const storedId      = this.storage.get(Constants.walletIdStorageKey)
         const storedAddress = this.storage.get(Constants.walletAddressStorageKey)
@@ -59,8 +59,8 @@ export class WalletClient {
             this.sessionPrivateKey = EvmHelper.generatePrivateKey()
         }
 
-        const signedFetch = createSignedFetch(params.projectAccessKey, this.sessionPrivateKey)
-        this.client = new Walletclient(params.environment.walletApiUrl, signedFetch)
+        const signedFetch = createSignedFetch(projectAccessKey, this.sessionPrivateKey)
+        this.client = new Walletclient(environment.walletApiUrl, signedFetch)
     }
 
     /**
