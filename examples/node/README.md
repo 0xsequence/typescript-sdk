@@ -11,5 +11,5 @@ Run it from the repository root:
 ```bash
 pnpm install
 pnpm build
-pnpm signIn
+pnpm node-example
 ```
