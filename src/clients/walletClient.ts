@@ -1,3 +1,6 @@
+import type { Address } from 'abitype'
+import type { Chain } from 'viem'
+
 import {OmsEnvironment} from "../omsEnvironment";
 import {LocalStorageManager, StorageManager} from "../storageManager";
 import {createSignedFetch} from "../signedFetch";
@@ -20,9 +23,10 @@ import {
     RevokeAccessRequest,
     SignMessageRequest,
     SendTransactionRequest,
-    CallContractRequest,
-    CredentialInfo, AbiArg,
+    CallContractRequest, AbiArg,
 } from '../generated/waas.gen'
+import {NetworkBindings} from "../utils/networkBindings";
+import * as net from "node:net";
 
 export interface AccessGrant {
     credentialId: string
@@ -30,12 +34,15 @@ export interface AccessGrant {
     isCaller: boolean
 }
 
+type Networkish = string | bigint | Chain;
+
 export class WalletClient {
     private readonly client: Walletclient
     private readonly storage: StorageManager
+    private readonly networks: NetworkBindings
 
     /** The on-chain address of this wallet. Empty until a wallet is created or loaded. */
-    public walletAddress: string
+    public walletAddress: Address
 
     private walletId: string
     private readonly sessionPrivateKey: Uint8Array
@@ -55,16 +62,17 @@ export class WalletClient {
 
         if (storedId && storedAddress && storedKey) {
             this.walletId      = storedId
-            this.walletAddress = storedAddress
+            this.walletAddress = storedAddress as Address
             this.sessionPrivateKey = ByteUtils.hexToBytes(storedKey)
         } else {
             this.walletId      = ''
-            this.walletAddress = ''
+            this.walletAddress = '0x00' as Address
             this.sessionPrivateKey = EvmHelper.generatePrivateKey()
         }
 
         const signedFetch = createSignedFetch(params.projectAccessKey, this.sessionPrivateKey)
         this.client = new Walletclient(params.environment.walletApiUrl, signedFetch)
+        this.networks = new NetworkBindings()
     }
 
     /**
@@ -158,11 +166,11 @@ export class WalletClient {
     }
 
     async signMessage(params: {
-        network: string
+        network: Networkish
         message: string
     }): Promise<string> {
         const request: SignMessageRequest = {
-            network: params.network,
+            network: this.parseNetwork(params.network),
             walletId: this.walletId,
             message: params.message,
         }
@@ -171,15 +179,15 @@ export class WalletClient {
     }
 
     async sendTransaction(params: {
-        network: string
-        to: string
-        value: string
+        network: Networkish
+        to: Address
+        value: bigint
     }): Promise<string> {
         const request: SendTransactionRequest = {
-            network: params.network,
+            network: this.parseNetwork(params.network),
             walletId: this.walletId,
             to: params.to,
-            value: params.value,
+            value: params.value.toString(),
             mode: TransactionMode.Relayer,
         }
         const response = await this.client.sendTransaction(request)
@@ -193,23 +201,23 @@ export class WalletClient {
      * @returns The transaction hash.
      */
     async callContract(params: {
-        network: string
-        contractAddress: string
+        network: Networkish
+        contractAddress: Address
         method: string
         args?: Array<AbiArg>
-        value?: string
-        feeCeiling?: string
-        nonce?: string
+        value?: bigint
+        feeCeiling?: bigint
+        nonce?: bigint
     }): Promise<string> {
         const request: CallContractRequest = {
-            network: params.network,
+            network: this.parseNetwork(params.network),
             walletId: this.walletId,
             contractAddress: params.contractAddress,
             method: params.method,
             args: params.args,
-            value: params.value,
-            feeCeiling: params.feeCeiling,
-            nonce: params.nonce,
+            value: params.value?.toString(),
+            feeCeiling: params.feeCeiling?.toString(),
+            nonce: params.nonce?.toString(),
             mode: TransactionMode.Relayer,
         }
 
@@ -243,9 +251,19 @@ export class WalletClient {
     /** Saves the wallet ID, address, and session key to storage. */
     private persistSession(walletId: string, walletAddress: string): void {
         this.walletId      = walletId
-        this.walletAddress = walletAddress
+        this.walletAddress = walletAddress as Address
         this.storage.set(Constants.walletIdStorageKey,      walletId)
         this.storage.set(Constants.walletAddressStorageKey, walletAddress)
         this.storage.set(Constants.signerStorageKey,        ByteUtils.bytesToHex(this.sessionPrivateKey))
+    }
+
+    private parseNetwork(network: Networkish): string {
+        if (typeof network === 'string') {
+            return network.toLowerCase()
+        } else if (typeof network === 'bigint') {
+            return this.networks.getChainNameById(network)
+        } else {
+            return this.networks.getChainNameById(BigInt(network.id))
+        }
     }
 }

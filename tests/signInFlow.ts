@@ -2,6 +2,7 @@ import "dotenv/config";
 import readline from "node:readline/promises";
 import {MemoryStorageManager} from "../src/storageManager";
 import {OMSClient} from "../src";
+import {polygonAmoy, sepolia} from "viem/chains";
 
 async function main() {
     const projectAccessKey = required("OMS_PROJECT_ACCESS_KEY");
@@ -53,7 +54,7 @@ async function main() {
     console.log("✓ sign-in flow complete");
 
     const signature = await client.wallet.signMessage({
-        network: "amoy",
+        network: 80002n,
         message: "test"
     });
 }
