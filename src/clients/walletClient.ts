@@ -1,10 +1,10 @@
-import {OmsEnvironment} from "./omsEnvironment";
-import {LocalStorageManager, StorageManager} from "./storageManager";
-import {createSignedFetch} from "./signedFetch";
-import {Constants} from "./utils/constants";
-import {RequestUtils} from "./utils/requestUtils";
-import {ByteUtils} from "./utils/byteUtils";
-import {EvmHelper} from "./utils/EvmHelper";
+import {OmsEnvironment} from "../omsEnvironment";
+import {LocalStorageManager, StorageManager} from "../storageManager";
+import {createSignedFetch} from "../signedFetch";
+import {Constants} from "../utils/constants";
+import {RequestUtils} from "../utils/requestUtils";
+import {ByteUtils} from "../utils/byteUtils";
+import {EvmHelper} from "../utils/EvmHelper";
 
 import {
     Wallet as Walletclient,
@@ -21,8 +21,14 @@ import {
     SignMessageRequest,
     SendTransactionRequest,
     CallContractRequest,
-    CredentialInfo,
-} from './generated/waas.gen'
+    CredentialInfo, AbiArg,
+} from '../generated/waas.gen'
+
+export interface AccessGrant {
+    credentialId: string
+    expiresAt: string
+    isCaller: boolean
+}
 
 export class WalletClient {
     private readonly client: Walletclient
@@ -31,16 +37,14 @@ export class WalletClient {
     /** The on-chain address of this wallet. Empty until a wallet is created or loaded. */
     public walletAddress: string
 
-    /** The server-side wallet ID used in API calls. Empty until a wallet is created or loaded. */
-    public walletId: string
-
+    private walletId: string
     private readonly sessionPrivateKey: Uint8Array
     private verifier = ''
     private challenge = ''
 
     constructor(params: {
-        projectAccessKey: string
-        environment: OmsEnvironment
+        projectAccessKey: string,
+        environment: OmsEnvironment,
         storage?: StorageManager
     }) {
         this.storage = params.storage ?? new LocalStorageManager()
@@ -68,14 +72,16 @@ export class WalletClient {
      *
      * After this resolves, show your OTP entry UI and pass the code to `completeEmailSignIn`.
      */
-    async signInWithEmail(email: string): Promise<void> {
-        const params: CommitVerifierRequest = {
+    async startEmailAuth(params: {
+        email: string
+    }): Promise<void> {
+        const request: CommitVerifierRequest = {
             identityType: IdentityType.Email,
             authMode: AuthMode.OTP,
             metadata: {},
-            handle: email,
+            handle: params.email,
         }
-        const response = await this.client.commitVerifier(params)
+        const response = await this.client.commitVerifier(request)
         this.verifier  = response.verifier
         this.challenge = response.challenge
     }
@@ -86,10 +92,14 @@ export class WalletClient {
      * Must be called after `signInWithEmail`. On success, call `createWallet`
      * or `useWallet` to activate a wallet.
      */
-    async completeEmailSignIn(code: string, walletType: WalletType = WalletType.Ethereum): Promise<void> {
-        const answer = await RequestUtils.hashEmailAuthAnswer(this.challenge, code);
+    async completeEmailAuth(params: {
+        code: string
+        walletType?: WalletType
+    }): Promise<void> {
+        const walletType = params.walletType ?? WalletType.Ethereum;
+        const answer = await RequestUtils.hashEmailAuthAnswer(this.challenge, params.code);
 
-        const params: CompleteAuthRequest = {
+        const request: CompleteAuthRequest = {
             identityType: IdentityType.Email,
             authMode: AuthMode.OTP,
             verifier: this.verifier,
@@ -97,7 +107,7 @@ export class WalletClient {
         }
 
         let walletUsed = false;
-        const response = await this.client.completeAuth(params);
+        const response = await this.client.completeAuth(request);
 
         for (const wallet of response.wallets) {
             if (wallet.type === walletType) {
@@ -111,7 +121,7 @@ export class WalletClient {
         }
     }
 
-    clearSession(): void {
+    signOut(): void {
         this.storage.delete(Constants.walletIdStorageKey)
         this.storage.delete(Constants.walletAddressStorageKey)
         this.storage.delete(Constants.signerStorageKey)
@@ -120,10 +130,15 @@ export class WalletClient {
     /**
      * Returns the credentials that currently have access to this wallet.
      */
-    async listAccess(): Promise<CredentialInfo[]> {
+    async listAccess(): Promise<AccessGrant[]> {
         const params: ListAccessRequest = { walletId: this.walletId }
         const response = await this.client.listAccess(params)
-        return response.credentials
+
+        return response.credentials.map(c => { return {
+            credentialId: c.credentialId,
+            expiresAt: c.expiresAt,
+            isCaller: c.isCaller
+        } })
     }
 
     /**
@@ -131,45 +146,43 @@ export class WalletClient {
      *
      * Use `listAccess()` first to retrieve the available credential IDs.
      */
-    async revokeAccess(targetCredentialId: string): Promise<void> {
-        const params: RevokeAccessRequest = { targetCredentialId, walletId: this.walletId }
-        await this.client.revokeAccess(params)
+    async revokeAccess(params: {
+        targetCredentialId: string
+    }): Promise<void> {
+        const request: RevokeAccessRequest = {
+            targetCredentialId: params.targetCredentialId,
+            walletId: this.walletId
+        }
+
+        await this.client.revokeAccess(request)
     }
 
-    /**
-     * Signs an arbitrary message using the wallet's session key.
-     *
-     * @param network - Network identifier, e.g. `"mainnet"` or `"polygon"`.
-     * @param message - The plaintext message to sign.
-     * @returns A hex-encoded signature string.
-     */
-    async signMessage(network: string, message: string): Promise<string> {
-        const params: SignMessageRequest = {
-            network,
+    async signMessage(params: {
+        network: string
+        message: string
+    }): Promise<string> {
+        const request: SignMessageRequest = {
+            network: params.network,
             walletId: this.walletId,
-            message,
+            message: params.message,
         }
-        const response = await this.client.signMessage(params)
+        const response = await this.client.signMessage(request)
         return response.signature
     }
 
-    /**
-     * Sends a native token transfer via the Sequence relayer (no gas tokens required).
-     *
-     * @param network - Network to submit on, e.g. `"mainnet"` or `"polygon"`.
-     * @param to      - Recipient address.
-     * @param value   - Amount in the network's smallest denomination (e.g. wei).
-     * @returns The transaction hash.
-     */
-    async sendTransaction(network: string, to: string, value: string): Promise<string> {
-        const params: SendTransactionRequest = {
-            network,
+    async sendTransaction(params: {
+        network: string
+        to: string
+        value: string
+    }): Promise<string> {
+        const request: SendTransactionRequest = {
+            network: params.network,
             walletId: this.walletId,
-            to,
-            value,
+            to: params.to,
+            value: params.value,
             mode: TransactionMode.Relayer,
         }
-        const response = await this.client.sendTransaction(params)
+        const response = await this.client.sendTransaction(request)
         return response.txHash
     }
 
@@ -179,8 +192,28 @@ export class WalletClient {
      * @param params - Full request describing the target contract, method, args, and network.
      * @returns The transaction hash.
      */
-    async callContract(params: CallContractRequest): Promise<string> {
-        const response = await this.client.callContract(params)
+    async callContract(params: {
+        network: string
+        contractAddress: string
+        method: string
+        args?: Array<AbiArg>
+        value?: string
+        feeCeiling?: string
+        nonce?: string
+    }): Promise<string> {
+        const request: CallContractRequest = {
+            network: params.network,
+            walletId: this.walletId,
+            contractAddress: params.contractAddress,
+            method: params.method,
+            args: params.args,
+            value: params.value,
+            feeCeiling: params.feeCeiling,
+            nonce: params.nonce,
+            mode: TransactionMode.Relayer,
+        }
+
+        const response = await this.client.callContract(request)
         return response.txHash
     }
 

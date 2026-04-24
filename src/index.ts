@@ -1,1 +1,1 @@
-export { OmsWallet } from './omsWallet'
+export { OMSClient } from './omsClient'

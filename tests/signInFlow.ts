@@ -1,7 +1,7 @@
 import "dotenv/config";
 import readline from "node:readline/promises";
 import {MemoryStorageManager} from "../src/storageManager";
-import {OmsWallet} from "../src";
+import {OMSClient} from "../src";
 
 async function main() {
     const projectAccessKey = required("OMS_PROJECT_ACCESS_KEY");
@@ -13,21 +13,21 @@ async function main() {
     console.log("project access key :", mask(projectAccessKey));
     console.log("email              :", email);
     console.log();
-
     console.log("[setup] creating OmsWallet…");
-    const wallet = new OmsWallet({
+
+    const client = new OMSClient({
         projectAccessKey,
         storage: new MemoryStorageManager(),
     });
 
-    console.log("[setup] ready:", wallet.wallet.constructor.name);
+    console.log("[setup] ready:", client.wallet.constructor.name);
     console.log();
-
-    // --- Step 1 -------------------------------------------------------------
     console.log(`[step 1] signInWithEmail("${email}")`);
+
     let t = Date.now();
     try {
-        await wallet.signInWithEmail(email);
+        await client.wallet.startEmailAuth({email});
+
         console.log(`[step 1] ok (${Date.now() - t}ms) — check your inbox`);
     } catch (err) {
         console.error(`[step 1] FAILED (${Date.now() - t}ms):`, err);
@@ -35,27 +35,28 @@ async function main() {
     }
     console.log();
 
-    // --- Step 2 -------------------------------------------------------------
     const code = process.env.OMS_TEST_CODE ?? (await prompt("Enter the code from your email: "));
+
     console.log(`[step 2] completeEmailSignIn("${mask(code)}")`);
     t = Date.now();
+
     try {
-        await wallet.completeEmailSignIn(code);
+        await client.wallet.completeEmailAuth({code});
+
         console.log(`[step 2] ok (${Date.now() - t}ms)`);
     } catch (err) {
         console.error(`[step 2] FAILED (${Date.now() - t}ms):`, err);
         process.exit(1);
     }
+
     console.log();
-
     console.log("✓ sign-in flow complete");
-    // If WalletClient exposes state, dump it here for inspection:
-    // console.log("wallet state:", wallet.wallet);
 
-    const signature = await wallet.signMessage("amoy", "test");
+    const signature = await client.wallet.signMessage({
+        network: "amoy",
+        message: "test"
+    });
 }
-
-// --- helpers --------------------------------------------------------------
 
 function required(name: string): string {
     const v = process.env[name];
