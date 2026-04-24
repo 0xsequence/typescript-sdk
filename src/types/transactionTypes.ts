@@ -1,6 +1,5 @@
-import {Chain, ContractFunctionName, EncodeFunctionDataParameters, Hex} from "viem";
-import type {Abi, Address} from "abitype";
-import {Network} from "./evmTypes";
+import {Abi, Address, Chain, ContractFunctionName, EncodeFunctionDataParameters, Hex} from "viem";
+import {Network} from "./evmTypes.js";
 
 export type SendTransactionBase = {
     network: Network

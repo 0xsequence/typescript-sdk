@@ -1,19 +1,17 @@
-import {Fetch} from "./generated/waas.gen";
-import {Constants} from "./utils/constants";
-import { EvmHelper } from "./utils/EvmHelper";
-import {RequestUtils} from "./utils/requestUtils";
-import {TimeUtils} from "./utils/timeUtils";
+import {Fetch} from "./generated/waas.gen.js";
+import {Constants} from "./utils/constants.js";
+import {RequestUtils} from "./utils/requestUtils.js";
+import type {CredentialSigner} from "./credentialSigner.js";
 
-async function buildAuthHeader(endpoint: string, signer: Uint8Array, payload: string): Promise<string> {
-    const walletAddress = EvmHelper.getWalletAddress(signer)
-    const nonce = TimeUtils.currentTimestampInSecondsString()
+async function buildAuthHeader(endpoint: string, signer: CredentialSigner, payload: string): Promise<string> {
+    const credentialId = await signer.credentialId()
+    const nonce = await signer.nextNonce()
     const preimage = RequestUtils.buildWalletRequestPreimage(endpoint, nonce, payload)
-    const hashedResult = EvmHelper.keccak256(preimage)
-    const signature = await EvmHelper.signUTF8MessageEIP191(signer, hashedResult)
-    return RequestUtils.buildAuthorizationHeader(Constants.scope, walletAddress, nonce, signature)
+    const signature = await signer.sign(preimage)
+    return RequestUtils.buildAuthorizationHeader(signer.keyType, Constants.scope, credentialId, nonce, signature)
 }
 
-export function createSignedFetch(projectAccessKey: string, privateKey: Uint8Array): Fetch {
+export function createSignedFetch(projectAccessKey: string, signer: CredentialSigner): Fetch {
     return async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
         const url = typeof input === 'string' ? input : (input as Request).url
         const segments = new URL(url).pathname.split('/')
@@ -21,7 +19,7 @@ export function createSignedFetch(projectAccessKey: string, privateKey: Uint8Arr
 
         const body = typeof init?.body === 'string' ? init.body : ''
 
-        const authHeader = await buildAuthHeader(endpoint, privateKey, body)
+        const authHeader = await buildAuthHeader(endpoint, signer, body)
 
         const existingHeaders = (init?.headers ?? {}) as Record<string, string>
         const headers: Record<string, string> = {
@@ -31,31 +29,6 @@ export function createSignedFetch(projectAccessKey: string, privateKey: Uint8Arr
             'Origin': 'http://localhost:3000',
         }
 
-        const method = init?.method ?? 'POST'
-
-        console.log('[OMS SDK] →', {
-            url,
-            method,
-            payload: body,
-            headers,
-        })
-
-        const response = await globalThis.fetch(input, { ...init, headers })
-
-        const responseClone = response.clone()
-        let responseBody: string
-        try {
-            responseBody = await responseClone.text()
-        } catch (err) {
-            responseBody = `<failed to read body: ${(err as Error).message}>`
-        }
-
-        console.log('[OMS SDK] ←', {
-            url,
-            status: response.status,
-            body: responseBody,
-        })
-
-        return response
+        return globalThis.fetch(input, { ...init, headers })
     }
 }

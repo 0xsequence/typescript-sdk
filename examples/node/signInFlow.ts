@@ -1,18 +1,18 @@
-import "dotenv/config";
 import readline from "node:readline/promises";
-import {MemoryStorageManager} from "../src/storageManager";
-import {OMSClient} from "../src";
-import {polygonAmoy, sepolia} from "viem/chains";
+import {MemoryStorageManager, OMSClient} from "typescript-sdk";
+import {polygonAmoy} from "viem/chains";
+
+const projectAccessKey = "AQAAAAAAAAK2JvvZhWqZ51riasWBftkrVXE";
 
 async function main() {
-    const projectAccessKey = required("OMS_PROJECT_ACCESS_KEY");
-    const email = required("OMS_TEST_EMAIL");
-
     console.log("------------------------------------------------------------");
     console.log(" OmsWallet sign-in flow");
     console.log("------------------------------------------------------------");
     console.log("project access key :", mask(projectAccessKey));
-    console.log("email              :", email);
+    console.log();
+
+    const email = await prompt("Enter your email: ");
+
     console.log();
     console.log("[setup] creating OmsWallet…");
 
@@ -36,7 +36,7 @@ async function main() {
     }
     console.log();
 
-    const code = process.env.OMS_TEST_CODE ?? (await prompt("Enter the code from your email: "));
+    const code = await prompt("Enter the code from your email: ");
 
     console.log(`[step 2] completeEmailSignIn("${mask(code)}")`);
     t = Date.now();
@@ -53,20 +53,10 @@ async function main() {
     console.log();
     console.log("✓ sign-in flow complete");
 
-    const signature = await client.wallet.signMessage({
+    await client.wallet.signMessage({
         network: polygonAmoy,
         message: "test"
     });
-}
-
-function required(name: string): string {
-    const v = process.env[name];
-    if (!v) {
-        console.error(`Missing required env var: ${name}`);
-        console.error("Set it in your .env file or export it before running.");
-        process.exit(1);
-    }
-    return v;
 }
 
 function mask(value: string | undefined): string {

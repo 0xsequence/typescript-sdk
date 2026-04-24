@@ -1,19 +1,16 @@
 import {
     ContractFunctionName,
     encodeFunctionData,
-    EncodeFunctionDataParameters} from 'viem'
-import type {
     Abi,
     Address,
-} from 'abitype'
+    EncodeFunctionDataParameters} from 'viem'
 
-import {OmsEnvironment} from "../omsEnvironment";
-import {LocalStorageManager, StorageManager} from "../storageManager";
-import {createSignedFetch} from "../signedFetch";
-import {Constants} from "../utils/constants";
-import {RequestUtils} from "../utils/requestUtils";
-import {ByteUtils} from "../utils/byteUtils";
-import {EvmHelper} from "../utils/EvmHelper";
+import {OmsEnvironment} from "../omsEnvironment.js";
+import {LocalStorageManager, StorageManager} from "../storageManager.js";
+import {createSignedFetch} from "../signedFetch.js";
+import {Constants} from "../utils/constants.js";
+import {RequestUtils} from "../utils/requestUtils.js";
+import {CredentialSigner, WebCryptoP256CredentialSigner} from "../credentialSigner.js";
 
 import {
     Wallet as Walletclient,
@@ -29,26 +26,26 @@ import {
     RevokeAccessRequest,
     SignMessageRequest,
     CallContractRequest, AbiArg,
-} from '../generated/waas.gen'
-import {NetworkBindings} from "../utils/networkBindings";
-import {Network} from "../types/evmTypes";
+} from '../generated/waas.gen.js'
+import {NetworkBindings} from "../utils/networkBindings.js";
+import {Network} from "../types/evmTypes.js";
 import {
     SendContractTransactionParams,
     SendDataTransactionParams, SendNativeTransactionParams,
     SendTransactionParams
-} from "../types/transactionTypes";
-import {AccessGrant} from "../types/accessGrant";
+} from "../types/transactionTypes.js";
+import {AccessGrant} from "../types/accessGrant.js";
 
 export class WalletClient {
     private readonly client: Walletclient
     private readonly storage: StorageManager
     private readonly networks: NetworkBindings
+    private readonly credentialSigner: CredentialSigner
 
-    /** The on-chain address of this wallet. Empty until a wallet is created or loaded. */
-    public walletAddress: Address
+    /** The on-chain address of this wallet. Undefined until a wallet is created or loaded. */
+    public walletAddress: Address | undefined
 
     private walletId: string
-    private readonly sessionPrivateKey: Uint8Array
     private verifier = ''
     private challenge = ''
 
@@ -56,24 +53,23 @@ export class WalletClient {
         projectAccessKey: string,
         environment: OmsEnvironment,
         storage?: StorageManager
+        credentialSigner?: CredentialSigner
     }) {
         this.storage = params.storage ?? new LocalStorageManager()
+        this.credentialSigner = params.credentialSigner ?? new WebCryptoP256CredentialSigner()
 
         const storedId      = this.storage.get(Constants.walletIdStorageKey)
         const storedAddress = this.storage.get(Constants.walletAddressStorageKey)
-        const storedKey     = this.storage.get(Constants.signerStorageKey)
 
-        if (storedId && storedAddress && storedKey) {
+        if (storedId && storedAddress) {
             this.walletId      = storedId
             this.walletAddress = storedAddress as Address
-            this.sessionPrivateKey = ByteUtils.hexToBytes(storedKey)
         } else {
             this.walletId      = ''
-            this.walletAddress = '0x00' as Address
-            this.sessionPrivateKey = EvmHelper.generatePrivateKey()
+            this.walletAddress = undefined
         }
 
-        const signedFetch = createSignedFetch(params.projectAccessKey, this.sessionPrivateKey)
+        const signedFetch = createSignedFetch(params.projectAccessKey, this.credentialSigner)
         this.client = new Walletclient(params.environment.walletApiUrl, signedFetch)
         this.networks = new NetworkBindings()
     }
@@ -132,16 +128,24 @@ export class WalletClient {
         }
     }
 
-    signOut(): void {
+    async signOut(): Promise<void> {
+        await this.clearSession()
+    }
+
+    private async clearSession(): Promise<void> {
         this.storage.delete(Constants.walletIdStorageKey)
         this.storage.delete(Constants.walletAddressStorageKey)
         this.storage.delete(Constants.signerStorageKey)
+        this.walletId = ''
+        this.walletAddress = undefined
+        await this.credentialSigner.clear?.()
     }
 
     async signMessage(params: {
         network: Network
         message: string
     }): Promise<string> {
+        await this.requireActiveSession()
         const request: SignMessageRequest = {
             network: this.parseNetwork(params.network),
             walletId: this.walletId,
@@ -158,6 +162,7 @@ export class WalletClient {
         functionName extends ContractFunctionName<abi> | undefined = ContractFunctionName<abi>,
     >(params: SendContractTransactionParams<abi, functionName>): Promise<string>
     async sendTransaction(params: SendTransactionParams): Promise<string> {
+        await this.requireActiveSession()
         const data =
             'abi' in params
                 ? encodeFunctionData(params as EncodeFunctionDataParameters)
@@ -186,6 +191,7 @@ export class WalletClient {
         feeCeiling?: bigint
         nonce?: bigint
     }): Promise<string> {
+        await this.requireActiveSession()
         const request: CallContractRequest = {
             network: this.parseNetwork(params.network),
             walletId: this.walletId,
@@ -203,6 +209,7 @@ export class WalletClient {
     }
 
     async listAccess(): Promise<AccessGrant[]> {
+        await this.requireActiveSession()
         const params: ListAccessRequest = { walletId: this.walletId }
         const response = await this.client.listAccess(params)
 
@@ -216,6 +223,7 @@ export class WalletClient {
     async revokeAccess(params: {
         targetCredentialId: string
     }): Promise<void> {
+        await this.requireActiveSession()
         const request: RevokeAccessRequest = {
             targetCredentialId: params.targetCredentialId,
             walletId: this.walletId
@@ -224,24 +232,47 @@ export class WalletClient {
         await this.client.revokeAccess(request)
     }
 
+    /**
+     * Creates a new Ethereum wallet for the authenticated user.
+     *
+     * The wallet ID and address are persisted to storage so the session can be
+     * restored when the configured credential signer is also available.
+     */
     private async createWallet(type: WalletType): Promise<void> {
         const params: CreateWalletRequest = { type: type }
         const response = await this.client.createWallet(params)
         this.persistSession(response.wallet.id, response.wallet.address)
     }
 
+    /**
+     * Loads an existing wallet by its server-side ID.
+     *
+     * The wallet ID and address are persisted to storage.
+     */
     private async useWallet(walletId: string): Promise<void> {
         const params: UseWalletRequest = { walletId }
         const response = await this.client.useWallet(params)
         this.persistSession(response.wallet.id, response.wallet.address)
     }
 
+    /** Saves wallet metadata. The non-extractable credential key is owned by the signer. */
     private persistSession(walletId: string, walletAddress: string): void {
         this.walletId      = walletId
         this.walletAddress = walletAddress as Address
         this.storage.set(Constants.walletIdStorageKey,      walletId)
         this.storage.set(Constants.walletAddressStorageKey, walletAddress)
-        this.storage.set(Constants.signerStorageKey,        ByteUtils.bytesToHex(this.sessionPrivateKey))
+        this.storage.delete(Constants.signerStorageKey)
+    }
+
+    private async requireActiveSession(): Promise<void> {
+        if (!this.walletId) {
+            throw new Error('No active wallet session')
+        }
+
+        if (this.credentialSigner.hasCredential && !(await this.credentialSigner.hasCredential())) {
+            await this.clearSession()
+            throw new Error('No active wallet session')
+        }
     }
 
     private parseNetwork(network: Network): string {

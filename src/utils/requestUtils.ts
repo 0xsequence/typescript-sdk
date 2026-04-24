@@ -1,3 +1,5 @@
+import type {CredentialKeyType} from "../credentialSigner.js";
+
 export class RequestUtils {
     static buildWalletRequestPreimage(
         endpoint: string,
@@ -8,12 +10,13 @@ export class RequestUtils {
     }
 
     static buildAuthorizationHeader(
+        keyType: CredentialKeyType,
         scope: string,
         cred: string,
         nonce: string,
         sig: string,
     ): string {
-        return `ethereum-secp256k1 scope="${scope}",cred="${cred}",nonce=${nonce},sig="${sig}"`;
+        return `${keyType} scope="${scope}",cred="${cred}",nonce=${nonce},sig="${sig}"`;
     }
 
     static async hashEmailAuthAnswer(challenge: string, code: string): Promise<string> {

@@ -3,9 +3,23 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "build": "tsc",
-    "signIn": "tsx demo/signInFlow.ts",
+    "clean": "rm -rf dist",
+    "build": "pnpm clean && tsc && tsc -p tsconfig.esm.json && node scripts/write-esm-package.cjs",
+    "dev:example": "pnpm --filter react-vite-example dev",
+    "build:example": "pnpm --filter react-vite-example build",
+    "dev:node-example": "pnpm --filter node-example dev",
+    "build:node-example": "pnpm --filter node-example build",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -17,6 +31,11 @@
     "dotenv": "^17.4.2",
     "tsx": "^4.21.0",
     "typescript": "^5.5.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   },
   "private": true
 }

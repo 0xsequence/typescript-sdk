@@ -23,6 +23,7 @@
   - [Network](#network)
   - [OmsEnvironment](#omsenvironment)
   - [StorageManager](#storagemanager)
+  - [CredentialSigner](#credentialsigner)
   - [AccessGrant](#accessgrant)
   - [SendNativeTransactionParams](#sendnativetransactionparams)
   - [SendDataTransactionParams](#senddatatransactionparams)
@@ -52,6 +53,7 @@ new OMSClient(params: {
   projectAccessKey: string
   environment?: OmsEnvironment
   storage?: StorageManager
+  credentialSigner?: CredentialSigner
 })
 ```
 
@@ -61,7 +63,8 @@ new OMSClient(params: {
 |---|---|---|---|
 | `projectAccessKey` | `string` | Yes | Your OMS project access key. |
 | `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the production OMS endpoints. |
-| `storage` | `StorageManager` | No | Session storage backend. Defaults to `LocalStorageManager` (`window.localStorage`). |
+| `storage` | `StorageManager` | No | Storage backend for wallet metadata. Defaults to `LocalStorageManager` (`window.localStorage`). |
+| `credentialSigner` | `CredentialSigner` | No | Request credential signer. Defaults to a non-extractable WebCrypto P-256 signer (`webcrypto-secp256r1`) where WebCrypto is available. |
 
 **Properties**
 
@@ -79,10 +82,10 @@ Accessed via `oms.wallet`. Manages the full wallet lifecycle: authentication, se
 ### walletAddress
 
 ```typescript
-walletAddress: Address
+walletAddress: Address | undefined
 ```
 
-The on-chain address of the active wallet (`Address` is the viem/abitype hex address type). Defaults to `'0x00'` until `completeEmailAuth` resolves successfully. Persisted across sessions.
+The on-chain address of the active wallet (`Address` is the viem/abitype hex address type). Undefined until `completeEmailAuth` resolves successfully or a persisted session is restored.
 
 ---
 
@@ -125,7 +128,7 @@ completeEmailAuth(params: {
 
 Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
 
-Automatically selects an existing wallet of `walletType` from the user's account, or creates a new one if none exists. The wallet ID, address, and session key are persisted to storage.
+This method verifies the code, then automatically selects an existing wallet matching `walletType` from the user's account, or creates a new one if none exists. Wallet metadata is persisted to storage. The default browser session credential uses a non-extractable WebCrypto P-256 private key and does not persist raw private key bytes.
 
 **Parameters**
 
@@ -154,17 +157,18 @@ try {
 ### signOut
 
 ```typescript
-signOut(): void
+signOut(): Promise<void>
 ```
 
-Clears the wallet session from storage synchronously. After this, `walletAddress` resets to `'0x00'` and the user must authenticate again.
+Clears the wallet session from storage and clears the active credential signer where supported. After calling this, `walletAddress` is no longer available and the user must authenticate again via [`startEmailAuth`](#startemailauth).
 
-**Returns** `void`
+**Returns** `Promise<void>`
 
 **Example**
 
 ```typescript
-oms.wallet.signOut()
+await oms.wallet.signOut()
+// Navigate to sign-in screen
 ```
 
 ---
@@ -178,7 +182,7 @@ signMessage(params: {
 }): Promise<string>
 ```
 
-Signs an arbitrary message using the wallet's session key.
+Signs an arbitrary message using the active wallet session credential.
 
 **Parameters**
 
@@ -395,18 +399,21 @@ Fetches token balances for a wallet on a given chain and contract (first page, u
 |---|---|---|
 | `chainId` | `string` | Numeric chain ID as a string, e.g. `"137"` for Polygon, `"1"` for Ethereum mainnet. |
 | `contractAddress` | `string` | The token contract address to query. |
-| `walletAddress` | `string` | The wallet whose balances to fetch. Pass `oms.wallet.walletAddress` for the active wallet. |
-| `includeMetadata` | `boolean` | When `true`, includes token metadata (name, symbol, decimals) in the response. |
+| `walletAddress` | `string` | The wallet address whose balances to fetch. Use `oms.wallet.walletAddress` after checking it is defined. |
+| `includeMetadata` | `boolean` | When `true`, the response includes token metadata such as name, symbol, and decimals. |
 
 **Returns** `Promise<TokenBalancesResult>` — see [TokenBalancesResult](#tokenbalancesresult).
 
 **Example**
 
 ```typescript
+const { walletAddress } = oms.wallet
+if (!walletAddress) throw new Error('No active wallet session')
+
 const result = await oms.indexer.getTokenBalances({
   chainId: '137',
   contractAddress: '0xTokenContract',
-  walletAddress: oms.wallet.walletAddress,
+  walletAddress,
   includeMetadata: true,
 })
 
@@ -463,7 +470,24 @@ interface StorageManager {
 }
 ```
 
-Interface for session key/value persistence. `LocalStorageManager` is the default browser implementation backed by `window.localStorage`.
+Interface for wallet metadata storage. Implement this to use a custom backend. `LocalStorageManager` is the default browser implementation for metadata only; raw default session private keys are not stored here.
+
+---
+
+### CredentialSigner
+
+```typescript
+interface CredentialSigner {
+  readonly keyType: 'ethereum-secp256k1' | 'webcrypto-secp256r1'
+  credentialId(): Promise<string>
+  nextNonce(): Promise<string>
+  sign(preimage: string): Promise<string>
+  hasCredential?(): Promise<boolean>
+  clear?(): Promise<void>
+}
+```
+
+Interface for request credential signing. The default implementation is `WebCryptoP256CredentialSigner`, which uses `webcrypto-secp256r1` and a non-extractable WebCrypto private key.
 
 ---
 
