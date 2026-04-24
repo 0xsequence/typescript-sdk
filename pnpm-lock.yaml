@@ -27,9 +27,6 @@ importers:
 
   examples/node:
     dependencies:
-      dotenv:
-        specifier: ^17.4.2
-        version: 17.4.2
       typescript-sdk:
         specifier: workspace:*
         version: link:../..

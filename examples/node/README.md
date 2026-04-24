@@ -14,6 +14,8 @@ pnpm build
 pnpm node-example
 ```
 
+The example prompts for an email address, sends an OTP code, then prompts for the code.
+
 You can also run the example directly:
 
 ```bash
