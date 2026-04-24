@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "signIn": "tsx tests/signInFlow.ts",
+    "signIn": "tsx demo/signInFlow.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
