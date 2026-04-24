@@ -1,83 +1,93 @@
-# OmsWallet SDK — API Reference
+# OMS SDK — API Reference
 
 ## Table of Contents
 
-- [OmsWallet](#omswallet)
-    - [Constructor](#constructor)
-    - [signInWithEmail](#signinwithemail)
-    - [completeEmailSignIn](#completeemailsignin)
-    - [signMessage](#signmessage)
-    - [sendTransaction](#sendtransaction)
-    - [callContract](#callcontract)
-    - [listAccess](#listaccess)
-    - [revokeAccess](#revokeaccess)
-    - [clearSession](#clearsession)
+- [OMSClient](#omsclient)
+  - [Constructor](#constructor)
+- [WalletClient](#walletclient)
+  - [walletAddress](#walletaddress)
+  - [startEmailAuth](#startemailauth)
+  - [completeEmailAuth](#completeemailauth)
+  - [signOut](#signout)
+  - [signMessage](#signmessage)
+  - [sendTransaction](#sendtransaction)
+  - [callContract](#callcontract)
+  - [listAccess](#listaccess)
+  - [revokeAccess](#revokeaccess)
+- [IndexerClient](#indexerclient)
+  - [getTokenBalances](#gettokenbalances)
 - [Types](#types)
-    - [OmsEnvironment](#omsenvironment)
-    - [StorageManager](#storagemanager)
-    - [CallContractRequest](#callcontractrequest)
-    - [AbiArg](#abiarg)
-    - [CredentialInfo](#credentialinfo)
+  - [OmsEnvironment](#omsenvironment)
+  - [StorageManager](#storagemanager)
+  - [AccessGrant](#accessgrant)
+  - [TokenBalancesResult](#tokenbalancesresult)
+  - [TokenBalancesPage](#tokenbalancespage)
+  - [TokenBalance](#tokenbalance)
+  - [AbiArg](#abiarg)
+  - [WalletType](#wallettype)
 
 ---
 
-## OmsWallet
+## OMSClient
 
-The top-level SDK class. Instantiate once and reuse across your application.
+The top-level entry point for the SDK. Instantiate once and reuse across your application.
 
 ```typescript
-import { OMSClient } from './omsWallet'
+import { OMSClient } from './OMSClient'
 
 const oms = new OMSClient({ projectAccessKey: 'your-key' })
 ```
 
----
-
 ### Constructor
 
 ```typescript
-new OmsWallet(params: {
+new OMSClient(params: {
   projectAccessKey: string
   environment?: OmsEnvironment
   storage?: StorageManager
 })
 ```
 
-Creates a new `OmsWallet` instance. If a persisted session exists in storage the wallet address and session key are restored automatically — no sign-in required.
-
 **Parameters**
 
 | Name | Type | Required | Description |
 |---|---|---|---|
 | `projectAccessKey` | `string` | Yes | Your OMS project access key. |
-| `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the production OMS WaaS endpoint. |
-| `storage` | `StorageManager` | No | Storage backend for session persistence. Defaults to `LocalStorageManager` (browser `localStorage`). |
+| `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the production OMS endpoints. |
+| `storage` | `StorageManager` | No | Storage backend for session persistence. Defaults to `LocalStorageManager` (`window.localStorage`). |
 
-**Example**
+**Properties**
 
-```typescript
-// Minimal
-const sdk = new OmsWallet({ projectAccessKey: 'your-key' })
-
-// With custom environment and storage
-const sdk = new OmsWallet({
-  projectAccessKey: 'your-key',
-  environment: { apiRpcUrl: 'https://staging.waas.example.com' },
-  storage: new MySecureStorage(),
-})
-```
+| Name | Type | Description |
+|---|---|---|
+| `wallet` | `WalletClient` | Handles authentication, signing, and transactions. |
+| `indexer` | `IndexerClient` | Queries on-chain state and token balances. |
 
 ---
 
-### signInWithEmail
+## WalletClient
+
+Accessed via `oms.wallet`. Manages the full wallet lifecycle: authentication, session persistence, signing, and transaction submission.
+
+### walletAddress
 
 ```typescript
-signInWithEmail(email: string): Promise<void>
+walletAddress: string
 ```
 
-Initiates email-based OTP authentication. Sends a one-time passcode to the provided email address.
+The on-chain address of the active wallet. Empty string until `completeEmailAuth` resolves successfully. Persisted across sessions.
 
-After this resolves, display an OTP input in your UI and pass the user's code to [`completeEmailSignIn`](#completeemailsignin).
+---
+
+### startEmailAuth
+
+```typescript
+startEmailAuth(params: { email: string }): Promise<void>
+```
+
+Initiates email-based OTP authentication by sending a one-time code to the provided address.
+
+After this resolves, show your OTP input UI and pass the user's code to [`completeEmailAuth`](#completeemailauth).
 
 **Parameters**
 
@@ -87,46 +97,69 @@ After this resolves, display an OTP input in your UI and pass the user's code to
 
 **Returns** `Promise<void>`
 
-**Throws** if the request fails (e.g. network error or invalid email).
+**Throws** if the network request fails or the email is invalid.
 
 **Example**
 
 ```typescript
-await sdk.signInWithEmail('user@example.com')
-// Show OTP input UI
+await oms.wallet.startEmailAuth({ email: 'user@example.com' })
+// Show OTP input
 ```
 
 ---
 
-### completeEmailSignIn
+### completeEmailAuth
 
 ```typescript
-completeEmailSignIn(code: string): Promise<void>
+completeEmailAuth(params: {
+  code: string
+  walletType?: WalletType
+}): Promise<void>
 ```
 
-Completes the email OTP authentication flow. Must be called after [`signInWithEmail`](#signinwithemail).
+Completes the OTP flow and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
 
-Verifies the code, establishes a session, and persists the session to storage. After this resolves, the wallet is ready for use.
+This method verifies the code, then automatically selects an existing wallet matching `walletType` from the user's account, or creates a new one if none exists. The wallet ID, address, and session signing key are persisted to storage.
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `code` | `string` | The one-time passcode entered by the user. |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `code` | `string` | Yes | The one-time passcode entered by the user. |
+| `walletType` | `WalletType` | No | The wallet type to load or create. Defaults to `WalletType.Ethereum`. |
 
 **Returns** `Promise<void>`
 
-**Throws** if the code is incorrect, expired, or the request fails.
+**Throws** if the code is incorrect, expired, or the network request fails.
 
 **Example**
 
 ```typescript
 try {
-  await sdk.completeEmailSignIn(userEnteredCode)
-  // Session established — proceed to wallet operations
+  await oms.wallet.completeEmailAuth({ code: '123456' })
+  console.log('Wallet ready:', oms.wallet.walletAddress)
 } catch (err) {
-  // Handle incorrect or expired code
+  // Handle wrong or expired code
 }
+```
+
+---
+
+### signOut
+
+```typescript
+signOut(): void
+```
+
+Clears the wallet session from storage. After calling this, `walletAddress` is no longer available and the user must authenticate again via [`startEmailAuth`](#startemailauth).
+
+**Returns** `void` (synchronous)
+
+**Example**
+
+```typescript
+oms.wallet.signOut()
+// Navigate to sign-in screen
 ```
 
 ---
@@ -134,7 +167,10 @@ try {
 ### signMessage
 
 ```typescript
-signMessage(network: string, message: string): Promise<string>
+signMessage(params: {
+  network: string
+  message: string
+}): Promise<string>
 ```
 
 Signs an arbitrary message using the wallet's session key.
@@ -144,17 +180,19 @@ Signs an arbitrary message using the wallet's session key.
 | Name | Type | Description |
 |---|---|---|
 | `network` | `string` | The network identifier for the signing context, e.g. `"polygon"`, `"mainnet"`. |
-| `message` | `string` | The message to sign. Typically a hex string or plain text. |
+| `message` | `string` | The message to sign. Typically a hex string or UTF-8 text. |
 
 **Returns** `Promise<string>` — a hex-encoded signature.
 
-**Throws** if the wallet session is not established or the request fails.
+**Throws** if no session is active or the request fails.
 
 **Example**
 
 ```typescript
-const signature = await sdk.signMessage('polygon', '0xdeadbeef')
-console.log('Signature:', signature)
+const signature = await oms.wallet.signMessage({
+  network: 'polygon',
+  message: '0xdeadbeef',
+})
 ```
 
 ---
@@ -162,33 +200,35 @@ console.log('Signature:', signature)
 ### sendTransaction
 
 ```typescript
-sendTransaction(network: string, to: string, value: string): Promise<string>
+sendTransaction(params: {
+  network: string
+  to: string
+  value: string
+}): Promise<string>
 ```
 
-Sends a native token transfer to the specified address. The transaction is submitted via the OMS relayer, so the user does not need to hold gas tokens.
+Sends a native token transfer via the OMS relayer. The user does not need to hold gas tokens.
 
 **Parameters**
 
 | Name | Type | Description |
 |---|---|---|
-| `network` | `string` | The network to submit the transaction on, e.g. `"polygon"`, `"mainnet"`. |
-| `to` | `string` | The recipient wallet address. |
-| `value` | `string` | The amount to send as a string in the network's smallest denomination (e.g. wei for Ethereum/Polygon). |
+| `network` | `string` | Network to submit on, e.g. `"polygon"`, `"mainnet"`. |
+| `to` | `string` | Recipient wallet address. |
+| `value` | `string` | Amount to send as a string in the network's smallest denomination (e.g. wei). |
 
 **Returns** `Promise<string>` — the transaction hash.
 
-**Throws** if the wallet session is not established, the transaction is rejected, or the request fails.
+**Throws** if no session is active, the transaction is rejected, or the request fails.
 
 **Example**
 
 ```typescript
-// Send 1 MATIC (1e18 wei)
-const txHash = await sdk.sendTransaction(
-  'polygon',
-  '0xRecipientAddress',
-  '1000000000000000000'
-)
-console.log('Transaction hash:', txHash)
+const txHash = await oms.wallet.sendTransaction({
+  network: 'polygon',
+  to: '0xRecipient',
+  value: '1000000000000000000', // 1 MATIC
+})
 ```
 
 ---
@@ -196,36 +236,46 @@ console.log('Transaction hash:', txHash)
 ### callContract
 
 ```typescript
-callContract(params: CallContractRequest): Promise<string>
+callContract(params: {
+  network: string
+  contractAddress: string
+  method: string
+  args?: AbiArg[]
+  value?: string
+  feeCeiling?: string
+  nonce?: string
+}): Promise<string>
 ```
 
-Calls a smart contract function that writes state (transfers, mints, approvals, etc.). For read-only queries, call the contract directly without this method.
+Calls a state-changing smart contract function. The transaction is submitted via the OMS relayer. For read-only queries, call the contract directly.
 
 **Parameters**
 
-| Name | Type | Description |
-|---|---|---|
-| `params` | `CallContractRequest` | Full request object. See [`CallContractRequest`](#callcontractrequest). |
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `network` | `string` | Yes | Network identifier, e.g. `"polygon"`. |
+| `contractAddress` | `string` | Yes | Address of the target contract. |
+| `method` | `string` | Yes | ABI function signature, e.g. `"transfer(address,uint256)"`. |
+| `args` | `AbiArg[]` | No | Ordered list of ABI-encoded arguments. See [`AbiArg`](#abiarg). |
+| `value` | `string` | No | Native token value to attach, in the network's smallest denomination. |
+| `feeCeiling` | `string` | No | Maximum fee the caller is willing to pay. |
+| `nonce` | `string` | No | Override the transaction nonce. |
 
 **Returns** `Promise<string>` — the transaction hash.
 
-**Throws** if the wallet session is not established, the contract call reverts, or the request fails.
+**Throws** if no session is active, the contract call reverts, or the request fails.
 
 **Example**
 
 ```typescript
-import { TransactionMode } from './generated/waas.gen'
-
-const txHash = await sdk.callContract({
+const txHash = await oms.wallet.callContract({
   network: 'polygon',
-  walletId: sdk.wallet.walletId,
-  contractAddress: '0xTokenAddress',
+  contractAddress: '0xTokenContract',
   method: 'transfer(address,uint256)',
   args: [
     { type: 'address', value: '0xRecipient' },
     { type: 'uint256', value: '1000000000000000000' },
   ],
-  mode: TransactionMode.Relayer,
 })
 ```
 
@@ -234,21 +284,21 @@ const txHash = await sdk.callContract({
 ### listAccess
 
 ```typescript
-listAccess(): Promise<CredentialInfo[]>
+listAccess(): Promise<AccessGrant[]>
 ```
 
-Returns all credentials that currently have access to this wallet. Use this to display active sessions or integrations in an account management UI.
+Returns all credentials that currently have access to this wallet. Use this to display active sessions in an account management UI.
 
-**Returns** `Promise<CredentialInfo[]>` — an array of credential descriptors. See [`CredentialInfo`](#credentialinfo).
+**Returns** `Promise<AccessGrant[]>` — see [`AccessGrant`](#accessgrant).
 
-**Throws** if the wallet session is not established or the request fails.
+**Throws** if no session is active or the request fails.
 
 **Example**
 
 ```typescript
-const credentials = await sdk.listAccess()
-for (const cred of credentials) {
-  console.log(cred.credentialId, 'expires:', cred.expiresAt, 'caller:', cred.isCaller)
+const grants = await oms.wallet.listAccess()
+for (const grant of grants) {
+  console.log(grant.credentialId, 'expires:', grant.expiresAt)
 }
 ```
 
@@ -257,12 +307,12 @@ for (const cred of credentials) {
 ### revokeAccess
 
 ```typescript
-revokeAccess(targetCredentialId: string): Promise<void>
+revokeAccess(params: { targetCredentialId: string }): Promise<void>
 ```
 
 Revokes access for a specific credential, permanently preventing it from interacting with this wallet. This action cannot be undone.
 
-Call [`listAccess`](#listaccess) first to retrieve the credential IDs available for revocation.
+Call [`listAccess`](#listaccess) first to retrieve available credential IDs.
 
 **Parameters**
 
@@ -272,35 +322,64 @@ Call [`listAccess`](#listaccess) first to retrieve the credential IDs available 
 
 **Returns** `Promise<void>`
 
-**Throws** if the credential ID is not found, the wallet session is not established, or the request fails.
+**Throws** if the credential is not found, no session is active, or the request fails.
 
 **Example**
 
 ```typescript
-const credentials = await sdk.listAccess()
-const staleCredential = credentials.find(c => !c.isCaller)
-if (staleCredential) {
-  await sdk.revokeAccess(staleCredential.credentialId)
+const grants = await oms.wallet.listAccess()
+const other = grants.find(g => !g.isCaller)
+if (other) {
+  await oms.wallet.revokeAccess({ targetCredentialId: other.credentialId })
 }
 ```
 
 ---
 
-### clearSession
+## IndexerClient
+
+Accessed via `oms.indexer`. Queries on-chain token balances through the OMS Indexer API.
+
+### getTokenBalances
 
 ```typescript
-clearSession(): Promise<void>
+getTokenBalances(params: {
+  chainId: string
+  contractAddress: string
+  walletAddress: string
+  includeMetadata: boolean
+}): Promise<TokenBalancesResult>
 ```
 
-Clears the wallet session from storage. After calling this, the user will need to sign in again via [`signInWithEmail`](#signinwithemail).
+Fetches token balances for a wallet on a given chain and contract. Returns the first page of results (up to 40 entries).
 
-**Returns** `Promise<void>`
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `chainId` | `string` | The numeric chain ID as a string, e.g. `"137"` for Polygon, `"1"` for Ethereum mainnet. |
+| `contractAddress` | `string` | The token contract address to query. |
+| `walletAddress` | `string` | The wallet address whose balances to fetch. Use `oms.wallet.walletAddress` for the active wallet. |
+| `includeMetadata` | `boolean` | When `true`, the response includes token metadata such as name, symbol, and decimals. |
+
+**Returns** `Promise<TokenBalancesResult>` — see [`TokenBalancesResult`](#tokenbalancesresult).
+
+**Throws** if the network request fails.
 
 **Example**
 
 ```typescript
-await sdk.clearSession()
-// Redirect to sign-in screen
+const result = await oms.indexer.getTokenBalances({
+  chainId: '137',
+  contractAddress: '0xTokenContract',
+  walletAddress: oms.wallet.walletAddress,
+  includeMetadata: true,
+})
+
+console.log(`Found ${result.balances.length} balances`)
+for (const b of result.balances) {
+  console.log(b.contractAddress, b.balance)
+}
 ```
 
 ---
@@ -311,15 +390,17 @@ await sdk.clearSession()
 
 ```typescript
 interface OmsEnvironment {
-  apiRpcUrl: string
+  walletApiUrl: string
+  indexerUrlTemplate: string
 }
 ```
 
 | Field | Type | Description |
 |---|---|---|
-| `apiRpcUrl` | `string` | Base URL of the OMS WaaS API endpoint. |
+| `walletApiUrl` | `string` | Base URL of the OMS Wallet API. |
+| `indexerUrlTemplate` | `string` | URL template for the Indexer API. The `{value}` placeholder is replaced with the chain ID at request time, e.g. `"https://indexer.example.com/{value}"`. |
 
-The default production environment is exported as `defaultOmsEnvironment`.
+The production default is exported as `defaultOmsEnvironment`.
 
 ---
 
@@ -333,39 +414,91 @@ interface StorageManager {
 }
 ```
 
-Interface for session persistence. Implement this to use a custom storage backend (e.g. `AsyncStorage` for React Native, `node-keytar` for Electron, or an in-memory store for testing).
-
-`LocalStorageManager` is the default browser implementation backed by `window.localStorage`.
+Interface for session key/value storage. Implement this to use a custom backend. `LocalStorageManager` is the default browser implementation.
 
 ---
 
-### CallContractRequest
+### AccessGrant
 
 ```typescript
-interface CallContractRequest {
-  network: string
-  walletId: string
-  contractAddress: string
-  method: string
-  args?: AbiArg[]
-  value?: string
-  mode: TransactionMode
-  feeCeiling?: string
-  nonce?: string
+interface AccessGrant {
+  credentialId: string
+  expiresAt: string
+  isCaller: boolean
 }
 ```
 
-| Field | Type | Required | Description |
-|---|---|---|---|
-| `network` | `string` | Yes | Network identifier, e.g. `"polygon"`, `"mainnet"`. |
-| `walletId` | `string` | Yes | The wallet ID from `sdk.wallet.walletId`. |
-| `contractAddress` | `string` | Yes | Address of the contract to call. |
-| `method` | `string` | Yes | ABI function signature, e.g. `"transfer(address,uint256)"`. |
-| `args` | `AbiArg[]` | No | Ordered list of ABI-encoded arguments. See [`AbiArg`](#abiarg). |
-| `value` | `string` | No | Native token value to attach, in the network's smallest denomination. |
-| `mode` | `TransactionMode` | Yes | `TransactionMode.Relayer` (gas-free) or `TransactionMode.Native`. |
-| `feeCeiling` | `string` | No | Maximum fee the user is willing to pay. |
-| `nonce` | `string` | No | Override the transaction nonce. |
+Represents a credential that has access to the wallet.
+
+| Field | Type | Description |
+|---|---|---|
+| `credentialId` | `string` | Unique identifier. Pass to `revokeAccess` to remove this credential. |
+| `expiresAt` | `string` | ISO 8601 timestamp for when this credential expires. |
+| `isCaller` | `boolean` | `true` if this credential belongs to the current active session. |
+
+---
+
+### TokenBalancesResult
+
+```typescript
+interface TokenBalancesResult {
+  status: number
+  page?: TokenBalancesPage
+  balances: TokenBalance[]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | `number` | HTTP status code of the indexer response. |
+| `page` | `TokenBalancesPage` | Pagination metadata, if present. |
+| `balances` | `TokenBalance[]` | Array of token balance entries. |
+
+---
+
+### TokenBalancesPage
+
+```typescript
+interface TokenBalancesPage {
+  page: number
+  pageSize: number
+  more: boolean
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `page` | `number` | Current page index (zero-based). |
+| `pageSize` | `number` | Number of entries per page. |
+| `more` | `boolean` | `true` if there are additional pages of results. |
+
+---
+
+### TokenBalance
+
+```typescript
+interface TokenBalance {
+  contractType?: string
+  contractAddress?: string
+  accountAddress?: string
+  tokenId?: string
+  balance?: string
+  blockHash?: string
+  blockNumber?: number
+  chainId?: number
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `contractType` | `string` | Token standard, e.g. `"ERC20"`, `"ERC721"`, `"ERC1155"`. |
+| `contractAddress` | `string` | Address of the token contract. |
+| `accountAddress` | `string` | Wallet address this balance belongs to. |
+| `tokenId` | `string` | For NFTs (ERC-721/ERC-1155), the token ID. |
+| `balance` | `string` | Token balance as a string in the token's smallest denomination. |
+| `blockHash` | `string` | Hash of the block at which this balance was recorded. |
+| `blockNumber` | `number` | Block number at which this balance was recorded. |
+| `chainId` | `number` | Numeric chain ID this balance is on. |
 
 ---
 
@@ -378,25 +511,21 @@ interface AbiArg {
 }
 ```
 
+A single ABI-encoded argument for a contract call.
+
 | Field | Type | Description |
 |---|---|---|
-| `type` | `string` | Solidity type string, e.g. `"address"`, `"uint256"`, `"bytes32"`. |
-| `value` | `any` | The argument value. Use a string for large integers. |
+| `type` | `string` | Solidity type string, e.g. `"address"`, `"uint256"`, `"bytes32"`, `"bool"`. |
+| `value` | `any` | The argument value. Use a string for large integers to avoid precision loss. |
 
 ---
 
-### CredentialInfo
+### WalletType
 
 ```typescript
-interface CredentialInfo {
-  credentialId: string
-  expiresAt: string
-  isCaller: boolean
+enum WalletType {
+  Ethereum = 'ethereum'
 }
 ```
 
-| Field | Type | Description |
-|---|---|---|
-| `credentialId` | `string` | Unique identifier for this credential. Pass to `revokeAccess` to remove it. |
-| `expiresAt` | `string` | ISO 8601 timestamp indicating when this credential expires. |
-| `isCaller` | `boolean` | `true` if this credential belongs to the current session. |
+Identifies the wallet type to create or load. Pass as the optional `walletType` parameter to [`completeEmailAuth`](#completeemailauth).
