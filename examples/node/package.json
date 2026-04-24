@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "signIn": "tsx signInFlow.ts"
+    "dev": "tsx signInFlow.ts",
+    "build": "tsc --noEmit"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
@@ -12,6 +13,7 @@
     "viem": "^2.48.4"
   },
   "devDependencies": {
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }

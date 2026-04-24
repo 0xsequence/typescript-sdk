@@ -13,3 +13,10 @@ pnpm install
 pnpm build
 pnpm node-example
 ```
+
+You can also run the example directly:
+
+```bash
+pnpm dev:node-example
+pnpm build:node-example
+```

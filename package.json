@@ -18,7 +18,9 @@
     "build": "pnpm clean && tsc && tsc -p tsconfig.esm.json && node scripts/write-esm-package.cjs",
     "dev:example": "pnpm --filter react-vite-example dev",
     "build:example": "pnpm --filter react-vite-example build",
-    "node-example": "pnpm --filter node-example signIn",
+    "dev:node-example": "pnpm --filter node-example dev",
+    "build:node-example": "pnpm --filter node-example build",
+    "node-example": "pnpm dev:node-example",
     "test": "vitest run",
     "test:watch": "vitest"
   },

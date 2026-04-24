@@ -1,7 +1,9 @@
-import "dotenv/config";
 import readline from "node:readline/promises";
+import {config} from "dotenv";
 import {MemoryStorageManager, OMSClient} from "typescript-sdk";
 import {polygonAmoy} from "viem/chains";
+
+config({path: new URL("../../.env", import.meta.url).pathname});
 
 async function main() {
     const projectAccessKey = required("OMS_PROJECT_ACCESS_KEY");
