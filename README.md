@@ -50,9 +50,9 @@ OMS uses email-based OTP. The two-step flow is:
 1. **`startEmailAuth({ email })`** — sends a one-time code to the user's inbox.
 2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists.
 
-The session (wallet ID, address, and signing key) is persisted to storage after step 2, so on subsequent loads no sign-in is required.
+The session stores wallet metadata in the configured storage. Browser signing defaults to a non-extractable WebCrypto P-256 credential (`webcrypto-secp256r1`), so the private session key is not written to `localStorage`.
 
-To end the session, call `oms.wallet.signOut()`.
+To end the session, call `await oms.wallet.signOut()`.
 
 ## Networks
 
@@ -133,9 +133,9 @@ const oms = new OMSClient({
 })
 ```
 
-### Custom Storage
+### Custom Storage and Signing
 
-The default is `localStorage` (browser). Provide a custom `StorageManager` for Node.js, React Native, or testing:
+The default storage backend is `localStorage` for wallet metadata only. The default browser signer stores its non-extractable key reference separately through WebCrypto-compatible browser storage. Provide a custom `StorageManager` for Node.js, React Native, or testing:
 
 ```typescript
 class InMemoryStorage implements StorageManager {
@@ -176,10 +176,13 @@ const txHash = await oms.wallet.callContract({
 ### Query Token Balances
 
 ```typescript
+const { walletAddress } = oms.wallet
+if (!walletAddress) throw new Error('No active wallet session')
+
 const result = await oms.indexer.getTokenBalances({
   chainId: '137',
   contractAddress: '0xTokenContract',
-  walletAddress: oms.wallet.walletAddress,
+  walletAddress,
   includeMetadata: true,
 })
 
@@ -198,7 +201,8 @@ await oms.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
 ### Sign Out
 
 ```typescript
-oms.wallet.signOut()
+await oms.wallet.signOut()
+// Redirect to sign-in screen
 ```
 
 ## API Reference
