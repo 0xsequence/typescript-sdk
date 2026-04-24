@@ -1,6 +1,6 @@
 # OMS SDK
 
-A TypeScript SDK for the OMS (Open Mobile Stack) platform. Provides email-based wallet authentication, on-chain transaction submission, message signing, and token balance queries — with automatic session persistence.
+A TypeScript SDK for the OMS (Open Money Stack) platform. Provides email-based wallet authentication, on-chain transaction submission, message signing, and token balance queries — with automatic session persistence.
 
 ## Installation
 
