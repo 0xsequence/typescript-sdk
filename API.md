@@ -11,15 +11,22 @@
   - [signOut](#signout)
   - [signMessage](#signmessage)
   - [sendTransaction](#sendtransaction)
+    - [Native token transfer](#native-token-transfer)
+    - [Raw data transaction](#raw-data-transaction)
+    - [ABI-encoded contract call](#abi-encoded-contract-call)
   - [callContract](#callcontract)
   - [listAccess](#listaccess)
   - [revokeAccess](#revokeaccess)
 - [IndexerClient](#indexerclient)
   - [getTokenBalances](#gettokenbalances)
 - [Types](#types)
+  - [Network](#network)
   - [OmsEnvironment](#omsenvironment)
   - [StorageManager](#storagemanager)
   - [AccessGrant](#accessgrant)
+  - [SendNativeTransactionParams](#sendnativetransactionparams)
+  - [SendDataTransactionParams](#senddatatransactionparams)
+  - [SendContractTransactionParams](#sendcontracttransactionparams)
   - [TokenBalancesResult](#tokenbalancesresult)
   - [TokenBalancesPage](#tokenbalancespage)
   - [TokenBalance](#tokenbalance)
@@ -30,7 +37,7 @@
 
 ## OMSClient
 
-The top-level entry point for the SDK. Instantiate once and reuse across your application.
+The top-level entry point for the SDK.
 
 ```typescript
 import { OMSClient } from './OMSClient'
@@ -54,7 +61,7 @@ new OMSClient(params: {
 |---|---|---|---|
 | `projectAccessKey` | `string` | Yes | Your OMS project access key. |
 | `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the production OMS endpoints. |
-| `storage` | `StorageManager` | No | Storage backend for session persistence. Defaults to `LocalStorageManager` (`window.localStorage`). |
+| `storage` | `StorageManager` | No | Session storage backend. Defaults to `LocalStorageManager` (`window.localStorage`). |
 
 **Properties**
 
@@ -72,10 +79,10 @@ Accessed via `oms.wallet`. Manages the full wallet lifecycle: authentication, se
 ### walletAddress
 
 ```typescript
-walletAddress: string
+walletAddress: Address
 ```
 
-The on-chain address of the active wallet. Empty string until `completeEmailAuth` resolves successfully. Persisted across sessions.
+The on-chain address of the active wallet (`Address` is the viem/abitype hex address type). Defaults to `'0x00'` until `completeEmailAuth` resolves successfully. Persisted across sessions.
 
 ---
 
@@ -85,9 +92,9 @@ The on-chain address of the active wallet. Empty string until `completeEmailAuth
 startEmailAuth(params: { email: string }): Promise<void>
 ```
 
-Initiates email-based OTP authentication by sending a one-time code to the provided address.
+Sends a one-time passcode to the provided email address to begin authentication.
 
-After this resolves, show your OTP input UI and pass the user's code to [`completeEmailAuth`](#completeemailauth).
+After this resolves, display an OTP input and pass the code to [`completeEmailAuth`](#completeemailauth).
 
 **Parameters**
 
@@ -103,7 +110,6 @@ After this resolves, show your OTP input UI and pass the user's code to [`comple
 
 ```typescript
 await oms.wallet.startEmailAuth({ email: 'user@example.com' })
-// Show OTP input
 ```
 
 ---
@@ -117,9 +123,9 @@ completeEmailAuth(params: {
 }): Promise<void>
 ```
 
-Completes the OTP flow and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
+Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
 
-This method verifies the code, then automatically selects an existing wallet matching `walletType` from the user's account, or creates a new one if none exists. The wallet ID, address, and session signing key are persisted to storage.
+Automatically selects an existing wallet of `walletType` from the user's account, or creates a new one if none exists. The wallet ID, address, and session key are persisted to storage.
 
 **Parameters**
 
@@ -151,15 +157,14 @@ try {
 signOut(): void
 ```
 
-Clears the wallet session from storage. After calling this, `walletAddress` is no longer available and the user must authenticate again via [`startEmailAuth`](#startemailauth).
+Clears the wallet session from storage synchronously. After this, `walletAddress` resets to `'0x00'` and the user must authenticate again.
 
-**Returns** `void` (synchronous)
+**Returns** `void`
 
 **Example**
 
 ```typescript
 oms.wallet.signOut()
-// Navigate to sign-in screen
 ```
 
 ---
@@ -168,7 +173,7 @@ oms.wallet.signOut()
 
 ```typescript
 signMessage(params: {
-  network: string
+  network: Network
   message: string
 }): Promise<string>
 ```
@@ -179,57 +184,99 @@ Signs an arbitrary message using the wallet's session key.
 
 | Name | Type | Description |
 |---|---|---|
-| `network` | `string` | The network identifier for the signing context, e.g. `"polygon"`, `"mainnet"`. |
-| `message` | `string` | The message to sign. Typically a hex string or UTF-8 text. |
+| `network` | `Network` | The network for the signing context. Accepts a chain name string, chain ID bigint, or viem `Chain` object. See [Network](#network). |
+| `message` | `string` | The message to sign. |
 
 **Returns** `Promise<string>` — a hex-encoded signature.
-
-**Throws** if no session is active or the request fails.
 
 **Example**
 
 ```typescript
-const signature = await oms.wallet.signMessage({
-  network: 'polygon',
-  message: '0xdeadbeef',
-})
+const sig = await oms.wallet.signMessage({ network: 'polygon', message: '0xdeadbeef' })
+
+// Using a viem Chain object
+import { polygon } from 'viem/chains'
+const sig = await oms.wallet.signMessage({ network: polygon, message: '0xdeadbeef' })
 ```
 
 ---
 
 ### sendTransaction
 
+`sendTransaction` is overloaded with three signatures depending on the type of transaction.
+
+#### Native Token Transfer
+
 ```typescript
-sendTransaction(params: {
-  network: string
-  to: string
-  value: string
-}): Promise<string>
+sendTransaction(params: SendNativeTransactionParams): Promise<string>
 ```
 
-Sends a native token transfer via the OMS relayer. The user does not need to hold gas tokens.
-
-**Parameters**
-
-| Name | Type | Description |
-|---|---|---|
-| `network` | `string` | Network to submit on, e.g. `"polygon"`, `"mainnet"`. |
-| `to` | `string` | Recipient wallet address. |
-| `value` | `string` | Amount to send as a string in the network's smallest denomination (e.g. wei). |
-
-**Returns** `Promise<string>` — the transaction hash.
-
-**Throws** if no session is active, the transaction is rejected, or the request fails.
-
-**Example**
+Sends native tokens (ETH, MATIC, etc.) to an address.
 
 ```typescript
 const txHash = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xRecipient',
-  value: '1000000000000000000', // 1 MATIC
+  value: 1_000_000_000_000_000_000n, // 1 MATIC in wei
 })
 ```
+
+#### Raw Data Transaction
+
+```typescript
+sendTransaction(params: SendDataTransactionParams): Promise<string>
+```
+
+Sends a transaction with arbitrary calldata as a hex string. Use this when you have pre-encoded calldata.
+
+```typescript
+const txHash = await oms.wallet.sendTransaction({
+  network: 'polygon',
+  to: '0xContract',
+  data: '0xa9059cbb000000000000000000000000...',
+})
+```
+
+#### ABI-Encoded Contract Call
+
+```typescript
+sendTransaction<abi, functionName>(params: SendContractTransactionParams<abi, functionName>): Promise<string>
+```
+
+Sends a contract interaction with fully-typed ABI encoding via viem. The calldata is encoded automatically from `abi`, `functionName`, and `args`.
+
+```typescript
+const erc20Abi = [
+  {
+    name: 'transfer',
+    type: 'function',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+  },
+] as const
+
+const txHash = await oms.wallet.sendTransaction({
+  network: 'polygon',
+  to: '0xTokenContract',
+  abi: erc20Abi,
+  functionName: 'transfer',
+  args: ['0xRecipient', 1_000_000_000_000_000_000n],
+})
+```
+
+All three variants share the following optional base fields:
+
+| Name | Type | Description |
+|---|---|---|
+| `value` | `bigint` | Native token value to attach (in wei). |
+| `feeCeiling` | `bigint` | Maximum fee the caller is willing to pay (in wei). |
+| `nonce` | `bigint` | Override the transaction nonce. |
+
+**Returns** `Promise<string>` — the transaction hash.
+
+**Throws** if no session is active, the transaction reverts, or the request fails.
 
 ---
 
@@ -237,33 +284,31 @@ const txHash = await oms.wallet.sendTransaction({
 
 ```typescript
 callContract(params: {
-  network: string
-  contractAddress: string
+  network: Network
+  contractAddress: Address
   method: string
   args?: AbiArg[]
-  value?: string
-  feeCeiling?: string
-  nonce?: string
+  value?: bigint
+  feeCeiling?: bigint
+  nonce?: bigint
 }): Promise<string>
 ```
 
-Calls a state-changing smart contract function. The transaction is submitted via the OMS relayer. For read-only queries, call the contract directly.
+Calls a state-changing smart contract function using a method signature string and loosely-typed argument list. For fully-typed ABI encoding, prefer the ABI overload of [`sendTransaction`](#abi-encoded-contract-call).
 
 **Parameters**
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `network` | `string` | Yes | Network identifier, e.g. `"polygon"`. |
-| `contractAddress` | `string` | Yes | Address of the target contract. |
+| `network` | `Network` | Yes | Network identifier. See [Network](#network). |
+| `contractAddress` | `Address` | Yes | Address of the target contract. |
 | `method` | `string` | Yes | ABI function signature, e.g. `"transfer(address,uint256)"`. |
-| `args` | `AbiArg[]` | No | Ordered list of ABI-encoded arguments. See [`AbiArg`](#abiarg). |
-| `value` | `string` | No | Native token value to attach, in the network's smallest denomination. |
-| `feeCeiling` | `string` | No | Maximum fee the caller is willing to pay. |
-| `nonce` | `string` | No | Override the transaction nonce. |
+| `args` | `AbiArg[]` | No | Ordered list of typed arguments. See [AbiArg](#abiarg). |
+| `value` | `bigint` | No | Native token value to attach (in wei). |
+| `feeCeiling` | `bigint` | No | Maximum fee to pay (in wei). |
+| `nonce` | `bigint` | No | Override the transaction nonce. |
 
 **Returns** `Promise<string>` — the transaction hash.
-
-**Throws** if no session is active, the contract call reverts, or the request fails.
 
 **Example**
 
@@ -276,6 +321,7 @@ const txHash = await oms.wallet.callContract({
     { type: 'address', value: '0xRecipient' },
     { type: 'uint256', value: '1000000000000000000' },
   ],
+  value: 0n,
 })
 ```
 
@@ -287,19 +333,15 @@ const txHash = await oms.wallet.callContract({
 listAccess(): Promise<AccessGrant[]>
 ```
 
-Returns all credentials that currently have access to this wallet. Use this to display active sessions in an account management UI.
+Returns all credentials that currently have access to this wallet.
 
-**Returns** `Promise<AccessGrant[]>` — see [`AccessGrant`](#accessgrant).
-
-**Throws** if no session is active or the request fails.
+**Returns** `Promise<AccessGrant[]>` — see [AccessGrant](#accessgrant).
 
 **Example**
 
 ```typescript
 const grants = await oms.wallet.listAccess()
-for (const grant of grants) {
-  console.log(grant.credentialId, 'expires:', grant.expiresAt)
-}
+console.log(grants.filter(g => g.isCaller)) // current session
 ```
 
 ---
@@ -310,19 +352,13 @@ for (const grant of grants) {
 revokeAccess(params: { targetCredentialId: string }): Promise<void>
 ```
 
-Revokes access for a specific credential, permanently preventing it from interacting with this wallet. This action cannot be undone.
-
-Call [`listAccess`](#listaccess) first to retrieve available credential IDs.
+Permanently revokes a credential's access to this wallet. Cannot be undone.
 
 **Parameters**
 
 | Name | Type | Description |
 |---|---|---|
-| `targetCredentialId` | `string` | The unique identifier of the credential to revoke. |
-
-**Returns** `Promise<void>`
-
-**Throws** if the credential is not found, no session is active, or the request fails.
+| `targetCredentialId` | `string` | The ID of the credential to revoke. Obtain from [`listAccess`](#listaccess). |
 
 **Example**
 
@@ -351,20 +387,18 @@ getTokenBalances(params: {
 }): Promise<TokenBalancesResult>
 ```
 
-Fetches token balances for a wallet on a given chain and contract. Returns the first page of results (up to 40 entries).
+Fetches token balances for a wallet on a given chain and contract (first page, up to 40 entries).
 
 **Parameters**
 
 | Name | Type | Description |
 |---|---|---|
-| `chainId` | `string` | The numeric chain ID as a string, e.g. `"137"` for Polygon, `"1"` for Ethereum mainnet. |
+| `chainId` | `string` | Numeric chain ID as a string, e.g. `"137"` for Polygon, `"1"` for Ethereum mainnet. |
 | `contractAddress` | `string` | The token contract address to query. |
-| `walletAddress` | `string` | The wallet address whose balances to fetch. Use `oms.wallet.walletAddress` for the active wallet. |
-| `includeMetadata` | `boolean` | When `true`, the response includes token metadata such as name, symbol, and decimals. |
+| `walletAddress` | `string` | The wallet whose balances to fetch. Pass `oms.wallet.walletAddress` for the active wallet. |
+| `includeMetadata` | `boolean` | When `true`, includes token metadata (name, symbol, decimals) in the response. |
 
-**Returns** `Promise<TokenBalancesResult>` — see [`TokenBalancesResult`](#tokenbalancesresult).
-
-**Throws** if the network request fails.
+**Returns** `Promise<TokenBalancesResult>` — see [TokenBalancesResult](#tokenbalancesresult).
 
 **Example**
 
@@ -376,15 +410,30 @@ const result = await oms.indexer.getTokenBalances({
   includeMetadata: true,
 })
 
-console.log(`Found ${result.balances.length} balances`)
 for (const b of result.balances) {
-  console.log(b.contractAddress, b.balance)
+  console.log(b.contractAddress, b.balance, b.tokenId)
 }
 ```
 
 ---
 
 ## Types
+
+### Network
+
+```typescript
+type Network = string | bigint | Chain
+```
+
+Accepted by all transaction and signing methods. The SDK resolves the appropriate chain name regardless of which form you pass:
+
+| Form | Example |
+|---|---|
+| Chain name string | `'polygon'`, `'mainnet'`, `'arbitrum'` |
+| Chain ID as bigint | `137n`, `1n`, `42161n` |
+| viem `Chain` object | `polygon`, `mainnet` (from `viem/chains`) |
+
+---
 
 ### OmsEnvironment
 
@@ -398,9 +447,9 @@ interface OmsEnvironment {
 | Field | Type | Description |
 |---|---|---|
 | `walletApiUrl` | `string` | Base URL of the OMS Wallet API. |
-| `indexerUrlTemplate` | `string` | URL template for the Indexer API. The `{value}` placeholder is replaced with the chain ID at request time, e.g. `"https://indexer.example.com/{value}"`. |
+| `indexerUrlTemplate` | `string` | URL template for the Indexer API. `{value}` is replaced with the chain ID at request time, e.g. `"https://indexer.example.com/{value}"`. |
 
-The production default is exported as `defaultOmsEnvironment`.
+The default is exported as `defaultOmsEnvironment`.
 
 ---
 
@@ -414,7 +463,7 @@ interface StorageManager {
 }
 ```
 
-Interface for session key/value storage. Implement this to use a custom backend. `LocalStorageManager` is the default browser implementation.
+Interface for session key/value persistence. `LocalStorageManager` is the default browser implementation backed by `window.localStorage`.
 
 ---
 
@@ -428,13 +477,66 @@ interface AccessGrant {
 }
 ```
 
-Represents a credential that has access to the wallet.
-
 | Field | Type | Description |
 |---|---|---|
 | `credentialId` | `string` | Unique identifier. Pass to `revokeAccess` to remove this credential. |
-| `expiresAt` | `string` | ISO 8601 timestamp for when this credential expires. |
+| `expiresAt` | `string` | ISO 8601 timestamp for credential expiry. |
 | `isCaller` | `boolean` | `true` if this credential belongs to the current active session. |
+
+---
+
+### SendNativeTransactionParams
+
+```typescript
+type SendNativeTransactionParams = {
+  network: Network
+  to: Address
+  value: bigint        // required — amount in wei
+  feeCeiling?: bigint
+  nonce?: bigint
+}
+```
+
+Used when sending a native token transfer. `value` is required and `data`/`abi` must not be set.
+
+---
+
+### SendDataTransactionParams
+
+```typescript
+type SendDataTransactionParams = {
+  network: Network
+  to: Address
+  data: Hex            // required — pre-encoded calldata
+  value?: bigint
+  feeCeiling?: bigint
+  nonce?: bigint
+}
+```
+
+Used when sending a transaction with raw calldata. `abi` must not be set.
+
+---
+
+### SendContractTransactionParams
+
+```typescript
+type SendContractTransactionParams<
+  abi extends Abi | readonly unknown[],
+  functionName extends ContractFunctionName<abi> | undefined
+> = {
+  network: Network
+  to: Address
+  abi: abi
+  functionName: functionName
+  args?: ...           // inferred from abi + functionName
+  value?: bigint
+  feeCeiling?: bigint
+  nonce?: bigint
+}
+```
+
+Used for fully-typed ABI-encoded contract calls. `abi` and `functionName` are required; `args` types are inferred from the ABI. `data` must not be set. Calldata is encoded automatically using viem's `encodeFunctionData`.
 
 ---
 
@@ -452,7 +554,7 @@ interface TokenBalancesResult {
 |---|---|---|
 | `status` | `number` | HTTP status code of the indexer response. |
 | `page` | `TokenBalancesPage` | Pagination metadata, if present. |
-| `balances` | `TokenBalance[]` | Array of token balance entries. |
+| `balances` | `TokenBalance[]` | Array of token balance entries for the requested address. |
 
 ---
 
@@ -469,8 +571,8 @@ interface TokenBalancesPage {
 | Field | Type | Description |
 |---|---|---|
 | `page` | `number` | Current page index (zero-based). |
-| `pageSize` | `number` | Number of entries per page. |
-| `more` | `boolean` | `true` if there are additional pages of results. |
+| `pageSize` | `number` | Number of entries per page (up to 40). |
+| `more` | `boolean` | `true` if additional pages are available. |
 
 ---
 
@@ -494,11 +596,11 @@ interface TokenBalance {
 | `contractType` | `string` | Token standard, e.g. `"ERC20"`, `"ERC721"`, `"ERC1155"`. |
 | `contractAddress` | `string` | Address of the token contract. |
 | `accountAddress` | `string` | Wallet address this balance belongs to. |
-| `tokenId` | `string` | For NFTs (ERC-721/ERC-1155), the token ID. |
-| `balance` | `string` | Token balance as a string in the token's smallest denomination. |
-| `blockHash` | `string` | Hash of the block at which this balance was recorded. |
+| `tokenId` | `string` | For ERC-721/ERC-1155 tokens, the token ID. |
+| `balance` | `string` | Balance in the token's smallest denomination. |
+| `blockHash` | `string` | Block hash at which this balance was recorded. |
 | `blockNumber` | `number` | Block number at which this balance was recorded. |
-| `chainId` | `number` | Numeric chain ID this balance is on. |
+| `chainId` | `number` | Numeric chain ID. |
 
 ---
 
@@ -511,7 +613,7 @@ interface AbiArg {
 }
 ```
 
-A single ABI-encoded argument for a contract call.
+A loosely-typed ABI argument used by [`callContract`](#callcontract). For fully-typed encoding, use the ABI overload of [`sendTransaction`](#abi-encoded-contract-call) instead.
 
 | Field | Type | Description |
 |---|---|---|
@@ -528,4 +630,4 @@ enum WalletType {
 }
 ```
 
-Identifies the wallet type to create or load. Pass as the optional `walletType` parameter to [`completeEmailAuth`](#completeemailauth).
+Identifies the wallet type to load or create. Passed as the optional `walletType` parameter to [`completeEmailAuth`](#completeemailauth). Defaults to `WalletType.Ethereum`.
