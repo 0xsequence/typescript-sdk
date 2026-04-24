@@ -1,11 +1,9 @@
 import {
     ContractFunctionName,
     encodeFunctionData,
-    EncodeFunctionDataParameters} from 'viem'
-import type {
     Abi,
     Address,
-} from 'abitype'
+    EncodeFunctionDataParameters} from 'viem'
 
 import {OmsEnvironment} from "../omsEnvironment.js";
 import {LocalStorageManager, StorageManager} from "../storageManager.js";
