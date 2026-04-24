@@ -1,7 +1,6 @@
 import "dotenv/config";
 import readline from "node:readline/promises";
-import {MemoryStorageManager} from "../../src/storageManager";
-import {OMSClient} from "../../src";
+import {MemoryStorageManager, OMSClient} from "typescript-sdk";
 import {polygonAmoy} from "viem/chains";
 
 async function main() {

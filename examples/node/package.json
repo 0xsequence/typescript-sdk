@@ -1,0 +1,17 @@
+{
+  "name": "node-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "signIn": "tsx signInFlow.ts"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "typescript-sdk": "workspace:*",
+    "viem": "^2.48.4"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}
