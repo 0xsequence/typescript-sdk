@@ -18,7 +18,7 @@
     "build": "pnpm clean && tsc && tsc -p tsconfig.esm.json && node scripts/write-esm-package.cjs",
     "dev:example": "pnpm --filter react-vite-example dev",
     "build:example": "pnpm --filter react-vite-example build",
-    "signIn": "tsx demo/signInFlow.ts",
+    "signIn": "tsx examples/node/signInFlow.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
