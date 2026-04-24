@@ -20,7 +20,6 @@
     "build:example": "pnpm --filter react-vite-example build",
     "dev:node-example": "pnpm --filter node-example dev",
     "build:node-example": "pnpm --filter node-example build",
-    "node-example": "pnpm dev:node-example",
     "test": "vitest run",
     "test:watch": "vitest"
   },

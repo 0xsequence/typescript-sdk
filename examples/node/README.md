@@ -11,14 +11,13 @@ Run it from the repository root:
 ```bash
 pnpm install
 pnpm build
-pnpm node-example
+pnpm dev:node-example
 ```
 
 The example prompts for an email address, sends an OTP code, then prompts for the code.
 
-You can also run the example directly:
+You can typecheck the example directly:
 
 ```bash
-pnpm dev:node-example
 pnpm build:node-example
 ```
