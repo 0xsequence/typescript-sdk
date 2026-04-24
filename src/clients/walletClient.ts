@@ -1,5 +1,11 @@
-import type { Address } from 'abitype'
-import type { Chain } from 'viem'
+import {
+    ContractFunctionName,
+    encodeFunctionData,
+    EncodeFunctionDataParameters} from 'viem'
+import type {
+    Abi,
+    Address,
+} from 'abitype'
 
 import {OmsEnvironment} from "../omsEnvironment";
 import {LocalStorageManager, StorageManager} from "../storageManager";
@@ -22,19 +28,16 @@ import {
     ListAccessRequest,
     RevokeAccessRequest,
     SignMessageRequest,
-    SendTransactionRequest,
     CallContractRequest, AbiArg,
 } from '../generated/waas.gen'
 import {NetworkBindings} from "../utils/networkBindings";
-import * as net from "node:net";
-
-export interface AccessGrant {
-    credentialId: string
-    expiresAt: string
-    isCaller: boolean
-}
-
-type Networkish = string | bigint | Chain;
+import {Network} from "../types/evmTypes";
+import {
+    SendContractTransactionParams,
+    SendDataTransactionParams, SendNativeTransactionParams,
+    SendTransactionParams
+} from "../types/transactionTypes";
+import {AccessGrant} from "../types/accessGrant";
 
 export class WalletClient {
     private readonly client: Walletclient
@@ -135,38 +138,8 @@ export class WalletClient {
         this.storage.delete(Constants.signerStorageKey)
     }
 
-    /**
-     * Returns the credentials that currently have access to this wallet.
-     */
-    async listAccess(): Promise<AccessGrant[]> {
-        const params: ListAccessRequest = { walletId: this.walletId }
-        const response = await this.client.listAccess(params)
-
-        return response.credentials.map(c => { return {
-            credentialId: c.credentialId,
-            expiresAt: c.expiresAt,
-            isCaller: c.isCaller
-        } })
-    }
-
-    /**
-     * Revokes access for a specific credential.
-     *
-     * Use `listAccess()` first to retrieve the available credential IDs.
-     */
-    async revokeAccess(params: {
-        targetCredentialId: string
-    }): Promise<void> {
-        const request: RevokeAccessRequest = {
-            targetCredentialId: params.targetCredentialId,
-            walletId: this.walletId
-        }
-
-        await this.client.revokeAccess(request)
-    }
-
     async signMessage(params: {
-        network: Networkish
+        network: Network
         message: string
     }): Promise<string> {
         const request: SignMessageRequest = {
@@ -178,30 +151,34 @@ export class WalletClient {
         return response.signature
     }
 
-    async sendTransaction(params: {
-        network: Networkish
-        to: Address
-        value: bigint
-    }): Promise<string> {
-        const request: SendTransactionRequest = {
+    async sendTransaction(params: SendNativeTransactionParams): Promise<string>
+    async sendTransaction(params: SendDataTransactionParams): Promise<string>
+    async sendTransaction<
+        const abi extends Abi | readonly unknown[],
+        functionName extends ContractFunctionName<abi> | undefined = ContractFunctionName<abi>,
+    >(params: SendContractTransactionParams<abi, functionName>): Promise<string>
+    async sendTransaction(params: SendTransactionParams): Promise<string> {
+        const data =
+            'abi' in params
+                ? encodeFunctionData(params as EncodeFunctionDataParameters)
+                : params.data
+
+        const response = await this.client.sendTransaction({
             network: this.parseNetwork(params.network),
             walletId: this.walletId,
             to: params.to,
-            value: params.value.toString(),
+            value: (params.value ?? 0n).toString(),
+            data,
+            feeCeiling: params.feeCeiling?.toString(),
+            nonce: params.nonce?.toString(),
             mode: TransactionMode.Relayer,
-        }
-        const response = await this.client.sendTransaction(request)
+        })
+
         return response.txHash
     }
 
-    /**
-     * Calls a smart contract function.
-     *
-     * @param params - Full request describing the target contract, method, args, and network.
-     * @returns The transaction hash.
-     */
     async callContract(params: {
-        network: Networkish
+        network: Network
         contractAddress: Address
         method: string
         args?: Array<AbiArg>
@@ -225,30 +202,40 @@ export class WalletClient {
         return response.txHash
     }
 
-    /**
-     * Creates a new Ethereum wallet for the authenticated user.
-     *
-     * The wallet ID, address, and session key are persisted to storage so the
-     * session can be restored on future launches.
-     */
+    async listAccess(): Promise<AccessGrant[]> {
+        const params: ListAccessRequest = { walletId: this.walletId }
+        const response = await this.client.listAccess(params)
+
+        return response.credentials.map(c => { return {
+            credentialId: c.credentialId,
+            expiresAt: c.expiresAt,
+            isCaller: c.isCaller
+        } })
+    }
+
+    async revokeAccess(params: {
+        targetCredentialId: string
+    }): Promise<void> {
+        const request: RevokeAccessRequest = {
+            targetCredentialId: params.targetCredentialId,
+            walletId: this.walletId
+        }
+
+        await this.client.revokeAccess(request)
+    }
+
     private async createWallet(type: WalletType): Promise<void> {
         const params: CreateWalletRequest = { type: type }
         const response = await this.client.createWallet(params)
         this.persistSession(response.wallet.id, response.wallet.address)
     }
 
-    /**
-     * Loads an existing wallet by its server-side ID.
-     *
-     * The wallet ID, address, and session key are persisted to storage.
-     */
     private async useWallet(walletId: string): Promise<void> {
         const params: UseWalletRequest = { walletId }
         const response = await this.client.useWallet(params)
         this.persistSession(response.wallet.id, response.wallet.address)
     }
 
-    /** Saves the wallet ID, address, and session key to storage. */
     private persistSession(walletId: string, walletAddress: string): void {
         this.walletId      = walletId
         this.walletAddress = walletAddress as Address
@@ -257,7 +244,7 @@ export class WalletClient {
         this.storage.set(Constants.signerStorageKey,        ByteUtils.bytesToHex(this.sessionPrivateKey))
     }
 
-    private parseNetwork(network: Networkish): string {
+    private parseNetwork(network: Network): string {
         if (typeof network === 'string') {
             return network.toLowerCase()
         } else if (typeof network === 'bigint') {

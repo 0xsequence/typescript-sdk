@@ -54,7 +54,7 @@ async function main() {
     console.log("✓ sign-in flow complete");
 
     const signature = await client.wallet.signMessage({
-        network: 80002n,
+        network: polygonAmoy,
         message: "test"
     });
 }

@@ -1,6 +1,3 @@
-import {ethers} from "ethers";
-import {ByteUtils} from "./byteUtils";
-
 export class RequestUtils {
     static buildWalletRequestPreimage(
         endpoint: string,
