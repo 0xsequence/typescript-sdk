@@ -28,5 +28,5 @@ jobs:
 
       - name: Run tests
         env:
-          OMS_PROJECT_ACCESS_KEY: ${{ 'AQAAAAAAAAK2JvvZhWqZ51riasWBftkrVXE' }}
+          OMS_PROJECT_ACCESS_KEY: ${{ secrets.OMS_PROJECT_ACCESS_KEY }}
         run: npm test -- --run
