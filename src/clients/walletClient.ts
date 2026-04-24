@@ -24,6 +24,12 @@ import {
     CredentialInfo, AbiArg,
 } from '../generated/waas.gen'
 
+export interface AccessGrant {
+    credentialId: string
+    expiresAt: string
+    isCaller: boolean
+}
+
 export class WalletClient {
     private readonly client: Walletclient
     private readonly storage: StorageManager
@@ -31,19 +37,17 @@ export class WalletClient {
     /** The on-chain address of this wallet. Empty until a wallet is created or loaded. */
     public walletAddress: string
 
-    /** The server-side wallet ID used in API calls. Empty until a wallet is created or loaded. */
-    public walletId: string
-
+    private walletId: string
     private readonly sessionPrivateKey: Uint8Array
     private verifier = ''
     private challenge = ''
 
-    constructor(
+    constructor(params: {
         projectAccessKey: string,
         environment: OmsEnvironment,
         storage?: StorageManager
-    ) {
-        this.storage = storage ?? new LocalStorageManager()
+    }) {
+        this.storage = params.storage ?? new LocalStorageManager()
 
         const storedId      = this.storage.get(Constants.walletIdStorageKey)
         const storedAddress = this.storage.get(Constants.walletAddressStorageKey)
@@ -59,8 +63,8 @@ export class WalletClient {
             this.sessionPrivateKey = EvmHelper.generatePrivateKey()
         }
 
-        const signedFetch = createSignedFetch(projectAccessKey, this.sessionPrivateKey)
-        this.client = new Walletclient(environment.walletApiUrl, signedFetch)
+        const signedFetch = createSignedFetch(params.projectAccessKey, this.sessionPrivateKey)
+        this.client = new Walletclient(params.environment.walletApiUrl, signedFetch)
     }
 
     /**
@@ -68,14 +72,16 @@ export class WalletClient {
      *
      * After this resolves, show your OTP entry UI and pass the code to `completeEmailSignIn`.
      */
-    async startEmailAuth(email: string): Promise<void> {
-        const params: CommitVerifierRequest = {
+    async startEmailAuth(params: {
+        email: string
+    }): Promise<void> {
+        const request: CommitVerifierRequest = {
             identityType: IdentityType.Email,
             authMode: AuthMode.OTP,
             metadata: {},
-            handle: email,
+            handle: params.email,
         }
-        const response = await this.client.commitVerifier(params)
+        const response = await this.client.commitVerifier(request)
         this.verifier  = response.verifier
         this.challenge = response.challenge
     }
@@ -86,10 +92,14 @@ export class WalletClient {
      * Must be called after `signInWithEmail`. On success, call `createWallet`
      * or `useWallet` to activate a wallet.
      */
-    async completeEmailAuth(code: string, walletType: WalletType = WalletType.Ethereum): Promise<void> {
-        const answer = await RequestUtils.hashEmailAuthAnswer(this.challenge, code);
+    async completeEmailAuth(params: {
+        code: string
+        walletType?: WalletType
+    }): Promise<void> {
+        const walletType = params.walletType ?? WalletType.Ethereum;
+        const answer = await RequestUtils.hashEmailAuthAnswer(this.challenge, params.code);
 
-        const params: CompleteAuthRequest = {
+        const request: CompleteAuthRequest = {
             identityType: IdentityType.Email,
             authMode: AuthMode.OTP,
             verifier: this.verifier,
@@ -97,7 +107,7 @@ export class WalletClient {
         }
 
         let walletUsed = false;
-        const response = await this.client.completeAuth(params);
+        const response = await this.client.completeAuth(request);
 
         for (const wallet of response.wallets) {
             if (wallet.type === walletType) {
@@ -120,10 +130,15 @@ export class WalletClient {
     /**
      * Returns the credentials that currently have access to this wallet.
      */
-    async listAccess(): Promise<CredentialInfo[]> {
+    async listAccess(): Promise<AccessGrant[]> {
         const params: ListAccessRequest = { walletId: this.walletId }
         const response = await this.client.listAccess(params)
-        return response.credentials
+
+        return response.credentials.map(c => { return {
+            credentialId: c.credentialId,
+            expiresAt: c.expiresAt,
+            isCaller: c.isCaller
+        } })
     }
 
     /**
@@ -131,9 +146,15 @@ export class WalletClient {
      *
      * Use `listAccess()` first to retrieve the available credential IDs.
      */
-    async revokeAccess(targetCredentialId: string): Promise<void> {
-        const params: RevokeAccessRequest = { targetCredentialId, walletId: this.walletId }
-        await this.client.revokeAccess(params)
+    async revokeAccess(params: {
+        targetCredentialId: string
+    }): Promise<void> {
+        const request: RevokeAccessRequest = {
+            targetCredentialId: params.targetCredentialId,
+            walletId: this.walletId
+        }
+
+        await this.client.revokeAccess(request)
     }
 
     async signMessage(params: {
@@ -186,7 +207,10 @@ export class WalletClient {
             contractAddress: params.contractAddress,
             method: params.method,
             args: params.args,
-            value, 
+            value: params.value,
+            feeCeiling: params.feeCeiling,
+            nonce: params.nonce,
+            mode: TransactionMode.Relayer,
         }
 
         const response = await this.client.callContract(request)

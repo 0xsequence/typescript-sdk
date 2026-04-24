@@ -65,30 +65,30 @@ export class IndexerClient {
     private readonly environment: OmsEnvironment;
     private readonly client: HttpClient;
 
-    constructor(
+    constructor(params: {
         projectAccessKey: string,
         environment: OmsEnvironment
-    ) {
-        this.projectAccessKey = projectAccessKey;
-        this.environment = environment;
+    }) {
+        this.projectAccessKey = params.projectAccessKey;
+        this.environment = params.environment;
         this.client = new HttpClient();
     }
 
-    async getTokenBalances(
-        chainId: string,
-        contractAddress: string,
-        walletAddress: string,
-        includeMetadata: boolean,
-    ): Promise<TokenBalancesResult> {
+    async getTokenBalances(params: {
+        chainId: string
+        contractAddress: string
+        walletAddress: string
+        includeMetadata: boolean
+    }): Promise<TokenBalancesResult> {
         const request: TokenBalancesRequest = {
             page: { page: 0, pageSize: 40, more: false },
-            contractAddress,
-            accountAddress: walletAddress,
-            includeMetadata,
+            contractAddress: params.contractAddress,
+            accountAddress: params.walletAddress,
+            includeMetadata: params.includeMetadata,
         };
 
         const bodyString = JSON.stringify(request);
-        const baseUrl = this.indexerUrl(chainId);
+        const baseUrl = this.indexerUrl(params.chainId);
 
         const response = await this.client.postJson({
             baseUrl,

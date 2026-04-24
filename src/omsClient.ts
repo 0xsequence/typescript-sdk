@@ -12,15 +12,15 @@ export class OMSClient {
         environment?: OmsEnvironment;
         storage?: StorageManager;
     }) {
-        this.wallet = new WalletClient(
-            params.projectAccessKey,
-            params.environment ?? defaultOmsEnvironment,
-            params.storage ?? new LocalStorageManager()
-        );
+        this.wallet = new WalletClient({
+            projectAccessKey: params.projectAccessKey,
+            environment: params.environment ?? defaultOmsEnvironment,
+            storage: params.storage ?? new LocalStorageManager()
+        });
 
-        this.indexer = new IndexerClient(
-            params.projectAccessKey,
-            params.environment ?? defaultOmsEnvironment
-        );
+        this.indexer = new IndexerClient({
+            projectAccessKey: params.projectAccessKey,
+            environment: params.environment ?? defaultOmsEnvironment
+        });
     }
 }
