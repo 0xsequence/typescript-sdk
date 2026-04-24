@@ -1,5 +1,5 @@
-import {ByteUtils} from "./utils/byteUtils";
-import {EvmHelper} from "./utils/EvmHelper";
+import {ByteUtils} from "./utils/byteUtils.js";
+import {EvmHelper} from "./utils/EvmHelper.js";
 
 export type CredentialKeyType = "ethereum-secp256k1" | "webcrypto-secp256r1";
 

@@ -15,7 +15,7 @@
   "packageManager": "pnpm@10.33.0",
   "scripts": {
     "clean": "rm -rf dist",
-    "build": "pnpm clean && tsc && tsc -p tsconfig.esm.json",
+    "build": "pnpm clean && tsc && tsc -p tsconfig.esm.json && node scripts/write-esm-package.cjs",
     "dev:example": "pnpm --filter react-vite-example dev",
     "build:example": "pnpm --filter react-vite-example build",
     "signIn": "tsx demo/signInFlow.ts",

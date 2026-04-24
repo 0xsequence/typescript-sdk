@@ -1,7 +1,7 @@
-import {Fetch} from "./generated/waas.gen";
-import {Constants} from "./utils/constants";
-import {RequestUtils} from "./utils/requestUtils";
-import type {CredentialSigner} from "./credentialSigner";
+import {Fetch} from "./generated/waas.gen.js";
+import {Constants} from "./utils/constants.js";
+import {RequestUtils} from "./utils/requestUtils.js";
+import type {CredentialSigner} from "./credentialSigner.js";
 
 async function buildAuthHeader(endpoint: string, signer: CredentialSigner, payload: string): Promise<string> {
     const credentialId = await signer.credentialId()

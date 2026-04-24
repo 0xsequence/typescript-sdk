@@ -7,12 +7,12 @@ import type {
     Address,
 } from 'abitype'
 
-import {OmsEnvironment} from "../omsEnvironment";
-import {LocalStorageManager, StorageManager} from "../storageManager";
-import {createSignedFetch} from "../signedFetch";
-import {Constants} from "../utils/constants";
-import {RequestUtils} from "../utils/requestUtils";
-import {CredentialSigner, WebCryptoP256CredentialSigner} from "../credentialSigner";
+import {OmsEnvironment} from "../omsEnvironment.js";
+import {LocalStorageManager, StorageManager} from "../storageManager.js";
+import {createSignedFetch} from "../signedFetch.js";
+import {Constants} from "../utils/constants.js";
+import {RequestUtils} from "../utils/requestUtils.js";
+import {CredentialSigner, WebCryptoP256CredentialSigner} from "../credentialSigner.js";
 
 import {
     Wallet as Walletclient,
@@ -28,15 +28,15 @@ import {
     RevokeAccessRequest,
     SignMessageRequest,
     CallContractRequest, AbiArg,
-} from '../generated/waas.gen'
-import {NetworkBindings} from "../utils/networkBindings";
-import {Network} from "../types/evmTypes";
+} from '../generated/waas.gen.js'
+import {NetworkBindings} from "../utils/networkBindings.js";
+import {Network} from "../types/evmTypes.js";
 import {
     SendContractTransactionParams,
     SendDataTransactionParams, SendNativeTransactionParams,
     SendTransactionParams
-} from "../types/transactionTypes";
-import {AccessGrant} from "../types/accessGrant";
+} from "../types/transactionTypes.js";
+import {AccessGrant} from "../types/accessGrant.js";
 
 export class WalletClient {
     private readonly client: Walletclient

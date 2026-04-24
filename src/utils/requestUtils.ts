@@ -1,4 +1,4 @@
-import type {CredentialKeyType} from "../credentialSigner";
+import type {CredentialKeyType} from "../credentialSigner.js";
 
 export class RequestUtils {
     static buildWalletRequestPreimage(

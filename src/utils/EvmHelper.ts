@@ -1,6 +1,6 @@
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts'
 import { keccak256, toBytes } from 'viem'
-import { ByteUtils } from './byteUtils'
+import { ByteUtils } from './byteUtils.js'
 
 export class EvmHelper {
     static getWalletAddress(privateKeyBytes: Uint8Array): string {

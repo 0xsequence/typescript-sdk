@@ -1,6 +1,6 @@
 // Converted from Swift IndexerClient.
 
-import {HttpClient} from "../httpClient";
+import {HttpClient} from "../httpClient.js";
 
 export interface TokenBalancesPage {
     page: number;

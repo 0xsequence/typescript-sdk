@@ -1,8 +1,8 @@
-import { WalletClient } from "./clients/walletClient";
-import {defaultOmsEnvironment, OmsEnvironment} from "./omsEnvironment";
-import {LocalStorageManager, StorageManager} from "./storageManager";
-import {IndexerClient} from "./clients/indexerClient";
-import type {CredentialSigner} from "./credentialSigner";
+import { WalletClient } from "./clients/walletClient.js";
+import {defaultOmsEnvironment, OmsEnvironment} from "./omsEnvironment.js";
+import {LocalStorageManager, StorageManager} from "./storageManager.js";
+import {IndexerClient} from "./clients/indexerClient.js";
+import type {CredentialSigner} from "./credentialSigner.js";
 
 export class OMSClient {
     public readonly wallet: WalletClient;
