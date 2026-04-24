@@ -5,7 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
-    "signIn": "tsx tests/signInFlow.ts"
+    "signIn": "tsx tests/signInFlow.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "viem": "^2.48.4",
