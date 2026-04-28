@@ -19,6 +19,7 @@
   - [revokeAccess](#revokeaccess)
 - [IndexerClient](#indexerclient)
   - [getTokenBalances](#gettokenbalances)
+  - [getNativeTokenBalance](#getnativetokenbalance)
 - [Types](#types)
   - [Network](#network)
   - [OmsEnvironment](#omsenvironment)
@@ -28,6 +29,8 @@
   - [SendNativeTransactionParams](#sendnativetransactionparams)
   - [SendDataTransactionParams](#senddatatransactionparams)
   - [SendContractTransactionParams](#sendcontracttransactionparams)
+  - [SendTransactionResponse](#sendtransactionresponse)
+  - [FeeOptionSelector](#feeoptionselector)
   - [TokenBalancesResult](#tokenbalancesresult)
   - [TokenBalancesPage](#tokenbalancespage)
   - [TokenBalance](#tokenbalance)
@@ -41,7 +44,7 @@
 The top-level entry point for the SDK.
 
 ```typescript
-import { OMSClient } from './OMSClient'
+import { OMSClient } from 'typescript-sdk'
 
 const oms = new OMSClient({ projectAccessKey: 'your-key' })
 ```
@@ -62,7 +65,7 @@ new OMSClient(params: {
 | Name | Type | Required | Description |
 |---|---|---|---|
 | `projectAccessKey` | `string` | Yes | Your OMS project access key. |
-| `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the production OMS endpoints. |
+| `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the SDK's configured OMS endpoints. |
 | `storage` | `StorageManager` | No | Storage backend for wallet metadata. Defaults to `LocalStorageManager` (`window.localStorage`). |
 | `credentialSigner` | `CredentialSigner` | No | Request credential signer. Defaults to a non-extractable WebCrypto P-256 signer (`webcrypto-secp256r1`) where WebCrypto is available. |
 
@@ -212,13 +215,13 @@ const sig = await oms.wallet.signMessage({ network: polygon, message: '0xdeadbee
 #### Native Token Transfer
 
 ```typescript
-sendTransaction(params: SendNativeTransactionParams): Promise<string>
+sendTransaction(params: SendNativeTransactionParams): Promise<SendTransactionResponse>
 ```
 
 Sends native tokens (ETH, MATIC, etc.) to an address.
 
 ```typescript
-const txHash = await oms.wallet.sendTransaction({
+const tx = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xRecipient',
   value: 1_000_000_000_000_000_000n, // 1 MATIC in wei
@@ -228,13 +231,13 @@ const txHash = await oms.wallet.sendTransaction({
 #### Raw Data Transaction
 
 ```typescript
-sendTransaction(params: SendDataTransactionParams): Promise<string>
+sendTransaction(params: SendDataTransactionParams): Promise<SendTransactionResponse>
 ```
 
 Sends a transaction with arbitrary calldata as a hex string. Use this when you have pre-encoded calldata.
 
 ```typescript
-const txHash = await oms.wallet.sendTransaction({
+const tx = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xContract',
   data: '0xa9059cbb000000000000000000000000...',
@@ -244,7 +247,7 @@ const txHash = await oms.wallet.sendTransaction({
 #### ABI-Encoded Contract Call
 
 ```typescript
-sendTransaction<abi, functionName>(params: SendContractTransactionParams<abi, functionName>): Promise<string>
+sendTransaction<abi, functionName>(params: SendContractTransactionParams<abi, functionName>): Promise<SendTransactionResponse>
 ```
 
 Sends a contract interaction with fully-typed ABI encoding via viem. The calldata is encoded automatically from `abi`, `functionName`, and `args`.
@@ -261,7 +264,7 @@ const erc20Abi = [
   },
 ] as const
 
-const txHash = await oms.wallet.sendTransaction({
+const tx = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xTokenContract',
   abi: erc20Abi,
@@ -275,12 +278,16 @@ All three variants share the following optional base fields:
 | Name | Type | Description |
 |---|---|---|
 | `value` | `bigint` | Native token value to attach (in wei). |
-| `feeCeiling` | `bigint` | Maximum fee the caller is willing to pay (in wei). |
-| `nonce` | `bigint` | Override the transaction nonce. |
+| `mode` | `TransactionMode` | Transaction execution mode. Defaults to `TransactionMode.Relayer`. |
+| `selectFeeOption` | `FeeOptionSelector` | Optional callback for choosing a WaaS fee option. |
 
-**Returns** `Promise<string>` — the transaction hash.
+**Returns** `Promise<SendTransactionResponse>` — the prepared transaction ID, latest status, and transaction hash when available.
 
 **Throws** if no session is active, the transaction reverts, or the request fails.
+
+When fee options are returned, `selectFeeOption` receives `FeeOptionWithBalance[]`.
+Each entry includes the generated `FeeOption` plus the selected wallet's balance
+for that fee token when the indexer can load it.
 
 ---
 
@@ -292,10 +299,9 @@ callContract(params: {
   contractAddress: Address
   method: string
   args?: AbiArg[]
-  value?: bigint
-  feeCeiling?: bigint
-  nonce?: bigint
-}): Promise<string>
+  mode?: TransactionMode
+  selectFeeOption?: FeeOptionSelector
+}): Promise<SendTransactionResponse>
 ```
 
 Calls a state-changing smart contract function using a method signature string and loosely-typed argument list. For fully-typed ABI encoding, prefer the ABI overload of [`sendTransaction`](#abi-encoded-contract-call).
@@ -308,16 +314,15 @@ Calls a state-changing smart contract function using a method signature string a
 | `contractAddress` | `Address` | Yes | Address of the target contract. |
 | `method` | `string` | Yes | ABI function signature, e.g. `"transfer(address,uint256)"`. |
 | `args` | `AbiArg[]` | No | Ordered list of typed arguments. See [AbiArg](#abiarg). |
-| `value` | `bigint` | No | Native token value to attach (in wei). |
-| `feeCeiling` | `bigint` | No | Maximum fee to pay (in wei). |
-| `nonce` | `bigint` | No | Override the transaction nonce. |
+| `mode` | `TransactionMode` | No | Transaction execution mode. Defaults to `TransactionMode.Relayer`. |
+| `selectFeeOption` | `FeeOptionSelector` | No | Optional callback for choosing a WaaS fee option. |
 
-**Returns** `Promise<string>` — the transaction hash.
+**Returns** `Promise<SendTransactionResponse>` — the prepared transaction ID, latest status, and transaction hash when available.
 
 **Example**
 
 ```typescript
-const txHash = await oms.wallet.callContract({
+const tx = await oms.wallet.callContract({
   network: 'polygon',
   contractAddress: '0xTokenContract',
   method: 'transfer(address,uint256)',
@@ -325,7 +330,6 @@ const txHash = await oms.wallet.callContract({
     { type: 'address', value: '0xRecipient' },
     { type: 'uint256', value: '1000000000000000000' },
   ],
-  value: 0n,
 })
 ```
 
@@ -424,6 +428,19 @@ for (const b of result.balances) {
 
 ---
 
+### getNativeTokenBalance
+
+```typescript
+getNativeTokenBalance(params: {
+  chainId: string
+  walletAddress: string
+}): Promise<TokenBalance | undefined>
+```
+
+Fetches the native token balance for a wallet. This is also used internally to enrich transaction fee options.
+
+---
+
 ## Types
 
 ### Network
@@ -516,8 +533,8 @@ type SendNativeTransactionParams = {
   network: Network
   to: Address
   value: bigint        // required — amount in wei
-  feeCeiling?: bigint
-  nonce?: bigint
+  mode?: TransactionMode
+  selectFeeOption?: FeeOptionSelector
 }
 ```
 
@@ -533,8 +550,8 @@ type SendDataTransactionParams = {
   to: Address
   data: Hex            // required — pre-encoded calldata
   value?: bigint
-  feeCeiling?: bigint
-  nonce?: bigint
+  mode?: TransactionMode
+  selectFeeOption?: FeeOptionSelector
 }
 ```
 
@@ -555,12 +572,46 @@ type SendContractTransactionParams<
   functionName: functionName
   args?: ...           // inferred from abi + functionName
   value?: bigint
-  feeCeiling?: bigint
-  nonce?: bigint
+  mode?: TransactionMode
+  selectFeeOption?: FeeOptionSelector
 }
 ```
 
 Used for fully-typed ABI-encoded contract calls. `abi` and `functionName` are required; `args` types are inferred from the ABI. `data` must not be set. Calldata is encoded automatically using viem's `encodeFunctionData`.
+
+---
+
+### SendTransactionResponse
+
+```typescript
+type SendTransactionResponse = {
+  txnId: string
+  status: TransactionStatus
+  txHash?: string
+}
+```
+
+`txHash` is present once WaaS reports a published transaction. If polling times out while the transaction is still pending, use `txnId` to check status later.
+
+---
+
+### FeeOptionSelector
+
+```typescript
+type FeeOptionSelector = (
+  feeOptions: FeeOptionWithBalance[]
+) => FeeOptionSelection | undefined | Promise<FeeOptionSelection | undefined>
+
+type FeeOptionWithBalance = {
+  feeOption: FeeOption
+  balance?: TokenBalance
+  available?: string
+  availableRaw?: string
+  decimals?: number
+}
+```
+
+When no selector is provided, the SDK uses the first required fee option, or no fee option for sponsored transactions.
 
 ---
 
