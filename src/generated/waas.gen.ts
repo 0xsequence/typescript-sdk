@@ -296,7 +296,7 @@ export class Wallet implements WalletClient {
   protected path = '/rpc/Wallet/'
 
   constructor(hostname: string, fetch: Fetch) {
-    this.hostname = trimTrailingSlashes(hostname)
+    this.hostname = hostname.replace(/\/*$/, '')
     this.fetch = (input: RequestInfo, init?: RequestInit) => fetch(input, init)
   }
 
@@ -451,14 +451,6 @@ export class Wallet implements WalletClient {
   }
 
 }
-const trimTrailingSlashes = (value: string): string => {
-  let end = value.length
-  while (end > 0 && value.charCodeAt(end - 1) === 47) {
-    end -= 1
-  }
-  return value.slice(0, end)
-}
-
 const createHttpRequest = (body: string = '{}', headers: object = {}, signal: AbortSignal | null = null): object => {
   const reqHeaders: { [key: string]: string } = { ...headers, 'Content-Type': 'application/json', [WebrpcHeader]: WebrpcHeaderValue }
   return { method: 'POST', headers: reqHeaders, body, signal }
