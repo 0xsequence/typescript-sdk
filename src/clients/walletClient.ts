@@ -55,6 +55,8 @@ export class WalletClient {
     private readonly networks: NetworkBindings
     private readonly credentialSigner: CredentialSigner
     private readonly indexerClient: IndexerClient
+    private readonly fastTransactionStatusPollIntervalMs = 400
+    private readonly fastTransactionStatusPollCount = 5
     private readonly transactionStatusPollIntervalMs = 2_000
     private readonly transactionStatusPollTimeoutMs = 60_000
 
@@ -420,21 +422,30 @@ export class WalletClient {
     ): Promise<TransactionStatusResponse> {
         const deadline = Date.now() + this.transactionStatusPollTimeoutMs
         let lastStatus: TransactionStatusResponse = {status: fallbackStatus}
+        let completedPolls = 0
 
         do {
             lastStatus = await this.client.getTransactionStatus({txnId: txnId} as GetTransactionStatusRequest)
+            completedPolls += 1
             if (lastStatus.status === TransactionStatus.Executed || lastStatus.txnHash) {
                 return lastStatus
             }
-            if (this.transactionStatusPollIntervalMs <= 0) {
+            const pollDelayMs = this.transactionStatusPollDelayMs(completedPolls)
+            if (pollDelayMs <= 0) {
                 return lastStatus
             }
             const remainingMs = deadline - Date.now()
             if (remainingMs <= 0) {
                 return lastStatus
             }
-            await this.delay(Math.min(this.transactionStatusPollIntervalMs, remainingMs))
+            await this.delay(Math.min(pollDelayMs, remainingMs))
         } while (true)
+    }
+
+    private transactionStatusPollDelayMs(completedPolls: number): number {
+        return completedPolls < this.fastTransactionStatusPollCount
+            ? this.fastTransactionStatusPollIntervalMs
+            : this.transactionStatusPollIntervalMs
     }
 
     private async requireActiveSession(): Promise<void> {

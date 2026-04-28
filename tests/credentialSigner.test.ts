@@ -143,6 +143,24 @@ describe("WalletClient session storage", () => {
         expect(signer.clear).toHaveBeenCalledOnce();
     });
 
+    it("uses faster status polling for the first five polls", () => {
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: {
+                walletApiUrl: "https://wallet.example",
+                apiRpcUrl: "https://api.example",
+                indexerUrlTemplate: "https://indexer.example/{value}",
+            },
+            storage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+
+        expect((wallet as any).transactionStatusPollDelayMs(1)).toBe(400);
+        expect((wallet as any).transactionStatusPollDelayMs(4)).toBe(400);
+        expect((wallet as any).transactionStatusPollDelayMs(5)).toBe(2_000);
+        expect((wallet as any).transactionStatusPollDelayMs(6)).toBe(2_000);
+    });
+
     it("prepares, enriches fee options, executes, and returns transaction status", async () => {
         const signer = new MockSigner();
         const storage = new MemoryStorageManager();
