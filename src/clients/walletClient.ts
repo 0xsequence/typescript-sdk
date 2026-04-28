@@ -16,6 +16,7 @@ import {
     Wallet as Walletclient,
     WalletType,
     TransactionMode,
+    TransactionStatus,
     IdentityType,
     AuthMode,
     CommitVerifierRequest,
@@ -25,22 +26,37 @@ import {
     ListAccessRequest,
     RevokeAccessRequest,
     SignMessageRequest,
-    CallContractRequest, AbiArg,
+    PrepareEthereumTransactionRequest,
+    PrepareContractCallRequest,
+    ExecuteRequest,
+    GetTransactionStatusRequest,
+    PrepareResponse,
+    TransactionStatusResponse,
+    AbiArg,
+    FeeOption,
+    FeeOptionSelection,
 } from '../generated/waas.gen.js'
 import {NetworkBindings} from "../utils/networkBindings.js";
 import {Network} from "../types/evmTypes.js";
 import {
+    FeeOptionSelector,
+    FeeOptionWithBalance,
     SendContractTransactionParams,
     SendDataTransactionParams, SendNativeTransactionParams,
-    SendTransactionParams
+    SendTransactionParams,
+    SendTransactionResponse
 } from "../types/transactionTypes.js";
 import {AccessGrant} from "../types/accessGrant.js";
+import {IndexerClient, TokenBalance} from "./indexerClient.js";
 
 export class WalletClient {
     private readonly client: Walletclient
     private readonly storage: StorageManager
     private readonly networks: NetworkBindings
     private readonly credentialSigner: CredentialSigner
+    private readonly indexerClient: IndexerClient
+    private readonly transactionStatusPollIntervalMs = 2_000
+    private readonly transactionStatusPollTimeoutMs = 60_000
 
     /** The on-chain address of this wallet. Undefined until a wallet is created or loaded. */
     public walletAddress: Address | undefined
@@ -71,13 +87,17 @@ export class WalletClient {
 
         const signedFetch = createSignedFetch(params.projectAccessKey, this.credentialSigner)
         this.client = new Walletclient(params.environment.walletApiUrl, signedFetch)
+        this.indexerClient = new IndexerClient({
+            projectAccessKey: params.projectAccessKey,
+            environment: params.environment,
+        })
         this.networks = new NetworkBindings()
     }
 
     /**
      * Initiates email-based OTP authentication by sending a one-time code to the given address.
      *
-     * After this resolves, show your OTP entry UI and pass the code to `completeEmailSignIn`.
+     * After this resolves, show your OTP entry UI and pass the code to `completeEmailAuth`.
      */
     async startEmailAuth(params: {
         email: string
@@ -96,7 +116,7 @@ export class WalletClient {
     /**
      * Completes the email OTP flow by verifying the code the user received.
      *
-     * Must be called after `signInWithEmail`. On success, call `createWallet`
+     * Must be called after `startEmailAuth`. On success, call `createWallet`
      * or `useWallet` to activate a wallet.
      */
     async completeEmailAuth(params: {
@@ -147,7 +167,7 @@ export class WalletClient {
     }): Promise<string> {
         await this.requireActiveSession()
         const request: SignMessageRequest = {
-            network: this.parseNetwork(params.network),
+            network: this.parseWalletNetwork(params.network),
             walletId: this.walletId,
             message: params.message,
         }
@@ -155,31 +175,34 @@ export class WalletClient {
         return response.signature
     }
 
-    async sendTransaction(params: SendNativeTransactionParams): Promise<string>
-    async sendTransaction(params: SendDataTransactionParams): Promise<string>
+    async sendTransaction(params: SendNativeTransactionParams): Promise<SendTransactionResponse>
+    async sendTransaction(params: SendDataTransactionParams): Promise<SendTransactionResponse>
     async sendTransaction<
         const abi extends Abi | readonly unknown[],
         functionName extends ContractFunctionName<abi> | undefined = ContractFunctionName<abi>,
-    >(params: SendContractTransactionParams<abi, functionName>): Promise<string>
-    async sendTransaction(params: SendTransactionParams): Promise<string> {
+    >(params: SendContractTransactionParams<abi, functionName>): Promise<SendTransactionResponse>
+    async sendTransaction(params: SendTransactionParams): Promise<SendTransactionResponse> {
         await this.requireActiveSession()
         const data =
             'abi' in params
                 ? encodeFunctionData(params as EncodeFunctionDataParameters)
                 : params.data
 
-        const response = await this.client.sendTransaction({
-            network: this.parseNetwork(params.network),
+        const request: PrepareEthereumTransactionRequest = {
+            network: this.parseWalletNetwork(params.network),
             walletId: this.walletId,
             to: params.to,
             value: (params.value ?? 0n).toString(),
             data,
-            feeCeiling: params.feeCeiling?.toString(),
-            nonce: params.nonce?.toString(),
-            mode: TransactionMode.Relayer,
-        })
+            mode: params.mode ?? TransactionMode.Relayer,
+        }
 
-        return response.txHash
+        const prepared = await this.client.prepareEthereumTransaction(request)
+        return this.executePreparedTransaction({
+            prepared,
+            network: params.network,
+            selectFeeOption: params.selectFeeOption,
+        })
     }
 
     async callContract(params: {
@@ -187,25 +210,25 @@ export class WalletClient {
         contractAddress: Address
         method: string
         args?: Array<AbiArg>
-        value?: bigint
-        feeCeiling?: bigint
-        nonce?: bigint
-    }): Promise<string> {
+        mode?: TransactionMode
+        selectFeeOption?: FeeOptionSelector
+    }): Promise<SendTransactionResponse> {
         await this.requireActiveSession()
-        const request: CallContractRequest = {
-            network: this.parseNetwork(params.network),
+        const request: PrepareContractCallRequest = {
+            network: this.parseWalletNetwork(params.network),
             walletId: this.walletId,
-            contractAddress: params.contractAddress,
+            contract: params.contractAddress,
             method: params.method,
             args: params.args,
-            value: params.value?.toString(),
-            feeCeiling: params.feeCeiling?.toString(),
-            nonce: params.nonce?.toString(),
-            mode: TransactionMode.Relayer,
+            mode: params.mode ?? TransactionMode.Relayer,
         }
 
-        const response = await this.client.callContract(request)
-        return response.txHash
+        const prepared = await this.client.prepareContractCall(request)
+        return this.executePreparedTransaction({
+            prepared,
+            network: params.network,
+            selectFeeOption: params.selectFeeOption,
+        })
     }
 
     async listAccess(): Promise<AccessGrant[]> {
@@ -264,6 +287,156 @@ export class WalletClient {
         this.storage.delete(Constants.signerStorageKey)
     }
 
+    private async executePreparedTransaction(params: {
+        prepared: PrepareResponse
+        network: Network
+        selectFeeOption?: FeeOptionSelector
+    }): Promise<SendTransactionResponse> {
+        const feeOption = await this.selectFeeOption({
+            feeOptions: params.prepared.feeOptions,
+            sponsored: params.prepared.sponsored,
+            network: params.network,
+            selectFeeOption: params.selectFeeOption,
+        })
+        const request: ExecuteRequest = {txnId: params.prepared.txnId}
+        if (feeOption) {
+            request.feeOption = feeOption
+        }
+
+        const executed = await this.client.execute(request)
+        const status = await this.waitForTransactionStatus(params.prepared.txnId, executed.status)
+
+        return {
+            txnId: params.prepared.txnId,
+            status: status.status,
+            txHash: status.txnHash,
+        }
+    }
+
+    private async selectFeeOption(params: {
+        feeOptions: FeeOption[]
+        sponsored: boolean
+        network: Network
+        selectFeeOption?: FeeOptionSelector
+    }): Promise<FeeOptionSelection | undefined> {
+        if (params.feeOptions.length === 0) {
+            return undefined
+        }
+
+        if (!params.selectFeeOption) {
+            return this.defaultFeeOptionSelection(params.feeOptions, params.sponsored)
+        }
+
+        return params.selectFeeOption(
+            await this.enrichFeeOptionsWithBalances(params.network, params.feeOptions),
+        )
+    }
+
+    private async enrichFeeOptionsWithBalances(
+        network: Network,
+        feeOptions: FeeOption[],
+    ): Promise<FeeOptionWithBalance[]> {
+        const walletAddress = this.walletAddress
+        if (!walletAddress) {
+            throw new Error('No active wallet session')
+        }
+
+        const nativeBalance = feeOptions.some(option => this.isNativeToken(option))
+            ? await this.loadNativeTokenBalance(network, walletAddress)
+            : undefined
+
+        const contractAddresses = Array.from(new Set(
+            feeOptions
+                .map(option => this.normalizeAddress(option.token.contractAddress))
+                .filter((address): address is string => Boolean(address)),
+        ))
+        const tokenBalances = new Map<string, TokenBalance | undefined>(
+            await Promise.all(contractAddresses.map(async contractAddress => [
+                contractAddress,
+                await this.loadTokenBalanceOrZero(network, contractAddress, walletAddress),
+            ] as const)),
+        )
+
+        return feeOptions.map(feeOption => {
+            const balance = this.isNativeToken(feeOption)
+                ? nativeBalance
+                : tokenBalances.get(this.normalizeAddress(feeOption.token.contractAddress) ?? '')
+            const decimals = this.balanceDecimals(feeOption)
+
+            return {
+                feeOption,
+                balance,
+                available: this.formatTokenAmount(balance?.balance, decimals),
+                availableRaw: balance?.balance,
+                decimals,
+            }
+        })
+    }
+
+    private async loadNativeTokenBalance(
+        network: Network,
+        walletAddress: Address,
+    ): Promise<TokenBalance | undefined> {
+        return this.indexerClient.getNativeTokenBalance({
+            chainId: this.parseIndexerNetwork(network),
+            walletAddress,
+        }).catch(() => undefined)
+    }
+
+    private async loadTokenBalanceOrZero(
+        network: Network,
+        contractAddress: string,
+        walletAddress: Address,
+    ): Promise<TokenBalance | undefined> {
+        return this.indexerClient.getTokenBalances({
+            chainId: this.parseIndexerNetwork(network),
+            contractAddress,
+            walletAddress,
+            includeMetadata: false,
+        }).then(result => result.balances.find(balance =>
+            this.normalizeAddress(balance.contractAddress) === contractAddress,
+        ) ?? {
+            contractType: 'ERC20',
+            contractAddress,
+            accountAddress: walletAddress,
+            tokenId: undefined,
+            balance: '0',
+            blockHash: undefined,
+            blockNumber: undefined,
+            chainId: Number(this.parseWalletNetwork(network)),
+        }).catch(() => undefined)
+    }
+
+    private defaultFeeOptionSelection(
+        feeOptions: FeeOption[],
+        sponsored: boolean,
+    ): FeeOptionSelection | undefined {
+        return sponsored ? undefined : feeOptions[0] ? {token: feeOptions[0].token.symbol} : undefined
+    }
+
+    private async waitForTransactionStatus(
+        txnId: string,
+        fallbackStatus: TransactionStatus,
+    ): Promise<TransactionStatusResponse> {
+        const deadline = Date.now() + this.transactionStatusPollTimeoutMs
+        let lastStatus: TransactionStatusResponse = {status: fallbackStatus}
+
+        do {
+            lastStatus = await this.client.getTransactionStatus({txnId: txnId} as GetTransactionStatusRequest)
+            if (lastStatus.status === TransactionStatus.Executed || lastStatus.txnHash) {
+                return lastStatus
+            }
+            if (this.transactionStatusPollIntervalMs <= 0) {
+                return lastStatus
+            }
+            const remainingMs = deadline - Date.now()
+            if (remainingMs <= 0) {
+                return lastStatus
+            }
+            await this.delay(Math.min(this.transactionStatusPollIntervalMs, remainingMs))
+        } while (true)
+    }
+
     private async requireActiveSession(): Promise<void> {
         if (!this.walletId) {
             throw new Error('No active wallet session')
@@ -275,13 +448,62 @@ export class WalletClient {
         }
     }
 
-    private parseNetwork(network: Network): string {
+    private parseWalletNetwork(network: Network): string {
         if (typeof network === 'string') {
-            return network.toLowerCase()
+            const normalized = network.toLowerCase()
+            return this.networks.getChainIdByName(normalized)?.toString() ?? normalized
         } else if (typeof network === 'bigint') {
-            return this.networks.getChainNameById(network)
+            return network.toString()
         } else {
-            return this.networks.getChainNameById(BigInt(network.id))
+            return BigInt(network.id).toString()
         }
+    }
+
+    private parseIndexerNetwork(network: Network): string {
+        if (typeof network === 'string') {
+            const normalized = network.toLowerCase()
+            if (/^\d+$/.test(normalized)) {
+                return this.networks.findChainNameById(BigInt(normalized)) ?? normalized
+            }
+            return normalized
+        } else if (typeof network === 'bigint') {
+            return this.networks.findChainNameById(network) ?? network.toString()
+        } else {
+            const chainId = BigInt(network.id)
+            return this.networks.findChainNameById(chainId) ?? chainId.toString()
+        }
+    }
+
+    private isNativeToken(feeOption: FeeOption): boolean {
+        return feeOption.token.type.toLowerCase() === 'native' ||
+            (!feeOption.token.contractAddress && !feeOption.token.tokenID)
+    }
+
+    private balanceDecimals(feeOption: FeeOption): number | undefined {
+        return feeOption.token.decimals ?? (this.isNativeToken(feeOption) ? 18 : undefined)
+    }
+
+    private normalizeAddress(address: string | undefined): string | undefined {
+        return address?.trim().toLowerCase() || undefined
+    }
+
+    private formatTokenAmount(value: string | undefined, decimals: number | undefined): string | undefined {
+        if (value === undefined || decimals === undefined) {
+            return value
+        }
+
+        try {
+            const raw = BigInt(value)
+            const divisor = 10n ** BigInt(decimals)
+            const whole = raw / divisor
+            const fraction = (raw % divisor).toString().padStart(decimals, '0').replace(/0+$/, '')
+            return fraction ? `${whole}.${fraction}` : whole.toString()
+        } catch {
+            return value
+        }
+    }
+
+    private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms))
     }
 }
