@@ -26,7 +26,6 @@ export function createSignedFetch(projectAccessKey: string, signer: CredentialSi
             ...existingHeaders,
             'X-Access-Key': projectAccessKey,
             'Authorization': authHeader,
-            'Origin': 'http://localhost:3000',
         }
 
         return globalThis.fetch(input, { ...init, headers })
