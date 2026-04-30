@@ -107,6 +107,23 @@ button:disabled {
   gap: 10px;
 }
 
+.divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  color: #667085;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  height: 1px;
+  background: #d8dee8;
+}
+
 .tool {
   display: grid;
   gap: 12px;

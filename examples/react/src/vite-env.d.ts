@@ -1,0 +1,3 @@
+declare const __OMS_PROJECT_ACCESS_KEY__: string
+declare const __OMS_GOOGLE_CLIENT_ID__: string
+declare const __OMS_OIDC_RELAY_REDIRECT_URI__: string

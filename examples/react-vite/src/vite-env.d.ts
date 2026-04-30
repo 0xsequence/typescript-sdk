@@ -1,1 +1,0 @@
-declare const __OMS_PROJECT_ACCESS_KEY__: string

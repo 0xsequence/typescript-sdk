@@ -1,6 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { OMSClient } from 'typescript-sdk'
+import {
+  defaultOmsEnvironment,
+  defineOmsEnvironment,
+  googleOidcProvider,
+  OMSClient,
+} from 'typescript-sdk'
 import './styles.css'
 
 type Step = 'email' | 'code' | 'wallet'
@@ -22,16 +27,42 @@ function App() {
   const [lastTransactionHash, setLastTransactionHash] = useState('')
   const [status, setStatus] = useState('Enter an email to start.')
   const [isBusy, setIsBusy] = useState(false)
+  const oidcCallbackStarted = useRef(false)
 
-  const oms = useMemo(() => new OMSClient({
-    projectAccessKey: __OMS_PROJECT_ACCESS_KEY__,
-  }), [])
+  const googleConfigured = Boolean(__OMS_GOOGLE_CLIENT_ID__)
+  const oms = useMemo(() => {
+    const environment = defineOmsEnvironment({
+      ...defaultOmsEnvironment,
+      auth: {
+        ...defaultOmsEnvironment.auth,
+        oidcProviders: {
+          google: googleOidcProvider({
+            clientId: __OMS_GOOGLE_CLIENT_ID__ || 'missing-google-client-id',
+            relayRedirectUri: __OMS_OIDC_RELAY_REDIRECT_URI__ || undefined,
+          }),
+        },
+      },
+    })
+
+    return new OMSClient({
+      projectAccessKey: __OMS_PROJECT_ACCESS_KEY__,
+      environment,
+    })
+  }, [])
 
   useEffect(() => {
     if (oms.wallet.walletAddress) {
       setWalletAddress(oms.wallet.walletAddress)
       setStep('wallet')
       setStatus('Wallet session restored.')
+      return
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('code') || params.has('state') || params.has('error')) {
+      if (oidcCallbackStarted.current) return
+      oidcCallbackStarted.current = true
+      void completeOidcRedirect()
     }
   }, [oms])
 
@@ -60,6 +91,26 @@ function App() {
     if (!code.trim()) return
     await run('Completing sign-in...', async () => {
       await oms.wallet.completeEmailAuth({ code: code.trim() })
+      setWalletAddress(oms.wallet.walletAddress ?? '')
+      setStep('wallet')
+      setStatus('Wallet ready.')
+    })
+  }
+
+  async function startOidcRedirect() {
+    if (!googleConfigured) {
+      setStatus('Set OMS_GOOGLE_CLIENT_ID to enable Google redirect sign-in.')
+      return
+    }
+
+    await run('Redirecting to provider...', async () => {
+      await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
+    })
+  }
+
+  async function completeOidcRedirect() {
+    await run('Completing redirect sign-in...', async () => {
+      await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
       setWalletAddress(oms.wallet.walletAddress ?? '')
       setStep('wallet')
       setStatus('Wallet ready.')
@@ -126,6 +177,10 @@ function App() {
             </label>
             <button type="submit" disabled={isBusy || !email.trim()}>
               Send code
+            </button>
+            <div className="divider">or</div>
+            <button type="button" className="secondary" onClick={startOidcRedirect} disabled={isBusy || !googleConfigured}>
+              Continue with Google
             </button>
           </form>
         )}

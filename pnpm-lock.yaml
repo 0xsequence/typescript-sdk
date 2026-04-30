@@ -38,7 +38,7 @@ importers:
         specifier: ^5.9.3
         version: 5.9.3
 
-  examples/react-vite:
+  examples/react:
     dependencies:
       react:
         specifier: ^19.2.5
