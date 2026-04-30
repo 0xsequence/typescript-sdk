@@ -64,6 +64,21 @@ label {
   font-weight: 650;
 }
 
+.field-stack {
+  display: grid;
+  gap: 10px;
+}
+
+.field-hint {
+  min-height: 42px;
+  padding: 11px 12px;
+  border-radius: 6px;
+  margin: 0;
+  color: #344054;
+  background: #eef2f7;
+  font-size: 14px;
+}
+
 input {
   width: 100%;
   min-height: 44px;

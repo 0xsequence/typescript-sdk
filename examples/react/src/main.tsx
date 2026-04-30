@@ -14,6 +14,10 @@ const NETWORK = 'amoy'
 const EXPLORER_TX_URL = 'https://amoy.polygonscan.com/tx/'
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
+const GOOGLE_CONFIGURED = Boolean(__OMS_GOOGLE_CLIENT_ID__)
+const DEFAULT_REDIRECT_STATUS = GOOGLE_CONFIGURED
+  ? ''
+  : 'Set OMS_GOOGLE_CLIENT_ID to enable Google redirect sign-in.'
 
 function App() {
   const [step, setStep] = useState<Step>('email')
@@ -25,11 +29,12 @@ function App() {
   const [walletAddress, setWalletAddress] = useState('')
   const [lastSignature, setLastSignature] = useState('')
   const [lastTransactionHash, setLastTransactionHash] = useState('')
-  const [status, setStatus] = useState('Enter an email to start.')
+  const [emailAuthStatus, setEmailAuthStatus] = useState('Enter an email to start.')
+  const [redirectStatus, setRedirectStatus] = useState(DEFAULT_REDIRECT_STATUS)
+  const [walletStatus, setWalletStatus] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const oidcCallbackStarted = useRef(false)
 
-  const googleConfigured = Boolean(__OMS_GOOGLE_CLIENT_ID__)
   const oms = useMemo(() => {
     const environment = defineOmsEnvironment({
       ...defaultOmsEnvironment,
@@ -54,7 +59,7 @@ function App() {
     if (oms.wallet.walletAddress) {
       setWalletAddress(oms.wallet.walletAddress)
       setStep('wallet')
-      setStatus('Wallet session restored.')
+      setWalletStatus('Wallet session restored.')
       return
     }
 
@@ -66,13 +71,17 @@ function App() {
     }
   }, [oms])
 
-  async function run(label: string, action: () => Promise<void>) {
+  async function run(
+    label: string,
+    setActiveStatus: (message: string) => void,
+    action: () => Promise<void>,
+  ) {
     setIsBusy(true)
-    setStatus(label)
+    setActiveStatus(label)
     try {
       await action()
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
+      setActiveStatus(error instanceof Error ? error.message : String(error))
     } finally {
       setIsBusy(false)
     }
@@ -80,75 +89,77 @@ function App() {
 
   async function startEmailAuth() {
     if (!email.trim()) return
-    await run('Sending code...', async () => {
+    await run('Sending code...', setEmailAuthStatus, async () => {
       await oms.wallet.startEmailAuth({ email: email.trim() })
       setStep('code')
-      setStatus('Code sent. Check your email.')
+      setEmailAuthStatus('Code sent. Check your email.')
     })
   }
 
   async function completeEmailAuth() {
     if (!code.trim()) return
-    await run('Completing sign-in...', async () => {
+    await run('Completing sign-in...', setEmailAuthStatus, async () => {
       await oms.wallet.completeEmailAuth({ code: code.trim() })
       setWalletAddress(oms.wallet.walletAddress ?? '')
       setStep('wallet')
-      setStatus('Wallet ready.')
+      setWalletStatus('Wallet ready.')
     })
   }
 
   async function startOidcRedirect() {
-    if (!googleConfigured) {
-      setStatus('Set OMS_GOOGLE_CLIENT_ID to enable Google redirect sign-in.')
+    if (!GOOGLE_CONFIGURED) {
+      setRedirectStatus('Set OMS_GOOGLE_CLIENT_ID to enable Google redirect sign-in.')
       return
     }
 
-    await run('Redirecting to provider...', async () => {
+    await run('Redirecting to provider...', setRedirectStatus, async () => {
       await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
     })
   }
 
   async function completeOidcRedirect() {
-    await run('Completing redirect sign-in...', async () => {
+    await run('Completing redirect sign-in...', setRedirectStatus, async () => {
       await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
       setWalletAddress(oms.wallet.walletAddress ?? '')
       setStep('wallet')
-      setStatus('Wallet ready.')
+      setWalletStatus('Wallet ready.')
     })
   }
 
   async function signMessage() {
-    await run('Signing message...', async () => {
+    await run('Signing message...', setWalletStatus, async () => {
       const signature = await oms.wallet.signMessage({
         network: NETWORK,
         message,
       })
       setLastSignature(signature)
-      setStatus('Message signed.')
+      setWalletStatus('Message signed.')
     })
   }
 
   async function sendTransaction() {
-    await run('Sending transaction...', async () => {
+    await run('Sending transaction...', setWalletStatus, async () => {
       const tx = await oms.wallet.sendTransaction({
         network: NETWORK,
         to: transactionTo as `0x${string}`,
         value: BigInt(transactionValue || '0'),
       })
       setLastTransactionHash(tx.txHash ?? tx.txnId)
-      setStatus('Transaction sent.')
+      setWalletStatus('Transaction sent.')
     })
   }
 
   async function signOut() {
-    await run('Signing out...', async () => {
+    await run('Signing out...', setWalletStatus, async () => {
       await oms.wallet.signOut()
       setCode('')
       setWalletAddress('')
       setLastSignature('')
       setLastTransactionHash('')
       setStep('email')
-      setStatus('Signed out.')
+      setEmailAuthStatus('Signed out. Enter an email to start.')
+      setRedirectStatus(DEFAULT_REDIRECT_STATUS)
+      setWalletStatus('')
     })
   }
 
@@ -165,23 +176,35 @@ function App() {
             event.preventDefault()
             void startEmailAuth()
           }}>
-            <label>
-              Email
-              <input
-                autoFocus
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="user@example.com"
-              />
-            </label>
+            <div className="field-stack">
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="user@example.com"
+                  aria-describedby="email-status"
+                />
+              </label>
+              <p id="email-status" className="field-hint">{emailAuthStatus}</p>
+            </div>
             <button type="submit" disabled={isBusy || !email.trim()}>
               Send code
             </button>
             <div className="divider">or</div>
-            <button type="button" className="secondary" onClick={startOidcRedirect} disabled={isBusy || !googleConfigured}>
-              Continue with Google
-            </button>
+            <div className="field-stack">
+              <button
+                type="button"
+                className="secondary"
+                onClick={startOidcRedirect}
+                disabled={isBusy || !GOOGLE_CONFIGURED}
+                aria-describedby="google-status"
+              >
+                Continue with Google
+              </button>
+              {redirectStatus && <p id="google-status" className="field-hint">{redirectStatus}</p>}
+            </div>
           </form>
         )}
 
@@ -190,16 +213,20 @@ function App() {
             event.preventDefault()
             void completeEmailAuth()
           }}>
-            <label>
-              Code
-              <input
-                autoFocus
-                inputMode="numeric"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                placeholder="123456"
-              />
-            </label>
+            <div className="field-stack">
+              <label>
+                Code
+                <input
+                  autoFocus
+                  inputMode="numeric"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  placeholder="123456"
+                  aria-describedby="code-status"
+                />
+              </label>
+              <p id="code-status" className="field-hint">{emailAuthStatus}</p>
+            </div>
             <div className="actions">
               <button type="submit" disabled={isBusy || !code.trim()}>
                 Complete sign-in
@@ -273,7 +300,7 @@ function App() {
           </div>
         )}
 
-        <output>{status}</output>
+        {step === 'wallet' && <output>{walletStatus}</output>}
       </section>
     </main>
   )
