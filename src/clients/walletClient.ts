@@ -107,7 +107,6 @@ interface PendingOidcRedirectAuth {
     provider: string | null;
     walletType: WalletType;
     redirectUri: string;
-    oauthRedirectUri: string;
     issuer: string;
     waasAuthScope: string;
 }
@@ -250,7 +249,6 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             provider: provider.name,
             walletType: params.walletType ?? WalletType.Ethereum,
             redirectUri: params.redirectUri,
-            oauthRedirectUri,
             issuer: provider.config.issuer,
             waasAuthScope: this.waasAuthScope,
         })
@@ -549,7 +547,6 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 typeof parsed.verifier !== 'string' ||
                 typeof parsed.nonce !== 'string' ||
                 typeof parsed.redirectUri !== 'string' ||
-                typeof parsed.oauthRedirectUri !== 'string' ||
                 typeof parsed.issuer !== 'string' ||
                 typeof parsed.waasAuthScope !== 'string'
             ) {
@@ -562,7 +559,6 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 provider: typeof parsed.provider === 'string' ? parsed.provider : null,
                 walletType: isWalletType(parsed.walletType) ? parsed.walletType : WalletType.Ethereum,
                 redirectUri: parsed.redirectUri,
-                oauthRedirectUri: parsed.oauthRedirectUri,
                 issuer: parsed.issuer,
                 waasAuthScope: parsed.waasAuthScope,
             }
