@@ -73,7 +73,7 @@ describe("createSignedFetch", () => {
 
         const [, init] = fetchMock.mock.calls[0];
         expect((init?.headers as Record<string, string>).Authorization).toBe(
-            `webcrypto-secp256r1 scope="${Constants.scope}",cred="0x04${"11".repeat(64)}",nonce=42,sig="0x${"22".repeat(64)}"`,
+            `webcrypto-secp256r1 scope="${Constants.defaultWaasAuthScope}",cred="0x04${"11".repeat(64)}",nonce=42,sig="0x${"22".repeat(64)}"`,
         );
         expect(consoleLog).not.toHaveBeenCalled();
     });
