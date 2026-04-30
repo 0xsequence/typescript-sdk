@@ -297,6 +297,43 @@ describe("WalletClient OIDC redirect auth", () => {
         expect(replaceUrl).toHaveBeenCalledWith("https://app.example/auth/callback");
     });
 
+    it("cleans the callback URL when OIDC completion fails", async () => {
+        const redirectAuthStorage = new MemoryStorageManager();
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = input.toString();
+
+            if (url.endsWith("/CommitVerifier")) {
+                return jsonResponse({
+                    verifier: "verifier-1",
+                    challenge: "challenge-1",
+                });
+            }
+
+            if (url.endsWith("/CompleteAuth")) {
+                throw new Error("network failed");
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = createWalletClient({redirectAuthStorage});
+        const started = await wallet.startOidcRedirectAuth({
+            provider: "google",
+            redirectUri: "https://app.example/auth/callback",
+        });
+        const replaceUrl = vi.fn();
+
+        await expect(wallet.completeOidcRedirectAuth({
+            callbackUrl: `https://app.example/auth/callback?code=auth-code&state=${started.state}`,
+            cleanUrl: true,
+            replaceUrl,
+        })).rejects.toThrow("request failed");
+
+        expect(redirectAuthStorage.get(Constants.redirectAuthStorageKey)).toBeNull();
+        expect(replaceUrl).toHaveBeenCalledWith("https://app.example/auth/callback");
+    });
+
     it("rejects nonce mismatches and clears pending state", async () => {
         const redirectAuthStorage = new MemoryStorageManager();
         const fetchMock = vi.fn(async () => jsonResponse({

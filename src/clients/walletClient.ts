@@ -287,8 +287,13 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         params: CompleteOidcRedirectAuthParams,
     ): Promise<CompleteOidcRedirectAuthResult> {
         const redirectAuthStorage = this.requireRedirectAuthStorage()
+
         try {
             const callback = parseOidcCallbackUrl(params.callbackUrl)
+            if (params.cleanUrl) {
+                this.replaceOidcCallbackUrl(params.callbackUrl, params.replaceUrl)
+            }
+
             if (callback.error) {
                 throw new Error(callback.errorDescription || `OIDC provider returned error: ${callback.error}`)
             }
@@ -307,10 +312,6 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             }
             const response = await this.client.completeAuth(request)
             await this.activateWalletFromAuthResponse(response, pending.walletType)
-
-            if (params.cleanUrl) {
-                this.replaceOidcCallbackUrl(params.callbackUrl, params.replaceUrl)
-            }
 
             if (!this.walletAddress) {
                 throw new Error('OIDC auth completed without an active wallet')
