@@ -1,12 +1,44 @@
 import {Abi, Address, Chain, ContractFunctionName, EncodeFunctionDataParameters, Hex} from "viem";
 import {Network} from "./evmTypes.js";
+import type {
+    FeeOption,
+    FeeOptionSelection,
+    TransactionMode,
+    TransactionStatus,
+} from "../generated/waas.gen.js";
+import type {TokenBalance} from "../clients/indexerClient.js";
+
+export type {
+    FeeOption,
+    FeeOptionSelection,
+    TransactionMode,
+    TransactionStatus,
+};
+
+export type FeeOptionWithBalance = {
+    feeOption: FeeOption
+    balance?: TokenBalance
+    available?: string
+    availableRaw?: string
+    decimals?: number
+}
+
+export type FeeOptionSelector = (
+    feeOptions: FeeOptionWithBalance[]
+) => FeeOptionSelection | undefined | Promise<FeeOptionSelection | undefined>
+
+export type SendTransactionResponse = {
+    txnId: string
+    status: TransactionStatus
+    txHash?: string
+}
 
 export type SendTransactionBase = {
     network: Network
     to: Address
     value?: bigint
-    feeCeiling?: bigint
-    nonce?: bigint
+    mode?: TransactionMode
+    selectFeeOption?: FeeOptionSelector
 }
 
 export type SendNativeTransactionParams = SendTransactionBase & {

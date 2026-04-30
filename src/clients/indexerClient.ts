@@ -1,6 +1,7 @@
 // Converted from Swift IndexerClient.
 
 import {HttpClient} from "../httpClient.js";
+import {NetworkBindings} from "../utils/networkBindings.js";
 
 export interface TokenBalancesPage {
     page: number;
@@ -24,6 +25,17 @@ export interface TokenBalancesResult {
     status: number;
     page?: TokenBalancesPage;
     balances: TokenBalance[];
+}
+
+interface NativeTokenBalancePayloadRaw {
+    balance?: NativeTokenBalanceRaw;
+}
+
+interface NativeTokenBalanceRaw {
+    accountAddress?: string;
+    balance?: string;
+    balanceWei?: string;
+    chainId?: number;
 }
 
 interface TokenBalancesPayloadRaw {
@@ -64,6 +76,7 @@ export class IndexerClient {
     private readonly projectAccessKey: string;
     private readonly environment: OmsEnvironment;
     private readonly client: HttpClient;
+    private readonly networks: NetworkBindings;
 
     constructor(params: {
         projectAccessKey: string,
@@ -72,6 +85,7 @@ export class IndexerClient {
         this.projectAccessKey = params.projectAccessKey;
         this.environment = params.environment;
         this.client = new HttpClient();
+        this.networks = new NetworkBindings();
     }
 
     async getTokenBalances(params: {
@@ -106,8 +120,44 @@ export class IndexerClient {
         };
     }
 
+    async getNativeTokenBalance(params: {
+        chainId: string
+        walletAddress: string
+    }): Promise<TokenBalance | undefined> {
+        const response = await this.client.postJson({
+            baseUrl: this.indexerUrl(params.chainId),
+            path: "/GetNativeTokenBalance",
+            body: JSON.stringify({ accountAddress: params.walletAddress }),
+            headers: this.defaultHeaders(),
+        });
+
+        const payload = JSON.parse(response.body) as NativeTokenBalancePayloadRaw;
+        if (!payload.balance) {
+            return undefined;
+        }
+
+        return {
+            contractType: "NATIVE",
+            contractAddress: undefined,
+            accountAddress: payload.balance.accountAddress,
+            tokenId: undefined,
+            balance: payload.balance.balance ?? payload.balance.balanceWei,
+            blockHash: undefined,
+            blockNumber: undefined,
+            chainId: payload.balance.chainId,
+        };
+    }
+
     private indexerUrl(chainId: string): string {
-        return this.environment.indexerUrlTemplate.replace("{value}", chainId);
+        return this.environment.indexerUrlTemplate.replace("{value}", this.indexerNetworkValue(chainId));
+    }
+
+    private indexerNetworkValue(chainId: string): string {
+        const normalized = chainId.toLowerCase();
+        if (/^\d+$/.test(normalized)) {
+            return this.networks.findChainNameById(BigInt(normalized)) ?? normalized;
+        }
+        return normalized;
     }
 
     private defaultHeaders(): Record<string, string> {

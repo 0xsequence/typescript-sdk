@@ -79,12 +79,12 @@ function App() {
 
   async function sendTransaction() {
     await run('Sending transaction...', async () => {
-      const txHash = await oms.wallet.sendTransaction({
+      const tx = await oms.wallet.sendTransaction({
         network: NETWORK,
         to: transactionTo as `0x${string}`,
         value: BigInt(transactionValue || '0'),
       })
-      setLastTransactionHash(txHash)
+      setLastTransactionHash(tx.txHash ?? tx.txnId)
       setStatus('Transaction sent.')
     })
   }

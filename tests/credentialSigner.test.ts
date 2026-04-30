@@ -5,6 +5,7 @@ import {WalletClient} from "../src/clients/walletClient";
 import {MemoryStorageManager} from "../src/storageManager";
 import {Constants} from "../src/utils/constants";
 import {createSignedFetch} from "../src/signedFetch";
+import {TransactionStatus} from "../src/generated/waas.gen";
 
 class MockSigner implements CredentialSigner {
     readonly keyType = "webcrypto-secp256r1";
@@ -141,4 +142,164 @@ describe("WalletClient session storage", () => {
         expect(storage.get(Constants.walletIdStorageKey)).toBeNull();
         expect(signer.clear).toHaveBeenCalledOnce();
     });
+
+    it("uses faster status polling for the first five polls", () => {
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: {
+                walletApiUrl: "https://wallet.example",
+                apiRpcUrl: "https://api.example",
+                indexerUrlTemplate: "https://indexer.example/{value}",
+            },
+            storage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+
+        expect((wallet as any).transactionStatusPollDelayMs(1)).toBe(400);
+        expect((wallet as any).transactionStatusPollDelayMs(4)).toBe(400);
+        expect((wallet as any).transactionStatusPollDelayMs(5)).toBe(2_000);
+        expect((wallet as any).transactionStatusPollDelayMs(6)).toBe(2_000);
+    });
+
+    it("prepares, enriches fee options, executes, and returns transaction status", async () => {
+        const signer = new MockSigner();
+        const storage = new MemoryStorageManager();
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = JSON.parse(init?.body as string);
+
+            if (url.endsWith("/PrepareEthereumTransaction")) {
+                expect(body).toMatchObject({
+                    network: "137",
+                    walletId: "wallet-id",
+                    to: "0x1111111111111111111111111111111111111111",
+                    value: "0",
+                    mode: "relayer",
+                });
+                return jsonResponse({
+                    txnId: "txn-1",
+                    status: "quoted",
+                    feeOptions: [
+                        {
+                            token: {
+                                network: "137",
+                                name: "Polygon",
+                                symbol: "MATIC",
+                                type: "native",
+                                decimals: 18,
+                                logoURL: "",
+                            },
+                            value: "100000000000000000",
+                            displayValue: "0.1",
+                        },
+                        {
+                            token: {
+                                network: "137",
+                                name: "USD Coin",
+                                symbol: "USDC",
+                                type: "erc20",
+                                decimals: 6,
+                                logoURL: "",
+                                contractAddress: "0x2222222222222222222222222222222222222222",
+                            },
+                            value: "1000000",
+                            displayValue: "1",
+                        },
+                    ],
+                    sponsored: false,
+                    expiresAt: "2026-01-01T00:00:00Z",
+                });
+            }
+
+            if (url.endsWith("/GetNativeTokenBalance")) {
+                expect(body).toEqual({
+                    accountAddress: "0x9999999999999999999999999999999999999999",
+                });
+                return jsonResponse({
+                    balance: {
+                        accountAddress: "0x9999999999999999999999999999999999999999",
+                        balanceWei: "1000000000000000000",
+                        chainId: 137,
+                    },
+                });
+            }
+
+            if (url.endsWith("/GetTokenBalances")) {
+                expect(body).toMatchObject({
+                    contractAddress: "0x2222222222222222222222222222222222222222",
+                    accountAddress: "0x9999999999999999999999999999999999999999",
+                    includeMetadata: false,
+                });
+                return jsonResponse({
+                    page: {page: 0, pageSize: 40, more: false},
+                    balances: [{
+                        contractType: "ERC20",
+                        contractAddress: "0x2222222222222222222222222222222222222222",
+                        accountAddress: "0x9999999999999999999999999999999999999999",
+                        tokenID: null,
+                        balance: "2500000",
+                        chainId: 137,
+                    }],
+                });
+            }
+
+            if (url.endsWith("/Execute")) {
+                expect(body).toEqual({
+                    txnId: "txn-1",
+                    feeOption: {token: "USDC"},
+                });
+                return jsonResponse({status: "pending"});
+            }
+
+            if (url.endsWith("/GetTransactionStatus")) {
+                expect(body).toEqual({txnId: "txn-1"});
+                return jsonResponse({
+                    status: "executed",
+                    txnHash: "0xtx",
+                });
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: {
+                walletApiUrl: "https://wallet.example",
+                apiRpcUrl: "https://api.example",
+                indexerUrlTemplate: "https://indexer.example/{value}",
+            },
+            storage,
+            credentialSigner: signer,
+        });
+        (wallet as any).persistSession(
+            "wallet-id",
+            "0x9999999999999999999999999999999999999999",
+        );
+
+        const response = await wallet.sendTransaction({
+            network: "polygon",
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            selectFeeOption: (feeOptions) => {
+                expect(feeOptions[0].available).toBe("1");
+                expect(feeOptions[1].available).toBe("2.5");
+                return {token: feeOptions[1].feeOption.token.symbol};
+            },
+        });
+
+        expect(response).toEqual({
+            txnId: "txn-1",
+            status: TransactionStatus.Executed,
+            txHash: "0xtx",
+        });
+    });
 });
+
+function jsonResponse(body: unknown): Response {
+    return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: {"Content-Type": "application/json"},
+    });
+}

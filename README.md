@@ -2,18 +2,21 @@
 
 A TypeScript SDK for the OMS (Open Money Stack) platform. Provides email-based wallet authentication, on-chain transaction submission, message signing, and token balance queries — with automatic session persistence.
 
-## Installation
+## Usage
+
+This SDK is not published as an npm package yet. In this repository it is consumed as the local pnpm workspace package `typescript-sdk`.
+
+From the repository root:
 
 ```bash
-npm install ethers viem
+pnpm install
+pnpm build
 ```
-
-Copy the SDK source files into your project alongside the generated `waas.gen.ts` client.
 
 ## Quick Start
 
 ```typescript
-import { OMSClient } from './OMSClient'
+import { OMSClient } from 'typescript-sdk'
 
 const oms = new OMSClient({ projectAccessKey: 'your-project-access-key' })
 
@@ -27,11 +30,12 @@ await oms.wallet.completeEmailAuth({ code: '123456' })
 console.log('Wallet address:', oms.wallet.walletAddress)
 
 // 4. Send a transaction
-const txHash = await oms.wallet.sendTransaction({
+const tx = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xRecipient',
   value: 1_000_000_000_000_000_000n, // 1 MATIC
 })
+console.log(tx.txHash ?? tx.txnId)
 ```
 
 ## Overview
@@ -77,7 +81,7 @@ await oms.wallet.signMessage({ network: polygon, message: '0xdeadbeef' })
 ### Native Token Transfer
 
 ```typescript
-const txHash = await oms.wallet.sendTransaction({
+const tx = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xRecipient',
   value: 1_000_000_000_000_000_000n, // 1 MATIC in wei
@@ -87,7 +91,7 @@ const txHash = await oms.wallet.sendTransaction({
 ### Raw Data Transaction
 
 ```typescript
-const txHash = await oms.wallet.sendTransaction({
+const tx = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xContract',
   data: '0xa9059cbb000000000000000000000000...',
@@ -110,12 +114,32 @@ const erc20Abi = [
   },
 ] as const
 
-const txHash = await oms.wallet.sendTransaction({
+const tx = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xTokenContract',
   abi: erc20Abi,
   functionName: 'transfer',
   args: ['0xRecipient', 1_000_000_000_000_000_000n],
+})
+```
+
+`sendTransaction` prepares and executes the transaction, then briefly polls for
+the final WaaS status. The response includes `txnId`, `status`, and `txHash`
+when the transaction has been published.
+
+If WaaS returns fee options, pass a selector to choose one. The selector receives
+fee options enriched with the current wallet balance for each token when
+available.
+
+```typescript
+const tx = await oms.wallet.sendTransaction({
+  network: 'polygon',
+  to: '0xTokenContract',
+  data: '0xa9059cbb000000000000000000000000...',
+  selectFeeOption: async (feeOptions) => {
+    const selected = feeOptions.find(option => option.feeOption.token.symbol === 'USDC')
+    return selected ? { token: selected.feeOption.token.symbol } : undefined
+  },
 })
 ```
 
@@ -128,6 +152,7 @@ const oms = new OMSClient({
   projectAccessKey: 'your-key',
   environment: {
     walletApiUrl: 'https://staging-wallet.example.com',
+    apiRpcUrl: 'https://staging-api.example.com/rpc/API',
     indexerUrlTemplate: 'https://staging-indexer.example.com/{value}',
   },
 })
@@ -135,17 +160,15 @@ const oms = new OMSClient({
 
 ### Custom Storage and Signing
 
-The default storage backend is `localStorage` for wallet metadata only. The default browser signer stores its non-extractable key reference separately through WebCrypto-compatible browser storage. Provide a custom `StorageManager` for Node.js, React Native, or testing:
+The default storage backend is browser `localStorage` for wallet metadata only. The default browser signer stores its non-extractable key reference separately through WebCrypto-compatible browser storage. Provide a custom `StorageManager` for Node.js, React Native, or testing:
 
 ```typescript
-class InMemoryStorage implements StorageManager {
-  private store: Record<string, string> = {}
-  get(key: string) { return this.store[key] ?? null }
-  set(key: string, value: string) { this.store[key] = value }
-  delete(key: string) { delete this.store[key] }
-}
+import { MemoryStorageManager, OMSClient } from 'typescript-sdk'
 
-const oms = new OMSClient({ projectAccessKey: 'your-key', storage: new InMemoryStorage() })
+const oms = new OMSClient({
+  projectAccessKey: 'your-key',
+  storage: new MemoryStorageManager(),
+})
 ```
 
 ## More Examples
@@ -162,7 +185,7 @@ const signature = await oms.wallet.signMessage({
 ### Call a Contract (method string + args)
 
 ```typescript
-const txHash = await oms.wallet.callContract({
+const tx = await oms.wallet.callContract({
   network: 'polygon',
   contractAddress: '0xTokenContract',
   method: 'transfer(address,uint256)',
