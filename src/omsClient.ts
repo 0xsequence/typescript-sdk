@@ -1,6 +1,6 @@
 import { WalletClient } from "./clients/walletClient.js";
 import {defaultOmsEnvironment, OmsEnvironment} from "./omsEnvironment.js";
-import {LocalStorageManager, StorageManager} from "./storageManager.js";
+import {createDefaultStorage, StorageManager} from "./storageManager.js";
 import {IndexerClient} from "./clients/indexerClient.js";
 import type {CredentialSigner} from "./credentialSigner.js";
 
@@ -22,10 +22,12 @@ class OMSClientImpl<Env extends OmsEnvironment = OmsEnvironment> {
 
     constructor(params: OMSClientBaseParams & {environment?: Env}) {
         const environment = (params.environment ?? defaultOmsEnvironment) as Env;
+        const storage = params.storage ?? createDefaultStorage()
+
         this.wallet = new WalletClient({
             projectAccessKey: params.projectAccessKey,
             environment,
-            storage: params.storage ?? new LocalStorageManager(),
+            storage,
             redirectAuthStorage: params.redirectAuthStorage,
             credentialSigner: params.credentialSigner
         });

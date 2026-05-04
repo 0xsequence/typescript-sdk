@@ -66,7 +66,7 @@ Email OTP is a two-step flow:
 1. **`startEmailAuth({ email })`** — sends a one-time code to the user's inbox.
 2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists.
 
-The session stores wallet metadata in the configured storage. Browser signing defaults to a non-extractable WebCrypto P-256 credential (`webcrypto-secp256r1`), so the private session key is not written to `localStorage`.
+The session stores wallet metadata in the configured storage. Browser storage defaults to `localStorage` when available; non-browser runtimes fall back to in-memory storage unless you provide a custom `StorageManager`. Browser signing defaults to a non-extractable WebCrypto P-256 credential (`webcrypto-secp256r1`), so the private session key is not written to `localStorage`.
 
 To end the session, call `await oms.wallet.signOut()`.
 
@@ -172,6 +172,34 @@ const tx = await oms.wallet.sendTransaction({
 the final WaaS status. The response includes `txnId`, `status`, and `txHash`
 when the transaction has been published.
 
+To return immediately after execute, pass `waitForReceipt: false`. You can then
+call `getTransactionStatus` with the returned `txnId`.
+
+```typescript
+const tx = await oms.wallet.sendTransaction({
+  network: 'polygon',
+  to: '0xRecipient',
+  value: 1n,
+  waitForReceipt: false,
+})
+
+const status = await oms.wallet.getTransactionStatus({ txnId: tx.txnId })
+```
+
+To tune polling, pass `statusPolling`:
+
+```typescript
+await oms.wallet.sendTransaction({
+  network: 'polygon',
+  to: '0xRecipient',
+  value: 1n,
+  statusPolling: {
+    timeoutMs: 30_000,
+    intervalMs: 1_000,
+  },
+})
+```
+
 If WaaS returns fee options, pass a selector to choose one. The selector receives
 fee options enriched with the current wallet balance for each token when
 available.
@@ -207,7 +235,7 @@ const oms = new OMSClient({
 
 ### Custom Storage and Signing
 
-The default storage backend is browser `localStorage` for wallet metadata only. The default browser signer stores its non-extractable key reference separately through WebCrypto-compatible browser storage. Provide a custom `StorageManager` for Node.js, React Native, or testing:
+The default storage backend is browser `localStorage` when available, otherwise in-memory storage for wallet metadata only. The default browser signer stores its non-extractable key reference separately through WebCrypto-compatible browser storage. Provide a custom `StorageManager` for persistent Node.js, React Native, or testing sessions:
 
 ```typescript
 import { MemoryStorageManager, OMSClient } from 'typescript-sdk'
@@ -291,6 +319,20 @@ await oms.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
 ```typescript
 await oms.wallet.signOut()
 // Redirect to sign-in screen
+```
+
+### Handle SDK Errors
+
+```typescript
+import { OmsSdkError } from 'typescript-sdk'
+
+try {
+  await oms.wallet.signMessage({ network: 'polygon', message: '0xdeadbeef' })
+} catch (err) {
+  if (err instanceof OmsSdkError) {
+    console.error(err.code, err.operation, err.status, err.txnId, err.retryable)
+  }
+}
 ```
 
 ## API Reference

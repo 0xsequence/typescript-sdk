@@ -6,6 +6,8 @@ import {MemoryStorageManager} from "../src/storageManager";
 import {Constants} from "../src/utils/constants";
 import {createSignedFetch} from "../src/signedFetch";
 import {TransactionStatus} from "../src/generated/waas.gen";
+import {OMSClient} from "../src/omsClient";
+import {IndexerClient} from "../src/clients/indexerClient";
 
 class MockSigner implements CredentialSigner {
     readonly keyType = "webcrypto-secp256r1";
@@ -91,6 +93,18 @@ describe("createSignedFetch", () => {
 });
 
 describe("WalletClient session storage", () => {
+    it("falls back to memory storage when localStorage is unavailable", () => {
+        vi.stubGlobal("localStorage", undefined);
+
+        const client = new OMSClient({
+            projectAccessKey: "project-key",
+            environment: testEnvironment(),
+            credentialSigner: new MockSigner(),
+        });
+
+        expect(client.wallet.walletAddress).toBeUndefined();
+    });
+
     it("persists wallet metadata without storing a raw signer key", () => {
         const storage = new MemoryStorageManager();
         const wallet = new WalletClient({
@@ -124,7 +138,11 @@ describe("WalletClient session storage", () => {
             credentialSigner: new MockSigner(false),
         });
 
-        await expect(wallet.signMessage({network: "polygon", message: "hello"})).rejects.toThrow("No active wallet session");
+        await expect(wallet.signMessage({network: "polygon", message: "hello"})).rejects.toMatchObject({
+            code: "OMS_SESSION_MISSING",
+            operation: "wallet.signMessage",
+            message: "No active wallet session",
+        });
         expect(storage.get(Constants.walletIdStorageKey)).toBeNull();
         expect(storage.get(Constants.walletAddressStorageKey)).toBeNull();
     });
@@ -298,6 +316,16 @@ describe("WalletClient session storage", () => {
         expect((wallet as any).transactionStatusPollDelayMs(4)).toBe(400);
         expect((wallet as any).transactionStatusPollDelayMs(5)).toBe(2_000);
         expect((wallet as any).transactionStatusPollDelayMs(6)).toBe(2_000);
+        expect((wallet as any).transactionStatusPollDelayMs(1, {
+            fastIntervalMs: 100,
+            intervalMs: 500,
+            fastPollCount: 2,
+        })).toBe(100);
+        expect((wallet as any).transactionStatusPollDelayMs(2, {
+            fastIntervalMs: 100,
+            intervalMs: 500,
+            fastPollCount: 2,
+        })).toBe(500);
     });
 
     it("prepares, enriches fee options, executes, and returns transaction status", async () => {
@@ -433,6 +461,151 @@ describe("WalletClient session storage", () => {
             txHash: "0xtx",
         });
     });
+
+    it("can skip transaction status polling", async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = input.toString();
+
+            if (url.endsWith("/PrepareEthereumTransaction")) {
+                return jsonResponse({
+                    txnId: "txn-1",
+                    status: "quoted",
+                    feeOptions: [],
+                    sponsored: false,
+                    expiresAt: "2026-01-01T00:00:00Z",
+                });
+            }
+
+            if (url.endsWith("/Execute")) {
+                return jsonResponse({status: "pending"});
+            }
+
+            if (url.endsWith("/TransactionStatus")) {
+                throw new Error("status polling should not run");
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: testEnvironment(),
+            storage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+        (wallet as any).persistSession("wallet-id", "0x9999999999999999999999999999999999999999");
+
+        const response = await wallet.sendTransaction({
+            network: "polygon",
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            waitForReceipt: false,
+        });
+
+        expect(response).toEqual({
+            txnId: "txn-1",
+            status: TransactionStatus.Pending,
+        });
+    });
+
+    it("exposes transaction status lookup by transaction id", async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = JSON.parse(init?.body as string);
+
+            if (url.endsWith("/TransactionStatus")) {
+                expect(body).toEqual({txnId: "txn-1"});
+                return jsonResponse({
+                    status: "executed",
+                    txnHash: "0xtx",
+                });
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: testEnvironment(),
+            storage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+
+        await expect(wallet.getTransactionStatus({txnId: "txn-1"})).resolves.toEqual({
+            status: TransactionStatus.Executed,
+            txnHash: "0xtx",
+        });
+    });
+
+    it("wraps status polling failures with the transaction id", async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = input.toString();
+
+            if (url.endsWith("/PrepareEthereumTransaction")) {
+                return jsonResponse({
+                    txnId: "txn-1",
+                    status: "quoted",
+                    feeOptions: [],
+                    sponsored: false,
+                    expiresAt: "2026-01-01T00:00:00Z",
+                });
+            }
+
+            if (url.endsWith("/Execute")) {
+                return jsonResponse({status: "pending"});
+            }
+
+            if (url.endsWith("/TransactionStatus")) {
+                throw new Error("status endpoint unavailable");
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: testEnvironment(),
+            storage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+        (wallet as any).persistSession("wallet-id", "0x9999999999999999999999999999999999999999");
+
+        await expect(wallet.sendTransaction({
+            network: "polygon",
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+        })).rejects.toMatchObject({
+            code: "OMS_TRANSACTION_STATUS_LOOKUP_FAILED",
+            operation: "wallet.transactionStatus",
+            txnId: "txn-1",
+            retryable: true,
+        });
+    });
+});
+
+describe("IndexerClient errors", () => {
+    it("wraps invalid JSON responses in typed SDK errors", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => new Response("not-json", {status: 200})));
+
+        const indexer = new IndexerClient({
+            projectAccessKey: "project-key",
+            environment: testEnvironment(),
+        });
+
+        await expect(indexer.getTokenBalances({
+            chainId: "137",
+            contractAddress: "0x2222222222222222222222222222222222222222",
+            walletAddress: "0x9999999999999999999999999999999999999999",
+            includeMetadata: false,
+        })).rejects.toMatchObject({
+            code: "OMS_INVALID_RESPONSE",
+            operation: "indexer.getTokenBalances",
+            status: 200,
+        });
+    });
 });
 
 function jsonResponse(body: unknown): Response {
@@ -440,4 +613,12 @@ function jsonResponse(body: unknown): Response {
         status: 200,
         headers: {"Content-Type": "application/json"},
     });
+}
+
+function testEnvironment() {
+    return {
+        walletApiUrl: "https://wallet.example",
+        apiRpcUrl: "https://api.example",
+        indexerUrlTemplate: "https://indexer.example/{value}",
+    };
 }

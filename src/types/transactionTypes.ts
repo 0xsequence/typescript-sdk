@@ -33,12 +33,21 @@ export type SendTransactionResponse = {
     txHash?: string
 }
 
+export type TransactionStatusPollingOptions = {
+    timeoutMs?: number
+    intervalMs?: number
+    fastIntervalMs?: number
+    fastPollCount?: number
+}
+
 export type SendTransactionBase = {
     network: Network
     to: Address
     value?: bigint
     mode?: TransactionMode
     selectFeeOption?: FeeOptionSelector
+    waitForReceipt?: boolean
+    statusPolling?: TransactionStatusPollingOptions
 }
 
 export type SendNativeTransactionParams = SendTransactionBase & {

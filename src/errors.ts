@@ -1,0 +1,104 @@
+export type OmsSdkErrorCode =
+    | "OMS_HTTP_ERROR"
+    | "OMS_INVALID_RESPONSE"
+    | "OMS_REQUEST_FAILED"
+    | "OMS_SESSION_MISSING"
+    | "OMS_TRANSACTION_STATUS_LOOKUP_FAILED"
+
+export interface OmsSdkErrorParams {
+    code: OmsSdkErrorCode
+    message: string
+    operation?: string
+    status?: number
+    txnId?: string
+    retryable?: boolean
+    cause?: unknown
+}
+
+export class OmsSdkError extends Error {
+    readonly code: OmsSdkErrorCode
+    readonly operation?: string
+    readonly status?: number
+    readonly txnId?: string
+    readonly retryable?: boolean
+
+    constructor(params: OmsSdkErrorParams) {
+        super(params.message)
+        this.name = "OmsSdkError"
+        this.code = params.code
+        this.operation = params.operation
+        this.status = params.status
+        this.txnId = params.txnId
+        this.retryable = params.retryable
+        if (params.cause !== undefined) {
+            this.cause = params.cause
+        }
+        Object.setPrototypeOf(this, new.target.prototype)
+    }
+}
+
+export class OmsSessionError extends OmsSdkError {
+    constructor(params: Omit<OmsSdkErrorParams, "code"> & { code?: OmsSdkErrorCode }) {
+        super({code: params.code ?? "OMS_SESSION_MISSING", ...params})
+        this.name = "OmsSessionError"
+    }
+}
+
+export class OmsRequestError extends OmsSdkError {
+    constructor(params: Omit<OmsSdkErrorParams, "code"> & { code?: OmsSdkErrorCode }) {
+        super({code: params.code ?? "OMS_REQUEST_FAILED", ...params})
+        this.name = "OmsRequestError"
+    }
+}
+
+export class OmsResponseError extends OmsSdkError {
+    constructor(params: Omit<OmsSdkErrorParams, "code"> & { code?: OmsSdkErrorCode }) {
+        super({code: params.code ?? "OMS_INVALID_RESPONSE", ...params})
+        this.name = "OmsResponseError"
+    }
+}
+
+export class OmsTransactionError extends OmsSdkError {
+    constructor(params: Omit<OmsSdkErrorParams, "code"> & { code?: OmsSdkErrorCode }) {
+        super({code: params.code ?? "OMS_TRANSACTION_STATUS_LOOKUP_FAILED", ...params})
+        this.name = "OmsTransactionError"
+    }
+}
+
+export function isOmsSdkError(error: unknown): error is OmsSdkError {
+    return error instanceof OmsSdkError
+}
+
+export function toOmsSdkError(error: unknown, operation: string): OmsSdkError {
+    if (isOmsSdkError(error)) {
+        return error
+    }
+
+    const status = statusFromError(error)
+    const name = error instanceof Error ? error.name : undefined
+    if (name === "WebrpcBadResponse") {
+        return new OmsResponseError({
+            operation,
+            status,
+            cause: error,
+            message: errorMessage(error),
+        })
+    }
+
+    return new OmsRequestError({
+        operation,
+        status,
+        retryable: name === "WebrpcRequestFailed" || status === undefined || status >= 500,
+        cause: error,
+        message: errorMessage(error),
+    })
+}
+
+export function errorMessage(error: unknown): string {
+    return error instanceof Error ? error.message : String(error)
+}
+
+function statusFromError(error: unknown): number | undefined {
+    const status = (error as {status?: unknown} | undefined)?.status
+    return typeof status === "number" ? status : undefined
+}
