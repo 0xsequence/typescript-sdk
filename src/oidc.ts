@@ -7,7 +7,7 @@ export interface GoogleOidcProviderParams {
     authorizeParams?: Record<string, string>;
 }
 
-export const defaultGoogleClientId = "359787419277-klf59ug1lqhvtn5a31480jfo26ofhq9t.apps.googleusercontent.com";
+export const defaultGoogleClientId = "970987756660-0dh5gubqfiugm452raf7mm39qaq639hn.apps.googleusercontent.com";
 export const defaultRelayRedirectUri = "https://waas-cf-relay-staging.0xsequence.workers.dev/callback";
 
 export function googleOidcProvider(params: GoogleOidcProviderParams = {}): OidcProviderConfig {

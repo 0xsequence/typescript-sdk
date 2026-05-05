@@ -16,15 +16,13 @@ pnpm dev:example
 
 The dev server runs at `http://localhost:5173`.
 
-The example includes defaults for the demo project access key and Google client id.
-To override them locally:
+The example includes a default demo project access key. To override it locally:
 
 ```bash
 cp examples/react/.env.example examples/react/.env.local
 ```
 
-Google/OIDC redirect sign-in uses a local example override for the deployed demo WaaS host.
-The SDK default Google client id remains unchanged.
+Google/OIDC redirect sign-in uses the SDK default Google client id.
 
 Build it from the repository root:
 

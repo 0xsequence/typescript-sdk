@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { defaultOmsEnvironment, googleOidcProvider, OMSClient } from 'typescript-sdk'
+import { OMSClient } from 'typescript-sdk'
 import './styles.css'
 
 type Step = 'email' | 'code' | 'wallet'
@@ -10,9 +10,6 @@ const EXPLORER_TX_URL = 'https://amoy.polygonscan.com/tx/'
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
 const PROJECT_ACCESS_KEY = import.meta.env.VITE_OMS_PROJECT_ACCESS_KEY ?? 'AQAAAAAAAAK2JvvZhWqZ51riasWBftkrVXE'
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '970987756660-0dh5gubqfiugm452raf7mm39qaq639hn.apps.googleusercontent.com'
-const exampleEnvironment = structuredClone(defaultOmsEnvironment)
-exampleEnvironment.auth.oidcProviders.google = googleOidcProvider({clientId: GOOGLE_CLIENT_ID})
 
 function App() {
   const [step, setStep] = useState<Step>('email')
@@ -33,7 +30,6 @@ function App() {
   const oms = useMemo(() => {
     return new OMSClient({
       projectAccessKey: PROJECT_ACCESS_KEY,
-      environment: exampleEnvironment,
     })
   }, [])
 
