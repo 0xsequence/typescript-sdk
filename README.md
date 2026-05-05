@@ -62,30 +62,10 @@ To end the session, call `await oms.wallet.signOut()`.
 
 ### OIDC Redirect Auth
 
-Configure OIDC providers on the environment. Google is available as a provider preset, but the redirect auth APIs are provider-neutral.
+Google redirect auth is configured on the default environment. The redirect auth APIs are provider-neutral, so custom environments can add or replace providers.
 
 ```typescript
-import {
-  OMSClient,
-  defaultOmsEnvironment,
-  defineOmsEnvironment,
-  googleOidcProvider,
-} from 'typescript-sdk'
-
-const environment = defineOmsEnvironment({
-  ...defaultOmsEnvironment,
-  auth: {
-    waasAuthScope: 'proj_1',
-    oidcProviders: {
-      google: googleOidcProvider({
-        clientId: 'your-google-client-id',
-        // relayRedirectUri: 'http://localhost:8090/callback',
-      }),
-    },
-  },
-})
-
-const oms = new OMSClient({ projectAccessKey: 'your-key', environment })
+const oms = new OMSClient({ projectAccessKey: 'your-key' })
 ```
 
 For routers such as React Router or Next.js, use the explicit start/complete methods:
@@ -207,7 +187,6 @@ const oms = new OMSClient({
   projectAccessKey: 'your-key',
   environment: {
     walletApiUrl: 'https://staging-wallet.example.com',
-    apiRpcUrl: 'https://staging-api.example.com/rpc/API',
     indexerUrlTemplate: 'https://staging-indexer.example.com/{value}',
     auth: {
       waasAuthScope: 'proj_1',
@@ -239,6 +218,22 @@ OIDC redirect auth uses separate transient storage for verifier/state data. In b
 const signature = await oms.wallet.signMessage({
   network: 'polygon',
   message: '0xdeadbeef',
+})
+```
+
+### Sign and Validate Typed Data
+
+```typescript
+const signature = await oms.wallet.signTypedData({
+  network: 'polygon',
+  typedData,
+})
+
+const isValid = await oms.wallet.isValidTypedDataSignature({
+  network: 'polygon',
+  walletAddress: oms.wallet.walletAddress,
+  typedData,
+  signature,
 })
 ```
 

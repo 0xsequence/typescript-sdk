@@ -13,6 +13,9 @@
   - [signInWithOidcRedirect](#signinwithoidcredirect)
   - [signOut](#signout)
   - [signMessage](#signmessage)
+  - [signTypedData](#signtypeddata)
+  - [isValidMessageSignature](#isvalidmessagesignature)
+  - [isValidTypedDataSignature](#isvalidtypeddatasignature)
   - [sendTransaction](#sendtransaction)
     - [Native token transfer](#native-token-transfer)
     - [Raw data transaction](#raw-data-transaction)
@@ -288,6 +291,53 @@ const sig = await oms.wallet.signMessage({ network: polygon, message: '0xdeadbee
 
 ---
 
+### signTypedData
+
+```typescript
+signTypedData(params: {
+  network: Network
+  typedData: any
+}): Promise<string>
+```
+
+Signs EIP-712 typed data using the active wallet session credential.
+
+**Returns** `Promise<string>` — a hex-encoded signature.
+
+---
+
+### isValidMessageSignature
+
+```typescript
+isValidMessageSignature(params: {
+  network?: Network
+  walletAddress?: Address
+  walletId?: string
+  message: string
+  signature: string
+}): Promise<boolean>
+```
+
+Validates a message signature through the WaaS public wallet RPC. If neither `walletAddress` nor `walletId` is provided, the active wallet session id is used when available.
+
+---
+
+### isValidTypedDataSignature
+
+```typescript
+isValidTypedDataSignature(params: {
+  network?: Network
+  walletAddress?: Address
+  walletId?: string
+  typedData: any
+  signature: string
+}): Promise<boolean>
+```
+
+Validates an EIP-712 typed data signature through the WaaS public wallet RPC. If neither `walletAddress` nor `walletId` is provided, the active wallet session id is used when available.
+
+---
+
 ### sendTransaction
 
 `sendTransaction` is overloaded with three signatures depending on the type of transaction.
@@ -544,7 +594,6 @@ Accepted by all transaction and signing methods. The SDK resolves the appropriat
 ```typescript
 interface OmsEnvironment {
   walletApiUrl: string
-  apiRpcUrl: string
   indexerUrlTemplate: string
   auth?: {
     waasAuthScope?: string
@@ -555,22 +604,23 @@ interface OmsEnvironment {
 
 | Field | Type | Description |
 |---|---|---|
-| `walletApiUrl` | `string` | Base URL of the OMS Wallet API. |
-| `apiRpcUrl` | `string` | Base URL of the OMS API RPC. |
+| `walletApiUrl` | `string` | Base URL of the WaaS Wallet RPC host. |
 | `indexerUrlTemplate` | `string` | URL template for the Indexer API. `{value}` is replaced with the chain ID at request time, e.g. `"https://indexer.example.com/{value}"`. |
 | `auth.waasAuthScope` | `string` | WaaS credential auth scope used in signed wallet API requests. Defaults to `proj_1`. |
 | `auth.oidcProviders` | `Record<string, OidcProviderConfig>` | OIDC provider configurations addressable by provider key. |
 
-The default is exported as `defaultOmsEnvironment`.
+The default is exported as `defaultOmsEnvironment` and includes the `google` OIDC provider.
 
-Use `defineOmsEnvironment` to preserve typed OIDC provider keys:
+Use `defineOmsEnvironment` to preserve typed custom OIDC provider keys:
 
 ```typescript
 const environment = defineOmsEnvironment({
   ...defaultOmsEnvironment,
   auth: {
+    ...defaultOmsEnvironment.auth,
     oidcProviders: {
-      google: googleOidcProvider({ clientId: '...' }),
+      ...defaultOmsEnvironment.auth?.oidcProviders,
+      custom: customOidcProvider,
     },
   },
 })
@@ -594,6 +644,10 @@ type OidcProviderConfig = {
 Google can be configured with the `googleOidcProvider` helper:
 
 ```typescript
+// Uses the SDK default Google client id and relay redirect URI.
+googleOidcProvider()
+
+// Override defaults when needed.
 googleOidcProvider({
   clientId: 'your-google-client-id',
   relayRedirectUri: 'http://localhost:8090/callback',

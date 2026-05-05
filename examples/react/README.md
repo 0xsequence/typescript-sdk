@@ -14,17 +14,17 @@ pnpm build
 pnpm dev:example
 ```
 
-Optional Google/OIDC redirect sign-in:
+The dev server runs at `http://localhost:5173`.
+
+The example includes defaults for the demo project access key and Google client id.
+To override them locally:
 
 ```bash
-OMS_GOOGLE_CLIENT_ID=your-google-client-id pnpm dev:example
+cp examples/react/.env.example examples/react/.env.local
 ```
 
-For relay redirect testing, also set:
-
-```bash
-OMS_OIDC_RELAY_REDIRECT_URI=http://localhost:8090/callback
-```
+Google/OIDC redirect sign-in uses a local example override for the deployed demo WaaS host.
+The SDK default Google client id remains unchanged.
 
 Build it from the repository root:
 

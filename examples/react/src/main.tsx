@@ -1,11 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import {
-  defaultOmsEnvironment,
-  defineOmsEnvironment,
-  googleOidcProvider,
-  OMSClient,
-} from 'typescript-sdk'
+import { defaultOmsEnvironment, googleOidcProvider, OMSClient } from 'typescript-sdk'
 import './styles.css'
 
 type Step = 'email' | 'code' | 'wallet'
@@ -14,10 +9,10 @@ const NETWORK = 'amoy'
 const EXPLORER_TX_URL = 'https://amoy.polygonscan.com/tx/'
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
-const GOOGLE_CONFIGURED = Boolean(__OMS_GOOGLE_CLIENT_ID__)
-const DEFAULT_REDIRECT_STATUS = GOOGLE_CONFIGURED
-  ? ''
-  : 'Set OMS_GOOGLE_CLIENT_ID to enable Google redirect sign-in.'
+const PROJECT_ACCESS_KEY = import.meta.env.VITE_OMS_PROJECT_ACCESS_KEY ?? 'AQAAAAAAAAK2JvvZhWqZ51riasWBftkrVXE'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? '970987756660-0dh5gubqfiugm452raf7mm39qaq639hn.apps.googleusercontent.com'
+const exampleEnvironment = structuredClone(defaultOmsEnvironment)
+exampleEnvironment.auth.oidcProviders.google = googleOidcProvider({clientId: GOOGLE_CLIENT_ID})
 
 function App() {
   const [step, setStep] = useState<Step>('email')
@@ -30,28 +25,15 @@ function App() {
   const [lastSignature, setLastSignature] = useState('')
   const [lastTransactionHash, setLastTransactionHash] = useState('')
   const [emailAuthStatus, setEmailAuthStatus] = useState('Enter an email to start.')
-  const [redirectStatus, setRedirectStatus] = useState(DEFAULT_REDIRECT_STATUS)
+  const [redirectStatus, setRedirectStatus] = useState('')
   const [walletStatus, setWalletStatus] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const oidcCallbackStarted = useRef(false)
 
   const oms = useMemo(() => {
-    const environment = defineOmsEnvironment({
-      ...defaultOmsEnvironment,
-      auth: {
-        ...defaultOmsEnvironment.auth,
-        oidcProviders: {
-          google: googleOidcProvider({
-            clientId: __OMS_GOOGLE_CLIENT_ID__ || 'missing-google-client-id',
-            relayRedirectUri: __OMS_OIDC_RELAY_REDIRECT_URI__ || undefined,
-          }),
-        },
-      },
-    })
-
     return new OMSClient({
-      projectAccessKey: __OMS_PROJECT_ACCESS_KEY__,
-      environment,
+      projectAccessKey: PROJECT_ACCESS_KEY,
+      environment: exampleEnvironment,
     })
   }, [])
 
@@ -107,11 +89,6 @@ function App() {
   }
 
   async function startOidcRedirect() {
-    if (!GOOGLE_CONFIGURED) {
-      setRedirectStatus('Set OMS_GOOGLE_CLIENT_ID to enable Google redirect sign-in.')
-      return
-    }
-
     await run('Redirecting to provider...', setRedirectStatus, async () => {
       await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
     })
@@ -157,8 +134,8 @@ function App() {
       setLastSignature('')
       setLastTransactionHash('')
       setStep('email')
-      setEmailAuthStatus('Signed out. Enter an email to start.')
-      setRedirectStatus(DEFAULT_REDIRECT_STATUS)
+      setEmailAuthStatus('Enter an email to start.')
+      setRedirectStatus('')
       setWalletStatus('')
     })
   }
@@ -177,6 +154,19 @@ function App() {
             void startEmailAuth()
           }}>
             <div className="field-stack">
+              <button
+                type="button"
+                className="secondary"
+                onClick={startOidcRedirect}
+                disabled={isBusy}
+                aria-describedby="google-status"
+              >
+                Continue with Google
+              </button>
+              {redirectStatus && <p id="google-status" className="field-hint">{redirectStatus}</p>}
+            </div>
+            <div className="divider">or</div>
+            <div className="field-stack">
               <label>
                 Email
                 <input
@@ -192,19 +182,6 @@ function App() {
             <button type="submit" disabled={isBusy || !email.trim()}>
               Send code
             </button>
-            <div className="divider">or</div>
-            <div className="field-stack">
-              <button
-                type="button"
-                className="secondary"
-                onClick={startOidcRedirect}
-                disabled={isBusy || !GOOGLE_CONFIGURED}
-                aria-describedby="google-status"
-              >
-                Continue with Google
-              </button>
-              {redirectStatus && <p id="google-status" className="field-hint">{redirectStatus}</p>}
-            </div>
           </form>
         )}
 
