@@ -11,7 +11,7 @@ async function buildAuthHeader(
 ): Promise<string> {
     const credentialId = await signer.credentialId()
     const nonce = await signer.nextNonce()
-    const preimage = RequestUtils.buildWalletRequestPreimage(endpoint, nonce, payload)
+    const preimage = RequestUtils.buildWalletRequestPreimage(endpoint, nonce, waasAuthScope, payload)
     const signature = await signer.sign(preimage)
     return RequestUtils.buildAuthorizationHeader(signer.keyType, waasAuthScope, credentialId, nonce, signature)
 }

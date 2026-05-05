@@ -23,6 +23,7 @@ import {
 
 import {
     Wallet as Walletclient,
+    WalletPublic as WalletPublicclient,
     WalletType,
     TransactionMode,
     TransactionStatus,
@@ -36,15 +37,19 @@ import {
     ListAccessRequest,
     RevokeAccessRequest,
     SignMessageRequest,
+    SignTypedDataRequest,
+    IsValidMessageSignatureRequest,
+    IsValidTypedDataSignatureRequest,
     PrepareEthereumTransactionRequest,
-    PrepareContractCallRequest,
+    PrepareEthereumContractCallRequest,
     ExecuteRequest,
-    GetTransactionStatusRequest,
+    TransactionStatusRequest,
     PrepareResponse,
     TransactionStatusResponse,
     AbiArg,
     FeeOption,
     FeeOptionSelection,
+    Fetch,
 } from '../generated/waas.gen.js'
 import {NetworkBindings} from "../utils/networkBindings.js";
 import {Network} from "../types/evmTypes.js";
@@ -89,6 +94,32 @@ export interface CompleteOidcRedirectAuthResult {
     walletAddress: Address;
 }
 
+export interface SignMessageParams {
+    network: Network
+    message: string
+}
+
+export interface SignTypedDataParams {
+    network: Network
+    typedData: any
+}
+
+export interface IsValidMessageSignatureParams {
+    network?: Network
+    walletAddress?: Address
+    walletId?: string
+    message: string
+    signature: string
+}
+
+export interface IsValidTypedDataSignatureParams {
+    network?: Network
+    walletAddress?: Address
+    walletId?: string
+    typedData: any
+    signature: string
+}
+
 export interface SignInWithOidcRedirectParams<Env extends OmsEnvironment = OmsEnvironment> {
     provider: OidcProviderInput<Env>;
     redirectUri?: string;
@@ -118,6 +149,7 @@ interface ResolvedOidcProvider {
 
 export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     private readonly client: Walletclient
+    private readonly publicClient: WalletPublicclient
     private readonly storage: StorageManager
     private readonly redirectAuthStorage?: StorageManager
     private readonly networks: NetworkBindings
@@ -163,6 +195,10 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
 
         const signedFetch = createSignedFetch(params.projectAccessKey, this.credentialSigner, this.waasAuthScope)
         this.client = new Walletclient(params.environment.walletApiUrl, signedFetch)
+        this.publicClient = new WalletPublicclient(
+            params.environment.walletApiUrl,
+            createAccessKeyFetch(params.projectAccessKey),
+        )
         this.indexerClient = new IndexerClient({
             projectAccessKey: params.projectAccessKey,
             environment: params.environment,
@@ -364,10 +400,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         await this.credentialSigner.clear?.()
     }
 
-    async signMessage(params: {
-        network: Network
-        message: string
-    }): Promise<string> {
+    async signMessage(params: SignMessageParams): Promise<string> {
         await this.requireActiveSession()
         const request: SignMessageRequest = {
             network: this.parseWalletNetwork(params.network),
@@ -376,6 +409,41 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         }
         const response = await this.client.signMessage(request)
         return response.signature
+    }
+
+    async signTypedData(params: SignTypedDataParams): Promise<string> {
+        await this.requireActiveSession()
+        const request: SignTypedDataRequest = {
+            network: this.parseWalletNetwork(params.network),
+            walletId: this.walletId,
+            typedData: params.typedData,
+        }
+        const response = await this.client.signTypedData(request)
+        return response.signature
+    }
+
+    async isValidMessageSignature(params: IsValidMessageSignatureParams): Promise<boolean> {
+        const request: IsValidMessageSignatureRequest = {
+            network: params.network === undefined ? undefined : this.parseWalletNetwork(params.network),
+            walletAddress: params.walletAddress,
+            walletId: params.walletId ?? (params.walletAddress ? undefined : this.activeWalletId()),
+            message: params.message,
+            signature: params.signature,
+        }
+        const response = await this.publicClient.isValidMessageSignature(request)
+        return response.isValid
+    }
+
+    async isValidTypedDataSignature(params: IsValidTypedDataSignatureParams): Promise<boolean> {
+        const request: IsValidTypedDataSignatureRequest = {
+            network: params.network === undefined ? undefined : this.parseWalletNetwork(params.network),
+            walletAddress: params.walletAddress,
+            walletId: params.walletId ?? (params.walletAddress ? undefined : this.activeWalletId()),
+            typedData: params.typedData,
+            signature: params.signature,
+        }
+        const response = await this.publicClient.isValidTypedDataSignature(request)
+        return response.isValid
     }
 
     async sendTransaction(params: SendNativeTransactionParams): Promise<SendTransactionResponse>
@@ -417,7 +485,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         selectFeeOption?: FeeOptionSelector
     }): Promise<SendTransactionResponse> {
         await this.requireActiveSession()
-        const request: PrepareContractCallRequest = {
+        const request: PrepareEthereumContractCallRequest = {
             network: this.parseWalletNetwork(params.network),
             walletId: this.walletId,
             contract: params.contractAddress,
@@ -426,7 +494,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             mode: params.mode ?? TransactionMode.Relayer,
         }
 
-        const prepared = await this.client.prepareContractCall(request)
+        const prepared = await this.client.prepareEthereumContractCall(request)
         return this.executePreparedTransaction({
             prepared,
             network: params.network,
@@ -744,7 +812,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         let completedPolls = 0
 
         do {
-            lastStatus = await this.client.getTransactionStatus({txnId: txnId} as GetTransactionStatusRequest)
+            lastStatus = await this.client.transactionStatus({txnId: txnId} as TransactionStatusRequest)
             completedPolls += 1
             if (lastStatus.status === TransactionStatus.Executed || lastStatus.txnHash) {
                 return lastStatus
@@ -776,6 +844,10 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             await this.clearSession()
             throw new Error('No active wallet session')
         }
+    }
+
+    private activeWalletId(): string | undefined {
+        return this.walletId || undefined
     }
 
     private parseWalletNetwork(network: Network): string {
@@ -842,6 +914,18 @@ function defaultRedirectAuthStorage(): StorageManager | undefined {
     return typeof sessionStorage === 'undefined'
         ? undefined
         : new SessionStorageManager()
+}
+
+function createAccessKeyFetch(projectAccessKey: string): Fetch {
+    return async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
+        const existingHeaders = (init?.headers ?? {}) as Record<string, string>
+        const headers: Record<string, string> = {
+            ...existingHeaders,
+            'X-Access-Key': projectAccessKey,
+        }
+
+        return globalThis.fetch(input, {...init, headers})
+    }
 }
 
 function isWalletType(value: unknown): value is WalletType {

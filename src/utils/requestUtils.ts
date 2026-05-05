@@ -4,9 +4,10 @@ export class RequestUtils {
     static buildWalletRequestPreimage(
         endpoint: string,
         nonce: string,
+        scope: string,
         payload: string,
     ): string {
-        return `POST /rpc/Wallet${endpoint}\nnonce: ${nonce}\n\n${payload}`;
+        return `POST /rpc/Wallet${endpoint}\nnonce: ${nonce}\nscope: ${scope}\n\n${payload}`;
     }
 
     static buildAuthorizationHeader(

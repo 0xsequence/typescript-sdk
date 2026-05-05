@@ -1,5 +1,7 @@
+import {keccak256, toBytes, type Hex} from "viem";
+import {privateKeyToAccount} from "viem/accounts";
+
 import {ByteUtils} from "./utils/byteUtils.js";
-import {EvmHelper} from "./utils/EvmHelper.js";
 
 export type CredentialKeyType = "ethereum-secp256k1" | "webcrypto-secp256r1";
 
@@ -187,7 +189,7 @@ export class EthereumPrivateKeyCredentialSigner implements CredentialSigner {
     constructor(private readonly privateKey: Uint8Array) {}
 
     async credentialId(): Promise<string> {
-        return EvmHelper.getWalletAddress(this.privateKey);
+        return privateKeyToAccount(privateKeyBytesToHex(this.privateKey)).address;
     }
 
     async nextNonce(): Promise<string> {
@@ -196,9 +198,13 @@ export class EthereumPrivateKeyCredentialSigner implements CredentialSigner {
     }
 
     async sign(preimage: string): Promise<string> {
-        const digest = EvmHelper.keccak256(preimage);
-        return EvmHelper.signUTF8MessageEIP191(this.privateKey, digest);
+        const digest = keccak256(toBytes(preimage));
+        return privateKeyToAccount(privateKeyBytesToHex(this.privateKey)).signMessage({message: digest});
     }
+}
+
+function privateKeyBytesToHex(privateKey: Uint8Array): Hex {
+    return `0x${ByteUtils.bytesToHex(privateKey)}` as Hex;
 }
 
 function assertWebCryptoSupport(): void {
