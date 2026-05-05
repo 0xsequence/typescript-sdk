@@ -16,6 +16,8 @@ pnpm dev:example
 
 The dev server runs at `http://localhost:5173`.
 
+The deployed example is available at `https://0xsequence.github.io/typescript-sdk/react-example`.
+
 The example includes a default demo project access key. To override it locally:
 
 ```bash
