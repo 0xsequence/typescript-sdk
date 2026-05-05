@@ -1,3 +1,5 @@
+import {googleOidcProvider} from "./oidc.js";
+
 export interface OidcProviderConfig {
     clientId: string;
     issuer: string;
@@ -18,16 +20,19 @@ export interface OmsEnvironment<
     OidcProviders extends Record<string, OidcProviderConfig> = Record<string, OidcProviderConfig>,
 > {
     walletApiUrl: string;
-    apiRpcUrl: string;
     indexerUrlTemplate: string;
     auth?: OmsAuthConfig<OidcProviders>;
 }
 
-export const defaultOmsEnvironment: OmsEnvironment = {
+export const defaultOmsEnvironment = {
     walletApiUrl: "https://d1sctl7y41hot5.cloudfront.net",
-    apiRpcUrl: "https://dev-api.sequence.app/rpc/API",
     indexerUrlTemplate: "https://dev-{value}-indexer.sequence.app/rpc/Indexer/",
-};
+    auth: {
+        oidcProviders: {
+            google: googleOidcProvider(),
+        },
+    },
+} satisfies OmsEnvironment;
 
 export function defineOmsEnvironment<const Env extends OmsEnvironment>(environment: Env): Env {
     return environment;

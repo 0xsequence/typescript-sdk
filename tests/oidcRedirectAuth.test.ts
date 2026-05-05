@@ -3,7 +3,7 @@ import {afterEach, describe, expect, it, vi} from "vitest";
 import {WalletClient} from "../src/clients/walletClient";
 import type {CredentialSigner} from "../src/credentialSigner";
 import {defineOmsEnvironment, type OidcProviderConfig, type OmsEnvironment} from "../src/omsEnvironment";
-import {googleOidcProvider} from "../src/oidc";
+import {defaultGoogleClientId, defaultRelayRedirectUri, googleOidcProvider} from "../src/oidc";
 import {MemoryStorageManager} from "../src/storageManager";
 import {WalletType} from "../src/generated/waas.gen";
 import {Constants} from "../src/utils/constants";
@@ -15,6 +15,7 @@ import {
 
 class MockSigner implements CredentialSigner {
     readonly keyType = "webcrypto-secp256r1";
+    readonly preimages: string[] = [];
 
     async credentialId(): Promise<string> {
         return "0x04" + "11".repeat(64);
@@ -24,7 +25,8 @@ class MockSigner implements CredentialSigner {
         return "42";
     }
 
-    async sign(): Promise<string> {
+    async sign(preimage: string): Promise<string> {
+        this.preimages.push(preimage);
         return "0x" + "22".repeat(64);
     }
 }
@@ -47,7 +49,7 @@ describe("WalletClient OIDC redirect auth", () => {
                 metadata: {
                     iss: "https://accounts.google.com",
                     aud: "google-client",
-                    redirect_uri: "https://app.example/auth/callback",
+                    redirect_uri: defaultRelayRedirectUri,
                 },
             });
 
@@ -70,7 +72,7 @@ describe("WalletClient OIDC redirect auth", () => {
         const authorizeUrl = new URL(result.url);
         expect(authorizeUrl.origin + authorizeUrl.pathname).toBe("https://accounts.google.com/o/oauth2/v2/auth");
         expect(authorizeUrl.searchParams.get("client_id")).toBe("google-client");
-        expect(authorizeUrl.searchParams.get("redirect_uri")).toBe("https://app.example/auth/callback");
+        expect(authorizeUrl.searchParams.get("redirect_uri")).toBe(defaultRelayRedirectUri);
         expect(authorizeUrl.searchParams.get("response_type")).toBe("code");
         expect(authorizeUrl.searchParams.get("scope")).toBe("openid email profile");
         expect(authorizeUrl.searchParams.get("state")).toBe(result.state);
@@ -80,7 +82,7 @@ describe("WalletClient OIDC redirect auth", () => {
 
         const state = decodeOidcState(result.state);
         expect(state.scope).toBe(Constants.defaultWaasAuthScope);
-        expect(state.redirect_uri).toBeUndefined();
+        expect(state.redirect_uri).toBe("https://app.example/auth/callback");
         expect(redirectAuthStorage.get(Constants.redirectAuthStorageKey)).toContain("verifier-1");
     });
 
@@ -124,11 +126,12 @@ describe("WalletClient OIDC redirect auth", () => {
         });
         vi.stubGlobal("fetch", fetchMock);
 
+        const signer = new MockSigner();
         const wallet = createWalletClient({
             redirectAuthStorage: new MemoryStorageManager(),
+            credentialSigner: signer,
             environment: defineOmsEnvironment({
                 walletApiUrl: "https://wallet.example",
-                apiRpcUrl: "https://api.example",
                 indexerUrlTemplate: "https://indexer.example/{value}",
                 auth: {
                     waasAuthScope: "proj_custom",
@@ -153,6 +156,17 @@ describe("WalletClient OIDC redirect auth", () => {
         const state = decodeOidcState(result.state);
         expect(state.scope).toBe("proj_custom");
         expect(state.redirect_uri).toBe("https://app.example/auth/callback");
+        expect(signer.preimages).toEqual([
+            `POST /rpc/Wallet/CommitVerifier\nnonce: 42\nscope: proj_custom\n\n${JSON.stringify({
+                identityType: "oidc",
+                authMode: "auth-code-pkce",
+                metadata: {
+                    iss: "https://accounts.google.com",
+                    aud: "google-client",
+                    redirect_uri: "https://relay.example/callback",
+                },
+            })}`,
+        ]);
     });
 
     it("supports direct provider config objects", async () => {
@@ -191,6 +205,16 @@ describe("WalletClient OIDC redirect auth", () => {
         expect(authorizeUrl.searchParams.get("scope")).toBe("openid profile");
     });
 
+    it("uses Google provider defaults", () => {
+        expect(googleOidcProvider()).toMatchObject({
+            clientId: defaultGoogleClientId,
+            relayRedirectUri: defaultRelayRedirectUri,
+            issuer: "https://accounts.google.com",
+            authorizationUrl: "https://accounts.google.com/o/oauth2/v2/auth",
+            scopes: ["openid", "email", "profile"],
+        });
+    });
+
     it("merges provider and method authorize params with method params taking precedence", async () => {
         vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
             verifier: "verifier-1",
@@ -200,7 +224,6 @@ describe("WalletClient OIDC redirect auth", () => {
             redirectAuthStorage: new MemoryStorageManager(),
             environment: defineOmsEnvironment({
                 walletApiUrl: "https://wallet.example",
-                apiRpcUrl: "https://api.example",
                 indexerUrlTemplate: "https://indexer.example/{value}",
                 auth: {
                     oidcProviders: {
@@ -429,7 +452,7 @@ describe("WalletClient OIDC redirect auth", () => {
             const body = JSON.parse(init?.body as string);
 
             if (url.endsWith("/CommitVerifier")) {
-                expect(body.metadata.redirect_uri).toBe("https://app.example/login");
+                expect(body.metadata.redirect_uri).toBe(defaultRelayRedirectUri);
                 return jsonResponse({
                     verifier: "verifier-1",
                     challenge: "challenge-1",
@@ -466,7 +489,7 @@ describe("WalletClient OIDC redirect auth", () => {
         });
 
         const assignedUrl = new URL(assignUrl.mock.calls[0][0]);
-        expect(assignedUrl.searchParams.get("redirect_uri")).toBe("https://app.example/login");
+        expect(assignedUrl.searchParams.get("redirect_uri")).toBe(defaultRelayRedirectUri);
         expect(redirectUriFromCurrentUrl("https://app.example/login?from=home#section")).toBe("https://app.example/login");
 
         const replaceUrl = vi.fn();
@@ -496,6 +519,7 @@ describe("WalletClient OIDC redirect auth", () => {
 function createWalletClient<Env extends OmsEnvironment = ReturnType<typeof testEnvironment>>(params: {
     redirectAuthStorage?: MemoryStorageManager;
     environment?: Env;
+    credentialSigner?: CredentialSigner;
 } = {}): WalletClient<Env> {
     const environment = params.environment ?? testEnvironment() as Env;
     return new WalletClient<Env>({
@@ -503,14 +527,13 @@ function createWalletClient<Env extends OmsEnvironment = ReturnType<typeof testE
         environment,
         storage: new MemoryStorageManager(),
         redirectAuthStorage: params.redirectAuthStorage,
-        credentialSigner: new MockSigner(),
+        credentialSigner: params.credentialSigner ?? new MockSigner(),
     });
 }
 
 function testEnvironment() {
     return defineOmsEnvironment({
         walletApiUrl: "https://wallet.example",
-        apiRpcUrl: "https://api.example",
         indexerUrlTemplate: "https://indexer.example/{value}",
         auth: {
             oidcProviders: {

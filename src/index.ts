@@ -7,6 +7,8 @@ export {
     type OmsEnvironment,
 } from './omsEnvironment.js'
 export {
+    defaultGoogleClientId,
+    defaultRelayRedirectUri,
     googleOidcProvider,
     type GoogleOidcProviderParams,
 } from './oidc.js'
@@ -30,9 +32,13 @@ export {
 export type {
     CompleteOidcRedirectAuthParams,
     CompleteOidcRedirectAuthResult,
+    IsValidMessageSignatureParams,
+    IsValidTypedDataSignatureParams,
     OidcProviderInput,
     OidcProviderName,
+    SignMessageParams,
     SignInWithOidcRedirectParams,
+    SignTypedDataParams,
     StartOidcRedirectAuthParams,
     StartOidcRedirectAuthResult,
 } from './clients/walletClient.js'
