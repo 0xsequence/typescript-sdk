@@ -2,7 +2,7 @@ name: GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [master, add-oidc-redirect-auth]
   workflow_dispatch:
 
 permissions:
