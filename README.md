@@ -1,6 +1,6 @@
 # OMS SDK
 
-A TypeScript SDK for the OMS (Open Money Stack) platform. Provides email-based wallet authentication, on-chain transaction submission, message signing, and token balance queries — with automatic session persistence.
+A TypeScript SDK for the OMS (Open Money Stack) platform. Provides email and OIDC redirect wallet authentication, on-chain transaction submission, message signing, and token balance queries — with automatic session persistence.
 
 ## Usage
 
@@ -11,6 +11,16 @@ From the repository root:
 ```bash
 pnpm install
 pnpm build
+```
+
+## React Example
+
+A deployed React example is available at [https://0xsequence.github.io/typescript-sdk/react-example/](https://0xsequence.github.io/typescript-sdk/react-example/).
+
+To run it locally from the repository root:
+
+```bash
+pnpm dev:example
 ```
 
 ## Quick Start
@@ -49,7 +59,9 @@ console.log(tx.txHash ?? tx.txnId)
 
 ## Authentication Flow
 
-OMS uses email-based OTP. The two-step flow is:
+OMS supports email-based OTP and OIDC authorization-code PKCE redirect auth.
+
+Email OTP is a two-step flow:
 
 1. **`startEmailAuth({ email })`** — sends a one-time code to the user's inbox.
 2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists.
@@ -57,6 +69,39 @@ OMS uses email-based OTP. The two-step flow is:
 The session stores wallet metadata in the configured storage. Browser signing defaults to a non-extractable WebCrypto P-256 credential (`webcrypto-secp256r1`), so the private session key is not written to `localStorage`.
 
 To end the session, call `await oms.wallet.signOut()`.
+
+### OIDC Redirect Auth
+
+Google redirect auth is configured on the default environment. The redirect auth APIs are provider-neutral, so custom environments can add or replace providers.
+
+```typescript
+const oms = new OMSClient({ projectAccessKey: 'your-key' })
+```
+
+For routers such as React Router or Next.js, use the explicit start/complete methods:
+
+```typescript
+const { url } = await oms.wallet.startOidcRedirectAuth({
+  provider: 'google',
+  redirectUri: `${window.location.origin}/auth/callback`,
+})
+
+window.location.assign(url)
+
+// On the callback route:
+await oms.wallet.completeOidcRedirectAuth({
+  callbackUrl: window.location.href,
+  cleanUrl: true,
+})
+```
+
+For simple browser apps, use the one-call convenience method from a sign-in action and from the callback page:
+
+```typescript
+void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
+```
+
+Pending redirect state is stored in `sessionStorage` by default. Final wallet session metadata continues to use the configured SDK storage.
 
 ## Networks
 
@@ -152,8 +197,10 @@ const oms = new OMSClient({
   projectAccessKey: 'your-key',
   environment: {
     walletApiUrl: 'https://staging-wallet.example.com',
-    apiRpcUrl: 'https://staging-api.example.com/rpc/API',
     indexerUrlTemplate: 'https://staging-indexer.example.com/{value}',
+    auth: {
+      waasAuthScope: 'proj_1',
+    },
   },
 })
 ```
@@ -171,6 +218,8 @@ const oms = new OMSClient({
 })
 ```
 
+OIDC redirect auth uses separate transient storage for verifier/state data. In browsers it defaults to `sessionStorage`; pass `redirectAuthStorage` to override it.
+
 ## More Examples
 
 ### Sign a Message
@@ -179,6 +228,22 @@ const oms = new OMSClient({
 const signature = await oms.wallet.signMessage({
   network: 'polygon',
   message: '0xdeadbeef',
+})
+```
+
+### Sign and Validate Typed Data
+
+```typescript
+const signature = await oms.wallet.signTypedData({
+  network: 'polygon',
+  typedData,
+})
+
+const isValid = await oms.wallet.isValidTypedDataSignature({
+  network: 'polygon',
+  walletAddress: oms.wallet.walletAddress,
+  typedData,
+  signature,
 })
 ```
 

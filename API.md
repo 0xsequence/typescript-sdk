@@ -8,8 +8,14 @@
   - [walletAddress](#walletaddress)
   - [startEmailAuth](#startemailauth)
   - [completeEmailAuth](#completeemailauth)
+  - [startOidcRedirectAuth](#startoidcredirectauth)
+  - [completeOidcRedirectAuth](#completeoidcredirectauth)
+  - [signInWithOidcRedirect](#signinwithoidcredirect)
   - [signOut](#signout)
   - [signMessage](#signmessage)
+  - [signTypedData](#signtypeddata)
+  - [isValidMessageSignature](#isvalidmessagesignature)
+  - [isValidTypedDataSignature](#isvalidtypeddatasignature)
   - [sendTransaction](#sendtransaction)
     - [Native token transfer](#native-token-transfer)
     - [Raw data transaction](#raw-data-transaction)
@@ -23,6 +29,7 @@
 - [Types](#types)
   - [Network](#network)
   - [OmsEnvironment](#omsenvironment)
+  - [OidcProviderConfig](#oidcproviderconfig)
   - [StorageManager](#storagemanager)
   - [CredentialSigner](#credentialsigner)
   - [AccessGrant](#accessgrant)
@@ -56,6 +63,7 @@ new OMSClient(params: {
   projectAccessKey: string
   environment?: OmsEnvironment
   storage?: StorageManager
+  redirectAuthStorage?: StorageManager
   credentialSigner?: CredentialSigner
 })
 ```
@@ -67,6 +75,7 @@ new OMSClient(params: {
 | `projectAccessKey` | `string` | Yes | Your OMS project access key. |
 | `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the SDK's configured OMS endpoints. |
 | `storage` | `StorageManager` | No | Storage backend for wallet metadata. Defaults to `LocalStorageManager` (`window.localStorage`). |
+| `redirectAuthStorage` | `StorageManager` | No | Transient storage for OIDC redirect verifier/state. Defaults to `sessionStorage` when available. |
 | `credentialSigner` | `CredentialSigner` | No | Request credential signer. Defaults to a non-extractable WebCrypto P-256 signer (`webcrypto-secp256r1`) where WebCrypto is available. |
 
 **Properties**
@@ -157,6 +166,80 @@ try {
 
 ---
 
+### startOidcRedirectAuth
+
+```typescript
+startOidcRedirectAuth(params: {
+  provider: string | OidcProviderConfig
+  redirectUri: string
+  walletType?: WalletType
+  relayRedirectUri?: string
+  authorizeParams?: Record<string, string>
+}): Promise<{ url: string; state: string; challenge: string }>
+```
+
+Starts an OIDC authorization-code PKCE flow and returns the provider authorization URL. The pending verifier/state is stored in transient redirect auth storage so the callback can complete after a full-page redirect.
+
+If `provider` is a string, it must match a configured `environment.auth.oidcProviders` key. Passing an `OidcProviderConfig` object directly is also supported.
+
+In direct mode, `redirect_uri` is `redirectUri`. In relay mode, `redirect_uri` is `relayRedirectUri`, and the encoded state includes the final app `redirect_uri`.
+
+```typescript
+const { url } = await oms.wallet.startOidcRedirectAuth({
+  provider: 'google',
+  redirectUri: `${window.location.origin}/auth/callback`,
+})
+
+window.location.assign(url)
+```
+
+---
+
+### completeOidcRedirectAuth
+
+```typescript
+completeOidcRedirectAuth(params: {
+  callbackUrl: string
+  cleanUrl?: boolean
+  replaceUrl?: (url: string) => void
+}): Promise<{ walletAddress: Address }>
+```
+
+Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS, and activating an existing wallet or creating one. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
+
+```typescript
+const { walletAddress } = await oms.wallet.completeOidcRedirectAuth({
+  callbackUrl: window.location.href,
+  cleanUrl: true,
+})
+```
+
+---
+
+### signInWithOidcRedirect
+
+```typescript
+signInWithOidcRedirect(params: {
+  provider: string | OidcProviderConfig
+  redirectUri?: string
+  walletType?: WalletType
+  relayRedirectUri?: string
+  authorizeParams?: Record<string, string>
+  cleanUrl?: boolean
+  currentUrl?: string
+  assignUrl?: (url: string) => void
+  replaceUrl?: (url: string) => void
+}): Promise<void>
+```
+
+Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth. Otherwise it starts auth and redirects with `window.location.assign`. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
+
+```typescript
+void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
+```
+
+---
+
 ### signOut
 
 ```typescript
@@ -205,6 +288,53 @@ const sig = await oms.wallet.signMessage({ network: 'polygon', message: '0xdeadb
 import { polygon } from 'viem/chains'
 const sig = await oms.wallet.signMessage({ network: polygon, message: '0xdeadbeef' })
 ```
+
+---
+
+### signTypedData
+
+```typescript
+signTypedData(params: {
+  network: Network
+  typedData: any
+}): Promise<string>
+```
+
+Signs EIP-712 typed data using the active wallet session credential.
+
+**Returns** `Promise<string>` — a hex-encoded signature.
+
+---
+
+### isValidMessageSignature
+
+```typescript
+isValidMessageSignature(params: {
+  network?: Network
+  walletAddress?: Address
+  walletId?: string
+  message: string
+  signature: string
+}): Promise<boolean>
+```
+
+Validates a message signature through the WaaS public wallet RPC. If neither `walletAddress` nor `walletId` is provided, the active wallet session id is used when available.
+
+---
+
+### isValidTypedDataSignature
+
+```typescript
+isValidTypedDataSignature(params: {
+  network?: Network
+  walletAddress?: Address
+  walletId?: string
+  typedData: any
+  signature: string
+}): Promise<boolean>
+```
+
+Validates an EIP-712 typed data signature through the WaaS public wallet RPC. If neither `walletAddress` nor `walletId` is provided, the active wallet session id is used when available.
 
 ---
 
@@ -465,15 +595,64 @@ Accepted by all transaction and signing methods. The SDK resolves the appropriat
 interface OmsEnvironment {
   walletApiUrl: string
   indexerUrlTemplate: string
+  auth?: {
+    waasAuthScope?: string
+    oidcProviders?: Record<string, OidcProviderConfig>
+  }
 }
 ```
 
 | Field | Type | Description |
 |---|---|---|
-| `walletApiUrl` | `string` | Base URL of the OMS Wallet API. |
+| `walletApiUrl` | `string` | Base URL of the WaaS Wallet RPC host. |
 | `indexerUrlTemplate` | `string` | URL template for the Indexer API. `{value}` is replaced with the chain ID at request time, e.g. `"https://indexer.example.com/{value}"`. |
+| `auth.waasAuthScope` | `string` | WaaS credential auth scope used in signed wallet API requests. Defaults to `proj_1`. |
+| `auth.oidcProviders` | `Record<string, OidcProviderConfig>` | OIDC provider configurations addressable by provider key. |
 
-The default is exported as `defaultOmsEnvironment`.
+The default is exported as `defaultOmsEnvironment` and includes the `google` OIDC provider.
+
+Use `defineOmsEnvironment` to preserve typed custom OIDC provider keys:
+
+```typescript
+const environment = defineOmsEnvironment({
+  ...defaultOmsEnvironment,
+  auth: {
+    ...defaultOmsEnvironment.auth,
+    oidcProviders: {
+      ...defaultOmsEnvironment.auth?.oidcProviders,
+      custom: customOidcProvider,
+    },
+  },
+})
+```
+
+---
+
+### OidcProviderConfig
+
+```typescript
+type OidcProviderConfig = {
+  clientId: string
+  issuer: string
+  authorizationUrl: string
+  scopes?: string[]
+  relayRedirectUri?: string
+  authorizeParams?: Record<string, string>
+}
+```
+
+Google can be configured with the `googleOidcProvider` helper:
+
+```typescript
+// Uses the SDK default Google client id and relay redirect URI.
+googleOidcProvider()
+
+// Override defaults when needed.
+googleOidcProvider({
+  clientId: 'your-google-client-id',
+  relayRedirectUri: 'http://localhost:8090/callback',
+})
+```
 
 ---
 

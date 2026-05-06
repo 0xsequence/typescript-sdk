@@ -1,0 +1,78 @@
+import {WalletClient, type OidcProviderName} from "../src/clients/walletClient";
+import {OMSClient} from "../src/index";
+import {defineOmsEnvironment, type OmsEnvironment} from "../src/omsEnvironment";
+import {googleOidcProvider} from "../src/oidc";
+
+const environment = defineOmsEnvironment({
+    walletApiUrl: "https://wallet.example",
+    indexerUrlTemplate: "https://indexer.example/{value}",
+    auth: {
+        oidcProviders: {
+            google: googleOidcProvider(),
+        },
+    },
+});
+
+type ProviderName = OidcProviderName<typeof environment>;
+
+const configuredProvider: ProviderName = "google";
+void configuredProvider;
+
+// @ts-expect-error github is not configured in this static environment.
+const unknownProvider: ProviderName = "github";
+void unknownProvider;
+
+if (false) {
+    const wallet = undefined as unknown as WalletClient<typeof environment>;
+    void wallet.startOidcRedirectAuth({
+        provider: "google",
+        redirectUri: "https://app.example/auth/callback",
+    });
+
+    void wallet.startOidcRedirectAuth({
+        // @ts-expect-error github is not configured in this static environment.
+        provider: "github",
+        redirectUri: "https://app.example/auth/callback",
+    });
+}
+
+const defaultClient = new OMSClient({projectAccessKey: "project-key"});
+void defaultClient.wallet.startOidcRedirectAuth({
+    provider: "google",
+    redirectUri: "https://app.example/auth/callback",
+});
+void defaultClient.wallet.startOidcRedirectAuth({
+    // @ts-expect-error github is not configured on the default environment.
+    provider: "github",
+    redirectUri: "https://app.example/auth/callback",
+});
+
+const customEnvironmentWithoutProviders = defineOmsEnvironment({
+    walletApiUrl: "https://wallet.example",
+    indexerUrlTemplate: "https://indexer.example/{value}",
+});
+const customClient = new OMSClient({
+    projectAccessKey: "project-key",
+    environment: customEnvironmentWithoutProviders,
+});
+let broadlyTypedClient: OMSClient;
+broadlyTypedClient = customClient;
+void broadlyTypedClient;
+void customClient.wallet.startOidcRedirectAuth({
+    // @ts-expect-error string provider names are not available without configured providers.
+    provider: "google",
+    redirectUri: "https://app.example/auth/callback",
+});
+
+function createClient(params: {
+    projectAccessKey: string;
+    environment?: OmsEnvironment;
+}) {
+    return new OMSClient(params);
+}
+
+void createClient({projectAccessKey: "project-key"});
+void createClient({
+    projectAccessKey: "project-key",
+    environment: customEnvironmentWithoutProviders,
+});

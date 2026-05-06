@@ -1,0 +1,34 @@
+# React Example
+
+This example consumes the SDK as a workspace package:
+
+```ts
+import { OMSClient } from 'typescript-sdk'
+```
+
+Run it from the repository root:
+
+```bash
+pnpm install
+pnpm build
+pnpm dev:example
+```
+
+The dev server runs at `http://localhost:5173`.
+
+The deployed example is available at `https://0xsequence.github.io/typescript-sdk/react-example`.
+
+The example includes a default demo project access key. To override it locally:
+
+```bash
+cp examples/react/.env.example examples/react/.env.local
+```
+
+Google/OIDC redirect sign-in uses the SDK default Google client id.
+
+Build it from the repository root:
+
+```bash
+pnpm build
+pnpm build:example
+```

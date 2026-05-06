@@ -14,6 +14,12 @@ export class LocalStorageManager implements StorageManager {
     delete(key: string): void { localStorage.removeItem(key) }
 }
 
+export class SessionStorageManager implements StorageManager {
+    get(key: string): string | null { return sessionStorage.getItem(key) }
+    set(key: string, value: string): void { sessionStorage.setItem(key, value) }
+    delete(key: string): void { sessionStorage.removeItem(key) }
+}
+
 export class MemoryStorageManager implements StorageManager {
     private store = new Map<string, string>();
 

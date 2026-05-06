@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { OMSClient } from 'typescript-sdk'
 import './styles.css'
@@ -9,6 +9,7 @@ const NETWORK = 'amoy'
 const EXPLORER_TX_URL = 'https://amoy.polygonscan.com/tx/'
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
+const PROJECT_ACCESS_KEY = import.meta.env.VITE_OMS_PROJECT_ACCESS_KEY ?? 'AQAAAAAAAAK2JvvZhWqZ51riasWBftkrVXE'
 
 function App() {
   const [step, setStep] = useState<Step>('email')
@@ -20,28 +21,45 @@ function App() {
   const [walletAddress, setWalletAddress] = useState('')
   const [lastSignature, setLastSignature] = useState('')
   const [lastTransactionHash, setLastTransactionHash] = useState('')
-  const [status, setStatus] = useState('Enter an email to start.')
+  const [emailAuthStatus, setEmailAuthStatus] = useState('Enter an email to start.')
+  const [redirectStatus, setRedirectStatus] = useState('')
+  const [walletStatus, setWalletStatus] = useState('')
   const [isBusy, setIsBusy] = useState(false)
+  const oidcCallbackStarted = useRef(false)
 
-  const oms = useMemo(() => new OMSClient({
-    projectAccessKey: __OMS_PROJECT_ACCESS_KEY__,
-  }), [])
+  const oms = useMemo(() => {
+    return new OMSClient({
+      projectAccessKey: PROJECT_ACCESS_KEY,
+    })
+  }, [])
 
   useEffect(() => {
     if (oms.wallet.walletAddress) {
       setWalletAddress(oms.wallet.walletAddress)
       setStep('wallet')
-      setStatus('Wallet session restored.')
+      setWalletStatus('Wallet session restored.')
+      return
+    }
+
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('code') || params.has('state') || params.has('error')) {
+      if (oidcCallbackStarted.current) return
+      oidcCallbackStarted.current = true
+      void completeOidcRedirect()
     }
   }, [oms])
 
-  async function run(label: string, action: () => Promise<void>) {
+  async function run(
+    label: string,
+    setActiveStatus: (message: string) => void,
+    action: () => Promise<void>,
+  ) {
     setIsBusy(true)
-    setStatus(label)
+    setActiveStatus(label)
     try {
       await action()
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error))
+      setActiveStatus(error instanceof Error ? error.message : String(error))
     } finally {
       setIsBusy(false)
     }
@@ -49,55 +67,72 @@ function App() {
 
   async function startEmailAuth() {
     if (!email.trim()) return
-    await run('Sending code...', async () => {
+    await run('Sending code...', setEmailAuthStatus, async () => {
       await oms.wallet.startEmailAuth({ email: email.trim() })
       setStep('code')
-      setStatus('Code sent. Check your email.')
+      setEmailAuthStatus('Code sent. Check your email.')
     })
   }
 
   async function completeEmailAuth() {
     if (!code.trim()) return
-    await run('Completing sign-in...', async () => {
+    await run('Completing sign-in...', setEmailAuthStatus, async () => {
       await oms.wallet.completeEmailAuth({ code: code.trim() })
       setWalletAddress(oms.wallet.walletAddress ?? '')
       setStep('wallet')
-      setStatus('Wallet ready.')
+      setWalletStatus('Wallet ready.')
+    })
+  }
+
+  async function startOidcRedirect() {
+    await run('Redirecting to provider...', setRedirectStatus, async () => {
+      await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
+    })
+  }
+
+  async function completeOidcRedirect() {
+    await run('Completing redirect sign-in...', setRedirectStatus, async () => {
+      await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
+      setWalletAddress(oms.wallet.walletAddress ?? '')
+      setStep('wallet')
+      setWalletStatus('Wallet ready.')
     })
   }
 
   async function signMessage() {
-    await run('Signing message...', async () => {
+    await run('Signing message...', setWalletStatus, async () => {
       const signature = await oms.wallet.signMessage({
         network: NETWORK,
         message,
       })
       setLastSignature(signature)
-      setStatus('Message signed.')
+      setWalletStatus('Message signed.')
     })
   }
 
   async function sendTransaction() {
-    await run('Sending transaction...', async () => {
+    await run('Sending transaction...', setWalletStatus, async () => {
       const tx = await oms.wallet.sendTransaction({
         network: NETWORK,
         to: transactionTo as `0x${string}`,
         value: BigInt(transactionValue || '0'),
       })
       setLastTransactionHash(tx.txHash ?? tx.txnId)
-      setStatus('Transaction sent.')
+      setWalletStatus('Transaction sent.')
     })
   }
 
   async function signOut() {
-    await run('Signing out...', async () => {
+    await run('Signing out...', setWalletStatus, async () => {
       await oms.wallet.signOut()
       setCode('')
       setWalletAddress('')
       setLastSignature('')
       setLastTransactionHash('')
       setStep('email')
-      setStatus('Signed out.')
+      setEmailAuthStatus('Enter an email to start.')
+      setRedirectStatus('')
+      setWalletStatus('')
     })
   }
 
@@ -114,16 +149,32 @@ function App() {
             event.preventDefault()
             void startEmailAuth()
           }}>
-            <label>
-              Email
-              <input
-                autoFocus
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="user@example.com"
-              />
-            </label>
+            <div className="field-stack">
+              <button
+                type="button"
+                className="secondary"
+                onClick={startOidcRedirect}
+                disabled={isBusy}
+                aria-describedby="google-status"
+              >
+                Continue with Google
+              </button>
+              {redirectStatus && <p id="google-status" className="field-hint">{redirectStatus}</p>}
+            </div>
+            <div className="divider">or</div>
+            <div className="field-stack">
+              <label>
+                Email
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="user@example.com"
+                  aria-describedby="email-status"
+                />
+              </label>
+              <p id="email-status" className="field-hint">{emailAuthStatus}</p>
+            </div>
             <button type="submit" disabled={isBusy || !email.trim()}>
               Send code
             </button>
@@ -135,16 +186,20 @@ function App() {
             event.preventDefault()
             void completeEmailAuth()
           }}>
-            <label>
-              Code
-              <input
-                autoFocus
-                inputMode="numeric"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                placeholder="123456"
-              />
-            </label>
+            <div className="field-stack">
+              <label>
+                Code
+                <input
+                  autoFocus
+                  inputMode="numeric"
+                  value={code}
+                  onChange={(event) => setCode(event.target.value)}
+                  placeholder="123456"
+                  aria-describedby="code-status"
+                />
+              </label>
+              <p id="code-status" className="field-hint">{emailAuthStatus}</p>
+            </div>
             <div className="actions">
               <button type="submit" disabled={isBusy || !code.trim()}>
                 Complete sign-in
@@ -218,7 +273,7 @@ function App() {
           </div>
         )}
 
-        <output>{status}</output>
+        {step === 'wallet' && <output>{walletStatus}</output>}
       </section>
     </main>
   )

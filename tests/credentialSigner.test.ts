@@ -12,7 +12,7 @@ class MockSigner implements CredentialSigner {
     clear = vi.fn(async () => {});
     private available: boolean;
 
-    constructor(available = true) {
+    constructor(available = true, private readonly expectedPreimage?: string) {
         this.available = available;
     }
 
@@ -25,7 +25,12 @@ class MockSigner implements CredentialSigner {
     }
 
     async sign(preimage: string): Promise<string> {
-        expect(preimage).toContain("nonce: 42");
+        if (this.expectedPreimage) {
+            expect(preimage).toBe(this.expectedPreimage);
+        } else {
+            expect(preimage).toContain("nonce: 42");
+            expect(preimage).toContain(`scope: ${Constants.defaultWaasAuthScope}`);
+        }
         return "0x" + "22".repeat(64);
     }
 
@@ -53,7 +58,7 @@ describe("WebCryptoP256CredentialSigner", () => {
     it("produces raw P-256 signatures", async () => {
         const signer = new WebCryptoP256CredentialSigner(`test-${Date.now()}`);
 
-        const signature = await signer.sign("POST /rpc/Wallet/CommitVerifier\nnonce: 1\n\n{}");
+        const signature = await signer.sign("POST /rpc/Wallet/CommitVerifier\nnonce: 1\nscope: proj_1\n\n{}");
 
         expect(signature).toMatch(/^0x[0-9a-f]{128}$/);
     });
@@ -65,7 +70,13 @@ describe("createSignedFetch", () => {
         const consoleLog = vi.spyOn(console, "log");
         vi.stubGlobal("fetch", fetchMock);
 
-        const signedFetch = createSignedFetch("project-key", new MockSigner());
+        const signedFetch = createSignedFetch(
+            "project-key",
+            new MockSigner(
+                true,
+                `POST /rpc/Wallet/CommitVerifier\nnonce: 42\nscope: ${Constants.defaultWaasAuthScope}\n\n{}`,
+            ),
+        );
         await signedFetch("https://wallet.example/rpc/Wallet/CommitVerifier", {
             method: "POST",
             body: "{}",
@@ -73,7 +84,7 @@ describe("createSignedFetch", () => {
 
         const [, init] = fetchMock.mock.calls[0];
         expect((init?.headers as Record<string, string>).Authorization).toBe(
-            `webcrypto-secp256r1 scope="${Constants.scope}",cred="0x04${"11".repeat(64)}",nonce=42,sig="0x${"22".repeat(64)}"`,
+            `webcrypto-secp256r1 scope="${Constants.defaultWaasAuthScope}",cred="0x04${"11".repeat(64)}",nonce=42,sig="0x${"22".repeat(64)}"`,
         );
         expect(consoleLog).not.toHaveBeenCalled();
     });
@@ -86,7 +97,6 @@ describe("WalletClient session storage", () => {
             projectAccessKey: "project-key",
             environment: {
                 walletApiUrl: "https://wallet.example",
-                apiRpcUrl: "https://api.example",
                 indexerUrlTemplate: "https://indexer.example/{value}",
             },
             storage,
@@ -97,7 +107,6 @@ describe("WalletClient session storage", () => {
 
         expect(storage.get(Constants.walletIdStorageKey)).toBe("wallet-id");
         expect(storage.get(Constants.walletAddressStorageKey)).toBe("0x1111111111111111111111111111111111111111");
-        expect(storage.get(Constants.signerStorageKey)).toBeNull();
     });
 
     it("clears stale wallet metadata when the signer is missing", async () => {
@@ -109,7 +118,6 @@ describe("WalletClient session storage", () => {
             projectAccessKey: "project-key",
             environment: {
                 walletApiUrl: "https://wallet.example",
-                apiRpcUrl: "https://api.example",
                 indexerUrlTemplate: "https://indexer.example/{value}",
             },
             storage,
@@ -128,7 +136,6 @@ describe("WalletClient session storage", () => {
             projectAccessKey: "project-key",
             environment: {
                 walletApiUrl: "https://wallet.example",
-                apiRpcUrl: "https://api.example",
                 indexerUrlTemplate: "https://indexer.example/{value}",
             },
             storage,
@@ -143,12 +150,144 @@ describe("WalletClient session storage", () => {
         expect(signer.clear).toHaveBeenCalledOnce();
     });
 
+    it("signs typed data through the generated wallet client", async () => {
+        const typedData = {
+            domain: {name: "Test", chainId: 137n},
+            types: {Message: [
+                {name: "contents", type: "string"},
+                {name: "amount", type: "uint256"},
+                {name: "ids", type: "uint256[]"},
+            ]},
+            message: {
+                contents: "hello",
+                amount: 12345678901234567890n,
+                ids: [1n, 2n],
+            },
+            primaryType: "Message",
+        };
+        const serializedTypedData = {
+            domain: {name: "Test", chainId: "137"},
+            types: {Message: [
+                {name: "contents", type: "string"},
+                {name: "amount", type: "uint256"},
+                {name: "ids", type: "uint256[]"},
+            ]},
+            message: {
+                contents: "hello",
+                amount: "12345678901234567890",
+                ids: ["1", "2"],
+            },
+            primaryType: "Message",
+        };
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = JSON.parse(init?.body as string);
+
+            expect((init?.headers as Record<string, string>)["X-Access-Key"]).toBe("project-key");
+            expect((init?.headers as Record<string, string>).Authorization).toBeDefined();
+
+            if (url.endsWith("/SignTypedData")) {
+                expect(body).toEqual({
+                    network: "137",
+                    walletId: "wallet-id",
+                    typedData: serializedTypedData,
+                });
+                return jsonResponse({signature: "0xsigned"});
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: {
+                walletApiUrl: "https://wallet.example",
+                indexerUrlTemplate: "https://indexer.example/{value}",
+            },
+            storage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+        (wallet as any).persistSession("wallet-id", "0x1111111111111111111111111111111111111111");
+
+        await expect(wallet.signTypedData({network: "polygon", typedData})).resolves.toBe("0xsigned");
+    });
+
+    it("validates signatures through the generated wallet public client", async () => {
+        const typedData = {
+            domain: {name: "Test", chainId: 137n},
+            types: {Message: [{name: "contents", type: "string"}, {name: "amount", type: "uint256"}]},
+            message: {contents: "hello", amount: 12345678901234567890n},
+            primaryType: "Message",
+        };
+        const serializedTypedData = {
+            domain: {name: "Test", chainId: "137"},
+            types: {Message: [{name: "contents", type: "string"}, {name: "amount", type: "uint256"}]},
+            message: {contents: "hello", amount: "12345678901234567890"},
+            primaryType: "Message",
+        };
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = JSON.parse(init?.body as string);
+            const headers = init?.headers as Record<string, string>;
+
+            expect(headers["X-Access-Key"]).toBe("project-key");
+            expect(headers.Authorization).toBeUndefined();
+
+            if (url.endsWith("/IsValidMessageSignature")) {
+                expect(body).toEqual({
+                    network: "137",
+                    walletId: "wallet-id",
+                    message: "hello",
+                    signature: "0xmessage",
+                });
+                return jsonResponse({isValid: true});
+            }
+
+            if (url.endsWith("/IsValidTypedDataSignature")) {
+                expect(body).toEqual({
+                    network: "137",
+                    walletAddress: "0x1111111111111111111111111111111111111111",
+                    typedData: serializedTypedData,
+                    signature: "0xtyped",
+                });
+                return jsonResponse({isValid: false});
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: {
+                walletApiUrl: "https://wallet.example",
+                indexerUrlTemplate: "https://indexer.example/{value}",
+            },
+            storage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+        (wallet as any).persistSession("wallet-id", "0x1111111111111111111111111111111111111111");
+
+        await expect(wallet.isValidMessageSignature({
+            network: "polygon",
+            message: "hello",
+            signature: "0xmessage",
+        })).resolves.toBe(true);
+
+        await expect(wallet.isValidTypedDataSignature({
+            network: 137n,
+            walletAddress: "0x1111111111111111111111111111111111111111",
+            typedData,
+            signature: "0xtyped",
+        })).resolves.toBe(false);
+    });
+
     it("uses faster status polling for the first five polls", () => {
         const wallet = new WalletClient({
             projectAccessKey: "project-key",
             environment: {
                 walletApiUrl: "https://wallet.example",
-                apiRpcUrl: "https://api.example",
                 indexerUrlTemplate: "https://indexer.example/{value}",
             },
             storage: new MemoryStorageManager(),
@@ -251,7 +390,7 @@ describe("WalletClient session storage", () => {
                 return jsonResponse({status: "pending"});
             }
 
-            if (url.endsWith("/GetTransactionStatus")) {
+            if (url.endsWith("/TransactionStatus")) {
                 expect(body).toEqual({txnId: "txn-1"});
                 return jsonResponse({
                     status: "executed",
@@ -267,7 +406,6 @@ describe("WalletClient session storage", () => {
             projectAccessKey: "project-key",
             environment: {
                 walletApiUrl: "https://wallet.example",
-                apiRpcUrl: "https://api.example",
                 indexerUrlTemplate: "https://indexer.example/{value}",
             },
             storage,
