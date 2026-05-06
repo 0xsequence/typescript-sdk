@@ -13,6 +13,16 @@ pnpm install
 pnpm build
 ```
 
+## React Example
+
+A deployed React example is available at [https://0xsequence.github.io/typescript-sdk/react-example/](https://0xsequence.github.io/typescript-sdk/react-example/).
+
+To run it locally from the repository root:
+
+```bash
+pnpm dev:example
+```
+
 ## Quick Start
 
 ```typescript
