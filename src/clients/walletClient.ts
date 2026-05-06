@@ -51,6 +51,7 @@ import {
     FeeOption,
     FeeOptionSelection,
     Fetch,
+    CredentialInfo,
 } from '../generated/waas.gen.js'
 import {NetworkBindings} from "../utils/networkBindings.js";
 import {Network} from "../types/evmTypes.js";
@@ -63,7 +64,12 @@ import {
     SendTransactionResponse,
     TransactionStatusPollingOptions
 } from "../types/transactionTypes.js";
-import {AccessGrant} from "../types/accessGrant.js";
+import {
+    AccessGrant,
+    AccessGrantPage,
+    ListAccessParams,
+    WalletCredential,
+} from "../types/accessGrant.js";
 import {IndexerClient, TokenBalance} from "./indexerClient.js";
 
 export type OidcProviderName<Env extends OmsEnvironment = OmsEnvironment> =
@@ -92,8 +98,14 @@ export interface CompleteOidcRedirectAuthParams {
     replaceUrl?: (url: string) => void;
 }
 
+export interface CompleteEmailAuthResult {
+    walletAddress: Address;
+    credential: WalletCredential;
+}
+
 export interface CompleteOidcRedirectAuthResult {
     walletAddress: Address;
+    credential: WalletCredential;
 }
 
 export interface SignMessageParams {
@@ -164,7 +176,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     private readonly transactionStatusPollIntervalMs = 2_000
     private readonly transactionStatusPollTimeoutMs = 60_000
 
-    /** The on-chain address of this wallet. Undefined until a wallet is created or loaded. */
+    /** The on-chain address of this wallet. Undefined until auth completes or a session is restored. */
     public walletAddress: Address | undefined
 
     private walletId: string
@@ -232,13 +244,14 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     /**
      * Completes the email OTP flow by verifying the code the user received.
      *
-     * Must be called after `startEmailAuth`. On success, call `createWallet`
-     * or `useWallet` to activate a wallet.
+     * Must be called after `startEmailAuth`. On success, this activates an
+     * existing wallet or creates a new one and returns the wallet address plus
+     * the credential added by WaaS.
      */
     async completeEmailAuth(params: {
         code: string
         walletType?: WalletType
-    }): Promise<void> {
+    }): Promise<CompleteEmailAuthResult> {
         return this.runOperation("wallet.completeEmailAuth", async () => {
             const walletType = params.walletType ?? WalletType.Ethereum;
             const answer = await RequestUtils.hashEmailAuthAnswer(this.challenge, params.code);
@@ -250,7 +263,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 answer,
             }
             const response = await this.client.completeAuth(request)
-            await this.activateWalletFromAuthResponse(response, walletType)
+            return this.activateWalletFromAuthResponse(response, walletType)
         })
     }
 
@@ -353,13 +366,13 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                     answer: callback.code,
                 }
                 const response = await this.client.completeAuth(request)
-                await this.activateWalletFromAuthResponse(response, pending.walletType)
+                const result = await this.activateWalletFromAuthResponse(response, pending.walletType)
 
                 if (!this.walletAddress) {
                     throw new Error('OIDC auth completed without an active wallet')
                 }
 
-                return {walletAddress: this.walletAddress}
+                return result
             } finally {
                 redirectAuthStorage.delete(Constants.redirectAuthStorageKey)
             }
@@ -372,17 +385,16 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
      * If the current URL contains an OIDC callback, it completes auth. Otherwise it
      * starts auth and redirects to the provider.
      */
-    async signInWithOidcRedirect(params: SignInWithOidcRedirectParams<Env>): Promise<void> {
+    async signInWithOidcRedirect(params: SignInWithOidcRedirectParams<Env>): Promise<CompleteOidcRedirectAuthResult | void> {
         return this.runOperation("wallet.signInWithOidcRedirect", async () => {
             const currentUrl = params.currentUrl ?? this.browserCurrentUrl()
             const callback = parseOidcCallbackUrl(currentUrl)
             if (callback.code || callback.state || callback.error) {
-                await this.completeOidcRedirectAuth({
+                return this.completeOidcRedirectAuth({
                     callbackUrl: currentUrl,
                     cleanUrl: params.cleanUrl ?? true,
                     replaceUrl: params.replaceUrl,
                 })
-                return
             }
 
             const redirectUri = params.redirectUri ?? redirectUriFromCurrentUrl(currentUrl)
@@ -538,18 +550,22 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         )
     }
 
-    async listAccess(): Promise<AccessGrant[]> {
+    async listAccess(params: ListAccessParams = {}): Promise<AccessGrant[]> {
         return this.runOperation("wallet.listAccess", async () => {
-            await this.requireActiveSession("wallet.listAccess")
-            const params: ListAccessRequest = { walletId: this.walletId }
-            const response = await this.client.listAccess(params)
-
-            return response.credentials.map(c => { return {
-                credentialId: c.credentialId,
-                expiresAt: c.expiresAt,
-                isCaller: c.isCaller
-            } })
+            const grants: AccessGrant[] = []
+            for await (const page of this.listAccessPagesUnchecked(params, "wallet.listAccess")) {
+                grants.push(...page.grants)
+            }
+            return grants
         })
+    }
+
+    async *listAccessPages(params: ListAccessParams = {}): AsyncIterable<AccessGrantPage> {
+        try {
+            yield* this.listAccessPagesUnchecked(params, "wallet.listAccessPages")
+        } catch (error) {
+            throw toOmsSdkError(error, "wallet.listAccessPages")
+        }
     }
 
     async revokeAccess(params: {
@@ -567,15 +583,16 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     }
 
     /**
-     * Creates a new Ethereum wallet for the authenticated user.
+     * Creates a new wallet of the requested type for the authenticated user.
      *
      * The wallet ID and address are persisted to storage so the session can be
      * restored when the configured credential signer is also available.
      */
-    private async createWallet(type: WalletType): Promise<void> {
+    private async createWallet(type: WalletType): Promise<Address> {
         const params: CreateWalletRequest = { type: type }
         const response = await this.client.createWallet(params)
         this.persistSession(response.wallet.id, response.wallet.address)
+        return response.wallet.address as Address
     }
 
     /**
@@ -583,24 +600,66 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
      *
      * The wallet ID and address are persisted to storage.
      */
-    private async useWallet(walletId: string): Promise<void> {
+    private async useWallet(walletId: string): Promise<Address> {
         const params: UseWalletRequest = { walletId }
         const response = await this.client.useWallet(params)
         this.persistSession(response.wallet.id, response.wallet.address)
+        return response.wallet.address as Address
     }
 
     private async activateWalletFromAuthResponse(
         response: CompleteAuthResponse,
         walletType: WalletType,
-    ): Promise<void> {
+    ): Promise<CompleteEmailAuthResult> {
         for (const wallet of response.wallets) {
             if (wallet.type === walletType) {
-                await this.useWallet(wallet.id)
-                return
+                const walletAddress = await this.useWallet(wallet.id)
+                return {walletAddress, credential: this.toWalletCredential(response.credential)}
             }
         }
 
-        await this.createWallet(walletType)
+        const walletAddress = await this.createWallet(walletType)
+        return {walletAddress, credential: this.toWalletCredential(response.credential)}
+    }
+
+    private async *listAccessPagesUnchecked(
+        params: ListAccessParams,
+        operation: string,
+    ): AsyncIterable<AccessGrantPage> {
+        await this.requireActiveSession(operation)
+
+        let cursor: string | undefined
+        do {
+            const page = this.buildListAccessPage(params.pageSize, cursor)
+            const request: ListAccessRequest = page
+                ? { walletId: this.walletId, page }
+                : { walletId: this.walletId }
+            const response = await this.client.listAccess(request)
+
+            cursor = response.page.cursor || undefined
+            yield {
+                grants: response.credentials.map(c => this.toWalletCredential(c)),
+            }
+        } while (cursor)
+    }
+
+    private buildListAccessPage(pageSize: number | undefined, cursor: string | undefined): ListAccessRequest["page"] | undefined {
+        if (pageSize === undefined && cursor === undefined) {
+            return undefined
+        }
+
+        return {
+            limit: pageSize,
+            cursor,
+        }
+    }
+
+    private toWalletCredential(credential: CredentialInfo): WalletCredential {
+        return {
+            credentialId: credential.credentialId,
+            expiresAt: credential.expiresAt,
+            isCaller: credential.isCaller,
+        }
     }
 
     /** Saves wallet metadata. The non-extractable credential key is owned by the signer. */

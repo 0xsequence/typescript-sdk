@@ -2,6 +2,7 @@ export type OmsSdkErrorCode =
     | "OMS_HTTP_ERROR"
     | "OMS_INVALID_RESPONSE"
     | "OMS_REQUEST_FAILED"
+    | "OMS_AUTH_COMMITMENT_CONSUMED"
     | "OMS_SESSION_MISSING"
     | "OMS_TRANSACTION_STATUS_LOOKUP_FAILED"
     | "OMS_VALIDATION_ERROR"
@@ -84,6 +85,19 @@ export function toOmsSdkError(error: unknown, operation: string): OmsSdkError {
 
     const status = statusFromError(error)
     const name = error instanceof Error ? error.name : undefined
+    const generatedCode = generatedCodeFromError(error)
+
+    if (name === "CommitmentConsumed" || generatedCode === 7008) {
+        return new OmsRequestError({
+            code: "OMS_AUTH_COMMITMENT_CONSUMED",
+            operation,
+            status,
+            retryable: false,
+            cause: error,
+            message: errorMessage(error),
+        })
+    }
+
     if (name === "WebrpcBadResponse") {
         if (isHttpStatus(status)) {
             return new OmsRequestError({
@@ -139,6 +153,11 @@ export function errorMessage(error: unknown): string {
 function statusFromError(error: unknown): number | undefined {
     const status = (error as {status?: unknown} | undefined)?.status
     return typeof status === "number" ? status : undefined
+}
+
+function generatedCodeFromError(error: unknown): number | undefined {
+    const code = (error as {code?: unknown} | undefined)?.code
+    return typeof code === "number" ? code : undefined
 }
 
 function isHttpStatus(status: number | undefined): status is number {

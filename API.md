@@ -23,6 +23,7 @@
     - [ABI-encoded contract call](#abi-encoded-contract-call)
   - [callContract](#callcontract)
   - [listAccess](#listaccess)
+  - [listAccessPages](#listaccesspages)
   - [revokeAccess](#revokeaccess)
 - [IndexerClient](#indexerclient)
   - [getTokenBalances](#gettokenbalances)
@@ -34,7 +35,10 @@
   - [OidcProviderConfig](#oidcproviderconfig)
   - [StorageManager](#storagemanager)
   - [CredentialSigner](#credentialsigner)
+  - [WalletCredential](#walletcredential)
   - [AccessGrant](#accessgrant)
+  - [ListAccessParams](#listaccessparams)
+  - [AccessGrantPage](#accessgrantpage)
   - [SendNativeTransactionParams](#sendnativetransactionparams)
   - [SendDataTransactionParams](#senddatatransactionparams)
   - [SendContractTransactionParams](#sendcontracttransactionparams)
@@ -100,7 +104,7 @@ Accessed via `oms.wallet`. Manages the full wallet lifecycle: authentication, se
 walletAddress: Address | undefined
 ```
 
-The on-chain address of the active wallet (`Address` is the viem/abitype hex address type). Undefined until `completeEmailAuth` resolves successfully or a persisted session is restored.
+The on-chain address of the active wallet (`Address` is the viem/abitype hex address type). Undefined until email or OIDC auth completes successfully, or a persisted session is restored.
 
 ---
 
@@ -138,7 +142,7 @@ await oms.wallet.startEmailAuth({ email: 'user@example.com' })
 completeEmailAuth(params: {
   code: string
   walletType?: WalletType
-}): Promise<void>
+}): Promise<{ walletAddress: Address; credential: WalletCredential }>
 ```
 
 Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
@@ -152,7 +156,7 @@ This method verifies the code, then automatically selects an existing wallet mat
 | `code` | `string` | Yes | The one-time passcode entered by the user. |
 | `walletType` | `WalletType` | No | The wallet type to load or create. Defaults to `WalletType.Ethereum`. |
 
-**Returns** `Promise<void>`
+**Returns** `Promise<{ walletAddress: Address; credential: WalletCredential }>`
 
 **Throws** if the code is incorrect, expired, or the network request fails.
 
@@ -160,8 +164,8 @@ This method verifies the code, then automatically selects an existing wallet mat
 
 ```typescript
 try {
-  await oms.wallet.completeEmailAuth({ code: '123456' })
-  console.log('Wallet ready:', oms.wallet.walletAddress)
+  const { walletAddress, credential } = await oms.wallet.completeEmailAuth({ code: '123456' })
+  console.log('Wallet ready:', walletAddress, credential.credentialId)
 } catch (err) {
   // Handle wrong or expired code
 }
@@ -205,13 +209,13 @@ completeOidcRedirectAuth(params: {
   callbackUrl: string
   cleanUrl?: boolean
   replaceUrl?: (url: string) => void
-}): Promise<{ walletAddress: Address }>
+}): Promise<{ walletAddress: Address; credential: WalletCredential }>
 ```
 
 Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS, and activating an existing wallet or creating one. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
 
 ```typescript
-const { walletAddress } = await oms.wallet.completeOidcRedirectAuth({
+const { walletAddress, credential } = await oms.wallet.completeOidcRedirectAuth({
   callbackUrl: window.location.href,
   cleanUrl: true,
 })
@@ -232,10 +236,10 @@ signInWithOidcRedirect(params: {
   currentUrl?: string
   assignUrl?: (url: string) => void
   replaceUrl?: (url: string) => void
-}): Promise<void>
+}): Promise<{ walletAddress: Address; credential: WalletCredential } | void>
 ```
 
-Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth. Otherwise it starts auth and redirects with `window.location.assign`. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
+Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth and returns `{ walletAddress, credential }`. Otherwise it starts auth, redirects with `window.location.assign`, and returns `void`. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
 
 ```typescript
 void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
@@ -487,10 +491,10 @@ const tx = await oms.wallet.callContract({
 ### listAccess
 
 ```typescript
-listAccess(): Promise<AccessGrant[]>
+listAccess(params?: ListAccessParams): Promise<AccessGrant[]>
 ```
 
-Returns all credentials that currently have access to this wallet.
+Returns all credentials that currently have access to this wallet. The SDK follows WaaS cursors internally and flattens all pages into one array.
 
 **Returns** `Promise<AccessGrant[]>` — see [AccessGrant](#accessgrant).
 
@@ -499,6 +503,24 @@ Returns all credentials that currently have access to this wallet.
 ```typescript
 const grants = await oms.wallet.listAccess()
 console.log(grants.filter(g => g.isCaller)) // current session
+```
+
+---
+
+### listAccessPages
+
+```typescript
+listAccessPages(params?: ListAccessParams): AsyncIterable<AccessGrantPage>
+```
+
+Yields credential pages for callers that want page-at-a-time rendering or explicit backpressure.
+
+**Example**
+
+```typescript
+for await (const page of oms.wallet.listAccessPages({ pageSize: 25 })) {
+  console.log(page.grants)
+}
 ```
 
 ---
@@ -604,6 +626,19 @@ class OmsSdkError extends Error {
   cause?: unknown
 }
 ```
+
+```typescript
+type OmsSdkErrorCode =
+  | 'OMS_HTTP_ERROR'
+  | 'OMS_INVALID_RESPONSE'
+  | 'OMS_REQUEST_FAILED'
+  | 'OMS_AUTH_COMMITMENT_CONSUMED'
+  | 'OMS_SESSION_MISSING'
+  | 'OMS_TRANSACTION_STATUS_LOOKUP_FAILED'
+  | 'OMS_VALIDATION_ERROR'
+```
+
+`OMS_AUTH_COMMITMENT_CONSUMED` means the OTP/OIDC auth commitment has already been used. Restart the auth flow before retrying.
 
 | Class | Typical use |
 |---|---|
@@ -733,10 +768,10 @@ Interface for request credential signing. The default implementation is `WebCryp
 
 ---
 
-### AccessGrant
+### WalletCredential
 
 ```typescript
-interface AccessGrant {
+interface WalletCredential {
   credentialId: string
   expiresAt: string
   isCaller: boolean
@@ -748,6 +783,44 @@ interface AccessGrant {
 | `credentialId` | `string` | Unique identifier. Pass to `revokeAccess` to remove this credential. |
 | `expiresAt` | `string` | ISO 8601 timestamp for credential expiry. |
 | `isCaller` | `boolean` | `true` if this credential belongs to the current active session. |
+
+`AccessGrant` has the same shape and represents a credential with access to the active wallet.
+
+---
+
+### AccessGrant
+
+```typescript
+type AccessGrant = WalletCredential
+```
+
+---
+
+### ListAccessParams
+
+```typescript
+interface ListAccessParams {
+  pageSize?: number
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `pageSize` | `number` | Requested page size for WaaS calls. The server applies its own default and maximum. |
+
+---
+
+### AccessGrantPage
+
+```typescript
+interface AccessGrantPage {
+  grants: AccessGrant[]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `grants` | `AccessGrant[]` | Credentials yielded for this page. |
 
 ---
 

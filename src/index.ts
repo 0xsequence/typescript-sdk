@@ -43,6 +43,7 @@ export {
     type OmsSdkErrorParams,
 } from './errors.js'
 export type {
+    CompleteEmailAuthResult,
     CompleteOidcRedirectAuthParams,
     CompleteOidcRedirectAuthResult,
     IsValidMessageSignatureParams,
@@ -55,6 +56,12 @@ export type {
     StartOidcRedirectAuthParams,
     StartOidcRedirectAuthResult,
 } from './clients/walletClient.js'
+export type {
+    AccessGrant,
+    AccessGrantPage,
+    ListAccessParams,
+    WalletCredential,
+} from './types/accessGrant.js'
 export type {
     FeeOption,
     FeeOptionSelection,
