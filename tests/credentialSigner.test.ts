@@ -107,7 +107,6 @@ describe("WalletClient session storage", () => {
 
         expect(storage.get(Constants.walletIdStorageKey)).toBe("wallet-id");
         expect(storage.get(Constants.walletAddressStorageKey)).toBe("0x1111111111111111111111111111111111111111");
-        expect(storage.get(Constants.signerStorageKey)).toBeNull();
     });
 
     it("clears stale wallet metadata when the signer is missing", async () => {

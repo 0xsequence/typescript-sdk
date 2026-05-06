@@ -394,7 +394,6 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     private async clearSession(): Promise<void> {
         this.storage.delete(Constants.walletIdStorageKey)
         this.storage.delete(Constants.walletAddressStorageKey)
-        this.storage.delete(Constants.signerStorageKey)
         this.walletId = ''
         this.walletAddress = undefined
         await this.credentialSigner.clear?.()
@@ -569,7 +568,6 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         this.walletAddress = walletAddress as Address
         this.storage.set(Constants.walletIdStorageKey,      walletId)
         this.storage.set(Constants.walletAddressStorageKey, walletAddress)
-        this.storage.delete(Constants.signerStorageKey)
     }
 
     private resolveOidcProvider(provider: OidcProviderInput<Env>): ResolvedOidcProvider {
