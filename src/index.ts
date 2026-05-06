@@ -22,13 +22,26 @@ export {
     LocalStorageManager,
     MemoryStorageManager,
     SessionStorageManager,
+    createDefaultStorage,
     type StorageManager,
 } from './storageManager.js'
 export {
     TransactionMode,
     TransactionStatus,
     WalletType,
+    type TransactionStatusResponse,
 } from './generated/waas.gen.js'
+export {
+    OmsRequestError,
+    OmsResponseError,
+    OmsSdkError,
+    OmsSessionError,
+    OmsTransactionError,
+    OmsValidationError,
+    isOmsSdkError,
+    type OmsSdkErrorCode,
+    type OmsSdkErrorParams,
+} from './errors.js'
 export type {
     CompleteOidcRedirectAuthParams,
     CompleteOidcRedirectAuthResult,
@@ -48,4 +61,5 @@ export type {
     FeeOptionSelector,
     FeeOptionWithBalance,
     SendTransactionResponse,
+    TransactionStatusPollingOptions,
 } from './types/transactionTypes.js'

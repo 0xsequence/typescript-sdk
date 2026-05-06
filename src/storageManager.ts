@@ -9,15 +9,55 @@ export interface StorageManager {
  * For Node.js or React Native, supply your own StorageManager to OmsWalletSdk.
  */
 export class LocalStorageManager implements StorageManager {
-    get(key: string): string | null { return localStorage.getItem(key) }
-    set(key: string, value: string): void { localStorage.setItem(key, value) }
-    delete(key: string): void { localStorage.removeItem(key) }
+    static isAvailable(): boolean {
+        try {
+            const storage = globalThis.localStorage
+            if (!storage) return false
+            const key = "__oms_sdk_storage_probe__"
+            storage.setItem(key, key)
+            storage.removeItem(key)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    get(key: string): string | null { return this.storage().getItem(key) }
+    set(key: string, value: string): void { this.storage().setItem(key, value) }
+    delete(key: string): void { this.storage().removeItem(key) }
+
+    private storage(): Storage {
+        if (!globalThis.localStorage) {
+            throw new Error("LocalStorageManager requires globalThis.localStorage")
+        }
+        return globalThis.localStorage
+    }
 }
 
 export class SessionStorageManager implements StorageManager {
-    get(key: string): string | null { return sessionStorage.getItem(key) }
-    set(key: string, value: string): void { sessionStorage.setItem(key, value) }
-    delete(key: string): void { sessionStorage.removeItem(key) }
+    static isAvailable(): boolean {
+        try {
+            const storage = globalThis.sessionStorage
+            if (!storage) return false
+            const key = "__oms_sdk_session_storage_probe__"
+            storage.setItem(key, key)
+            storage.removeItem(key)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    get(key: string): string | null { return this.storage().getItem(key) }
+    set(key: string, value: string): void { this.storage().setItem(key, value) }
+    delete(key: string): void { this.storage().removeItem(key) }
+
+    private storage(): Storage {
+        if (!globalThis.sessionStorage) {
+            throw new Error("SessionStorageManager requires globalThis.sessionStorage")
+        }
+        return globalThis.sessionStorage
+    }
 }
 
 export class MemoryStorageManager implements StorageManager {
@@ -32,4 +72,10 @@ export class MemoryStorageManager implements StorageManager {
     delete(key: string): void {
         this.store.delete(key);
     }
+}
+
+export function createDefaultStorage(): StorageManager {
+    return LocalStorageManager.isAvailable()
+        ? new LocalStorageManager()
+        : new MemoryStorageManager()
 }

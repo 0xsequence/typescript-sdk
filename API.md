@@ -16,6 +16,7 @@
   - [signTypedData](#signtypeddata)
   - [isValidMessageSignature](#isvalidmessagesignature)
   - [isValidTypedDataSignature](#isvalidtypeddatasignature)
+  - [getTransactionStatus](#gettransactionstatus)
   - [sendTransaction](#sendtransaction)
     - [Native token transfer](#native-token-transfer)
     - [Raw data transaction](#raw-data-transaction)
@@ -26,6 +27,7 @@
 - [IndexerClient](#indexerclient)
   - [getTokenBalances](#gettokenbalances)
   - [getNativeTokenBalance](#getnativetokenbalance)
+- [Errors](#errors)
 - [Types](#types)
   - [Network](#network)
   - [OmsEnvironment](#omsenvironment)
@@ -37,6 +39,7 @@
   - [SendDataTransactionParams](#senddatatransactionparams)
   - [SendContractTransactionParams](#sendcontracttransactionparams)
   - [SendTransactionResponse](#sendtransactionresponse)
+  - [TransactionStatusPollingOptions](#transactionstatuspollingoptions)
   - [FeeOptionSelector](#feeoptionselector)
   - [TokenBalancesResult](#tokenbalancesresult)
   - [TokenBalancesPage](#tokenbalancespage)
@@ -74,7 +77,7 @@ new OMSClient(params: {
 |---|---|---|---|
 | `projectAccessKey` | `string` | Yes | Your OMS project access key. |
 | `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the SDK's configured OMS endpoints. |
-| `storage` | `StorageManager` | No | Storage backend for wallet metadata. Defaults to `LocalStorageManager` (`window.localStorage`). |
+| `storage` | `StorageManager` | No | Storage backend for wallet metadata. Defaults to `LocalStorageManager` when browser `localStorage` is available, otherwise `MemoryStorageManager`. |
 | `redirectAuthStorage` | `StorageManager` | No | Transient storage for OIDC redirect verifier/state. Defaults to `sessionStorage` when available. |
 | `credentialSigner` | `CredentialSigner` | No | Request credential signer. Defaults to a non-extractable WebCrypto P-256 signer (`webcrypto-secp256r1`) where WebCrypto is available. |
 
@@ -338,6 +341,16 @@ Validates an EIP-712 typed data signature through the WaaS public wallet RPC. If
 
 ---
 
+### getTransactionStatus
+
+```typescript
+getTransactionStatus(params: { txnId: string }): Promise<TransactionStatusResponse>
+```
+
+Fetches the latest WaaS status for a prepared/executed transaction. This is useful after calling [`sendTransaction`](#sendtransaction) with `waitForStatus: false`.
+
+---
+
 ### sendTransaction
 
 `sendTransaction` is overloaded with three signatures depending on the type of transaction.
@@ -410,6 +423,8 @@ All three variants share the following optional base fields:
 | `value` | `bigint` | Native token value to attach (in wei). |
 | `mode` | `TransactionMode` | Transaction execution mode. Defaults to `TransactionMode.Relayer`. |
 | `selectFeeOption` | `FeeOptionSelector` | Optional callback for choosing a WaaS fee option. |
+| `waitForStatus` | `boolean` | Set to `false` to return immediately after execute without polling WaaS transaction status. |
+| `statusPolling` | `TransactionStatusPollingOptions` | Optional post-execute polling configuration. |
 
 **Returns** `Promise<SendTransactionResponse>` — the prepared transaction ID, latest status, and transaction hash when available.
 
@@ -431,6 +446,8 @@ callContract(params: {
   args?: AbiArg[]
   mode?: TransactionMode
   selectFeeOption?: FeeOptionSelector
+  waitForStatus?: boolean
+  statusPolling?: TransactionStatusPollingOptions
 }): Promise<SendTransactionResponse>
 ```
 
@@ -446,6 +463,8 @@ Calls a state-changing smart contract function using a method signature string a
 | `args` | `AbiArg[]` | No | Ordered list of typed arguments. See [AbiArg](#abiarg). |
 | `mode` | `TransactionMode` | No | Transaction execution mode. Defaults to `TransactionMode.Relayer`. |
 | `selectFeeOption` | `FeeOptionSelector` | No | Optional callback for choosing a WaaS fee option. |
+| `waitForStatus` | `boolean` | No | Set to `false` to return immediately after execute without polling WaaS transaction status. |
+| `statusPolling` | `TransactionStatusPollingOptions` | No | Optional post-execute polling configuration. |
 
 **Returns** `Promise<SendTransactionResponse>` — the prepared transaction ID, latest status, and transaction hash when available.
 
@@ -571,6 +590,33 @@ Fetches the native token balance for a wallet. This is also used internally to e
 
 ---
 
+## Errors
+
+Public methods throw `OmsSdkError` subclasses for SDK-level failures.
+
+```typescript
+class OmsSdkError extends Error {
+  code: OmsSdkErrorCode
+  operation?: string
+  status?: number
+  txnId?: string
+  retryable?: boolean
+  cause?: unknown
+}
+```
+
+| Class | Typical use |
+|---|---|
+| `OmsSessionError` | Missing or stale wallet session. |
+| `OmsRequestError` | Network, fetch, or non-2xx HTTP failures. |
+| `OmsResponseError` | Invalid JSON or malformed API responses. |
+| `OmsTransactionError` | Transaction was submitted but status polling failed; includes `txnId`. |
+| `OmsValidationError` | SDK-side validation failures before a request is sent. |
+
+Use `isOmsSdkError(err)` or `err instanceof OmsSdkError` to branch on structured error fields.
+
+---
+
 ## Types
 
 ### Network
@@ -666,7 +712,7 @@ interface StorageManager {
 }
 ```
 
-Interface for wallet metadata storage. Implement this to use a custom backend. `LocalStorageManager` is the default browser implementation for metadata only; raw default session private keys are not stored here.
+Interface for wallet metadata storage. Implement this to use a custom backend. The SDK defaults to `LocalStorageManager` when browser `localStorage` is available and `MemoryStorageManager` otherwise; raw default session private keys are not stored here.
 
 ---
 
@@ -714,6 +760,8 @@ type SendNativeTransactionParams = {
   value: bigint        // required — amount in wei
   mode?: TransactionMode
   selectFeeOption?: FeeOptionSelector
+  waitForStatus?: boolean
+  statusPolling?: TransactionStatusPollingOptions
 }
 ```
 
@@ -731,6 +779,8 @@ type SendDataTransactionParams = {
   value?: bigint
   mode?: TransactionMode
   selectFeeOption?: FeeOptionSelector
+  waitForStatus?: boolean
+  statusPolling?: TransactionStatusPollingOptions
 }
 ```
 
@@ -753,6 +803,8 @@ type SendContractTransactionParams<
   value?: bigint
   mode?: TransactionMode
   selectFeeOption?: FeeOptionSelector
+  waitForStatus?: boolean
+  statusPolling?: TransactionStatusPollingOptions
 }
 ```
 
@@ -771,6 +823,21 @@ type SendTransactionResponse = {
 ```
 
 `txHash` is present once WaaS reports a published transaction. If polling times out while the transaction is still pending, use `txnId` to check status later.
+
+---
+
+### TransactionStatusPollingOptions
+
+```typescript
+type TransactionStatusPollingOptions = {
+  timeoutMs?: number
+  intervalMs?: number
+  fastIntervalMs?: number
+  fastPollCount?: number
+}
+```
+
+Controls how `sendTransaction` polls WaaS transaction status after execute when `waitForStatus` is not `false`.
 
 ---
 
