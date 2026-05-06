@@ -416,7 +416,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         const request: SignTypedDataRequest = {
             network: this.parseWalletNetwork(params.network),
             walletId: this.walletId,
-            typedData: params.typedData,
+            typedData: normalizeJsonBigInts(params.typedData),
         }
         const response = await this.client.signTypedData(request)
         return response.signature
@@ -439,7 +439,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             network: params.network === undefined ? undefined : this.parseWalletNetwork(params.network),
             walletAddress: params.walletAddress,
             walletId: params.walletId ?? (params.walletAddress ? undefined : this.activeWalletId()),
-            typedData: params.typedData,
+            typedData: normalizeJsonBigInts(params.typedData),
             signature: params.signature,
         }
         const response = await this.publicClient.isValidTypedDataSignature(request)
@@ -930,4 +930,10 @@ function createAccessKeyFetch(projectAccessKey: string): Fetch {
 
 function isWalletType(value: unknown): value is WalletType {
     return typeof value === 'string' && Object.values(WalletType).includes(value as WalletType)
+}
+
+function normalizeJsonBigInts<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value, (_key, nestedValue) => {
+        return typeof nestedValue === 'bigint' ? nestedValue.toString() : nestedValue
+    })) as T
 }

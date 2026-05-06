@@ -153,9 +153,31 @@ describe("WalletClient session storage", () => {
 
     it("signs typed data through the generated wallet client", async () => {
         const typedData = {
-            domain: {name: "Test"},
-            types: {Message: [{name: "contents", type: "string"}]},
-            message: {contents: "hello"},
+            domain: {name: "Test", chainId: 137n},
+            types: {Message: [
+                {name: "contents", type: "string"},
+                {name: "amount", type: "uint256"},
+                {name: "ids", type: "uint256[]"},
+            ]},
+            message: {
+                contents: "hello",
+                amount: 12345678901234567890n,
+                ids: [1n, 2n],
+            },
+            primaryType: "Message",
+        };
+        const serializedTypedData = {
+            domain: {name: "Test", chainId: "137"},
+            types: {Message: [
+                {name: "contents", type: "string"},
+                {name: "amount", type: "uint256"},
+                {name: "ids", type: "uint256[]"},
+            ]},
+            message: {
+                contents: "hello",
+                amount: "12345678901234567890",
+                ids: ["1", "2"],
+            },
             primaryType: "Message",
         };
         const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -169,7 +191,7 @@ describe("WalletClient session storage", () => {
                 expect(body).toEqual({
                     network: "137",
                     walletId: "wallet-id",
-                    typedData,
+                    typedData: serializedTypedData,
                 });
                 return jsonResponse({signature: "0xsigned"});
             }
@@ -194,9 +216,15 @@ describe("WalletClient session storage", () => {
 
     it("validates signatures through the generated wallet public client", async () => {
         const typedData = {
-            domain: {name: "Test"},
-            types: {Message: [{name: "contents", type: "string"}]},
-            message: {contents: "hello"},
+            domain: {name: "Test", chainId: 137n},
+            types: {Message: [{name: "contents", type: "string"}, {name: "amount", type: "uint256"}]},
+            message: {contents: "hello", amount: 12345678901234567890n},
+            primaryType: "Message",
+        };
+        const serializedTypedData = {
+            domain: {name: "Test", chainId: "137"},
+            types: {Message: [{name: "contents", type: "string"}, {name: "amount", type: "uint256"}]},
+            message: {contents: "hello", amount: "12345678901234567890"},
             primaryType: "Message",
         };
         const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -221,7 +249,7 @@ describe("WalletClient session storage", () => {
                 expect(body).toEqual({
                     network: "137",
                     walletAddress: "0x1111111111111111111111111111111111111111",
-                    typedData,
+                    typedData: serializedTypedData,
                     signature: "0xtyped",
                 });
                 return jsonResponse({isValid: false});
