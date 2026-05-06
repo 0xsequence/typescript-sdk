@@ -168,19 +168,20 @@ const tx = await oms.wallet.sendTransaction({
 })
 ```
 
-`sendTransaction` prepares and executes the transaction, then briefly polls for
-the final WaaS status. The response includes `txnId`, `status`, and `txHash`
+`sendTransaction` prepares and executes the transaction, then polls WaaS for
+the latest transaction status. The response includes `txnId`, `status`, and `txHash`
 when the transaction has been published.
 
-To return immediately after execute, pass `waitForReceipt: false`. You can then
-call `getTransactionStatus` with the returned `txnId`.
+To return immediately after execute without status polling, pass
+`waitForStatus: false`. You can then call `getTransactionStatus` with the
+returned `txnId`.
 
 ```typescript
 const tx = await oms.wallet.sendTransaction({
   network: 'polygon',
   to: '0xRecipient',
   value: 1n,
-  waitForReceipt: false,
+  waitForStatus: false,
 })
 
 const status = await oms.wallet.getTransactionStatus({ txnId: tx.txnId })

@@ -347,7 +347,7 @@ Validates an EIP-712 typed data signature through the WaaS public wallet RPC. If
 getTransactionStatus(params: { txnId: string }): Promise<TransactionStatusResponse>
 ```
 
-Fetches the latest WaaS status for a prepared/executed transaction. This is useful after calling [`sendTransaction`](#sendtransaction) with `waitForReceipt: false`.
+Fetches the latest WaaS status for a prepared/executed transaction. This is useful after calling [`sendTransaction`](#sendtransaction) with `waitForStatus: false`.
 
 ---
 
@@ -423,7 +423,7 @@ All three variants share the following optional base fields:
 | `value` | `bigint` | Native token value to attach (in wei). |
 | `mode` | `TransactionMode` | Transaction execution mode. Defaults to `TransactionMode.Relayer`. |
 | `selectFeeOption` | `FeeOptionSelector` | Optional callback for choosing a WaaS fee option. |
-| `waitForReceipt` | `boolean` | Set to `false` to return immediately after execute without polling for a transaction hash. |
+| `waitForStatus` | `boolean` | Set to `false` to return immediately after execute without polling WaaS transaction status. |
 | `statusPolling` | `TransactionStatusPollingOptions` | Optional post-execute polling configuration. |
 
 **Returns** `Promise<SendTransactionResponse>` — the prepared transaction ID, latest status, and transaction hash when available.
@@ -446,7 +446,7 @@ callContract(params: {
   args?: AbiArg[]
   mode?: TransactionMode
   selectFeeOption?: FeeOptionSelector
-  waitForReceipt?: boolean
+  waitForStatus?: boolean
   statusPolling?: TransactionStatusPollingOptions
 }): Promise<SendTransactionResponse>
 ```
@@ -463,7 +463,7 @@ Calls a state-changing smart contract function using a method signature string a
 | `args` | `AbiArg[]` | No | Ordered list of typed arguments. See [AbiArg](#abiarg). |
 | `mode` | `TransactionMode` | No | Transaction execution mode. Defaults to `TransactionMode.Relayer`. |
 | `selectFeeOption` | `FeeOptionSelector` | No | Optional callback for choosing a WaaS fee option. |
-| `waitForReceipt` | `boolean` | No | Set to `false` to return immediately after execute. |
+| `waitForStatus` | `boolean` | No | Set to `false` to return immediately after execute without polling WaaS transaction status. |
 | `statusPolling` | `TransactionStatusPollingOptions` | No | Optional post-execute polling configuration. |
 
 **Returns** `Promise<SendTransactionResponse>` — the prepared transaction ID, latest status, and transaction hash when available.
@@ -611,6 +611,7 @@ class OmsSdkError extends Error {
 | `OmsRequestError` | Network, fetch, or non-2xx HTTP failures. |
 | `OmsResponseError` | Invalid JSON or malformed API responses. |
 | `OmsTransactionError` | Transaction was submitted but status polling failed; includes `txnId`. |
+| `OmsValidationError` | SDK-side validation failures before a request is sent. |
 
 Use `isOmsSdkError(err)` or `err instanceof OmsSdkError` to branch on structured error fields.
 
@@ -759,7 +760,7 @@ type SendNativeTransactionParams = {
   value: bigint        // required — amount in wei
   mode?: TransactionMode
   selectFeeOption?: FeeOptionSelector
-  waitForReceipt?: boolean
+  waitForStatus?: boolean
   statusPolling?: TransactionStatusPollingOptions
 }
 ```
@@ -778,7 +779,7 @@ type SendDataTransactionParams = {
   value?: bigint
   mode?: TransactionMode
   selectFeeOption?: FeeOptionSelector
-  waitForReceipt?: boolean
+  waitForStatus?: boolean
   statusPolling?: TransactionStatusPollingOptions
 }
 ```
@@ -802,7 +803,7 @@ type SendContractTransactionParams<
   value?: bigint
   mode?: TransactionMode
   selectFeeOption?: FeeOptionSelector
-  waitForReceipt?: boolean
+  waitForStatus?: boolean
   statusPolling?: TransactionStatusPollingOptions
 }
 ```
@@ -836,7 +837,7 @@ type TransactionStatusPollingOptions = {
 }
 ```
 
-Controls how `sendTransaction` polls after execute when `waitForReceipt` is not `false`.
+Controls how `sendTransaction` polls WaaS transaction status after execute when `waitForStatus` is not `false`.
 
 ---
 

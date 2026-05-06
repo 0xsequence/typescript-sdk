@@ -46,7 +46,7 @@ export type SendTransactionBase = {
     value?: bigint
     mode?: TransactionMode
     selectFeeOption?: FeeOptionSelector
-    waitForReceipt?: boolean
+    waitForStatus?: boolean
     statusPolling?: TransactionStatusPollingOptions
 }
 

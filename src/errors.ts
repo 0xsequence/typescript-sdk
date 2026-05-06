@@ -4,6 +4,7 @@ export type OmsSdkErrorCode =
     | "OMS_REQUEST_FAILED"
     | "OMS_SESSION_MISSING"
     | "OMS_TRANSACTION_STATUS_LOOKUP_FAILED"
+    | "OMS_VALIDATION_ERROR"
 
 export interface OmsSdkErrorParams {
     code: OmsSdkErrorCode
@@ -65,6 +66,13 @@ export class OmsTransactionError extends OmsSdkError {
     }
 }
 
+export class OmsValidationError extends OmsSdkError {
+    constructor(params: Omit<OmsSdkErrorParams, "code"> & { code?: OmsSdkErrorCode }) {
+        super({code: params.code ?? "OMS_VALIDATION_ERROR", ...params})
+        this.name = "OmsValidationError"
+    }
+}
+
 export function isOmsSdkError(error: unknown): error is OmsSdkError {
     return error instanceof OmsSdkError
 }
@@ -77,9 +85,39 @@ export function toOmsSdkError(error: unknown, operation: string): OmsSdkError {
     const status = statusFromError(error)
     const name = error instanceof Error ? error.name : undefined
     if (name === "WebrpcBadResponse") {
+        if (isHttpStatus(status)) {
+            return new OmsRequestError({
+                code: "OMS_HTTP_ERROR",
+                operation,
+                status,
+                retryable: status >= 500,
+                cause: error,
+                message: errorMessage(error),
+            })
+        }
+
         return new OmsResponseError({
             operation,
             status,
+            cause: error,
+            message: errorMessage(error),
+        })
+    }
+
+    if (isHttpStatus(status) && name?.startsWith("Webrpc") && name !== "WebrpcRequestFailed") {
+        return new OmsRequestError({
+            code: "OMS_HTTP_ERROR",
+            operation,
+            status,
+            retryable: status >= 500,
+            cause: error,
+            message: errorMessage(error),
+        })
+    }
+
+    if (!name?.startsWith("Webrpc") && status === undefined) {
+        return new OmsValidationError({
+            operation,
             cause: error,
             message: errorMessage(error),
         })
@@ -101,4 +139,8 @@ export function errorMessage(error: unknown): string {
 function statusFromError(error: unknown): number | undefined {
     const status = (error as {status?: unknown} | undefined)?.status
     return typeof status === "number" ? status : undefined
+}
+
+function isHttpStatus(status: number | undefined): status is number {
+    return status !== undefined && status >= 400
 }

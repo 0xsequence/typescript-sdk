@@ -492,7 +492,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 prepared,
                 network: params.network,
                 selectFeeOption: params.selectFeeOption,
-                waitForReceipt: params.waitForReceipt,
+                waitForStatus: params.waitForStatus,
                 statusPolling: params.statusPolling,
             })
         })
@@ -505,7 +505,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         args?: Array<AbiArg>
         mode?: TransactionMode
         selectFeeOption?: FeeOptionSelector
-        waitForReceipt?: boolean
+        waitForStatus?: boolean
         statusPolling?: TransactionStatusPollingOptions
     }): Promise<SendTransactionResponse> {
         return this.runOperation("wallet.callContract", async () => {
@@ -524,7 +524,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 prepared,
                 network: params.network,
                 selectFeeOption: params.selectFeeOption,
-                waitForReceipt: params.waitForReceipt,
+                waitForStatus: params.waitForStatus,
                 statusPolling: params.statusPolling,
             })
         })
@@ -719,7 +719,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         prepared: PrepareResponse
         network: Network
         selectFeeOption?: FeeOptionSelector
-        waitForReceipt?: boolean
+        waitForStatus?: boolean
         statusPolling?: TransactionStatusPollingOptions
     }): Promise<SendTransactionResponse> {
         const feeOption = await this.selectFeeOption({
@@ -734,7 +734,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         }
 
         const executed = await this.client.execute(request)
-        if (params.waitForReceipt === false) {
+        if (params.waitForStatus === false) {
             return {
                 txnId: params.prepared.txnId,
                 status: executed.status,

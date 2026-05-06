@@ -37,6 +37,7 @@ export {
     OmsSdkError,
     OmsSessionError,
     OmsTransactionError,
+    OmsValidationError,
     isOmsSdkError,
     type OmsSdkErrorCode,
     type OmsSdkErrorParams,

@@ -163,6 +163,18 @@ export class IndexerClient {
         }
 
         let payload: T;
+        if (response.statusCode < 200 || response.statusCode >= 300) {
+            const errorPayload = parseJsonOrText(response.body);
+            throw new OmsRequestError({
+                code: "OMS_HTTP_ERROR",
+                operation,
+                status: response.statusCode,
+                retryable: response.statusCode >= 500,
+                cause: errorPayload,
+                message: responseErrorMessage(errorPayload, operation, response.statusCode),
+            });
+        }
+
         try {
             payload = JSON.parse(response.body) as T;
         } catch (error) {
@@ -171,17 +183,6 @@ export class IndexerClient {
                 status: response.statusCode,
                 cause: error,
                 message: `Invalid JSON response from ${operation}`,
-            });
-        }
-
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-            throw new OmsRequestError({
-                code: "OMS_HTTP_ERROR",
-                operation,
-                status: response.statusCode,
-                retryable: response.statusCode >= 500,
-                cause: payload,
-                message: responseErrorMessage(payload, operation, response.statusCode),
             });
         }
 
@@ -230,4 +231,12 @@ function responseErrorMessage(payload: unknown, operation: string, status: numbe
         }
     }
     return `${operation} failed with HTTP ${status}`;
+}
+
+function parseJsonOrText(body: string): unknown {
+    try {
+        return JSON.parse(body);
+    } catch {
+        return body;
+    }
 }

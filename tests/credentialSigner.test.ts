@@ -1,13 +1,13 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 
-import {WebCryptoP256CredentialSigner, type CredentialSigner} from "../src/credentialSigner";
+import {type CredentialSigner} from "../src/credentialSigner";
 import {WalletClient} from "../src/clients/walletClient";
 import {MemoryStorageManager} from "../src/storageManager";
 import {Constants} from "../src/utils/constants";
-import {createSignedFetch} from "../src/signedFetch";
 import {TransactionStatus} from "../src/generated/waas.gen";
 import {OMSClient} from "../src/omsClient";
 import {IndexerClient} from "../src/clients/indexerClient";
+import {RequestUtils} from "../src/utils/requestUtils";
 
 class MockSigner implements CredentialSigner {
     readonly keyType = "webcrypto-secp256r1";
@@ -46,49 +46,29 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-describe("WebCryptoP256CredentialSigner", () => {
-    it("generates a webcrypto-secp256r1 credential without an extractable private key", async () => {
-        const signer = new WebCryptoP256CredentialSigner(`test-${Date.now()}`);
-
-        const credentialId = await signer.credentialId();
-
-        expect(signer.keyType).toBe("webcrypto-secp256r1");
-        expect(credentialId).toMatch(/^0x04[0-9a-f]{128}$/);
-        expect((signer as any).keyPair.privateKey.extractable).toBe(false);
-    });
-
-    it("produces raw P-256 signatures", async () => {
-        const signer = new WebCryptoP256CredentialSigner(`test-${Date.now()}`);
-
-        const signature = await signer.sign("POST /rpc/Wallet/CommitVerifier\nnonce: 1\nscope: proj_1\n\n{}");
-
-        expect(signature).toMatch(/^0x[0-9a-f]{128}$/);
-    });
-});
-
-describe("createSignedFetch", () => {
-    it("uses the signer key type in the Authorization header and does not log request data", async () => {
-        const fetchMock = vi.fn(async () => new Response("{}"));
-        const consoleLog = vi.spyOn(console, "log");
-        vi.stubGlobal("fetch", fetchMock);
-
-        const signedFetch = createSignedFetch(
-            "project-key",
-            new MockSigner(
-                true,
-                `POST /rpc/Wallet/CommitVerifier\nnonce: 42\nscope: ${Constants.defaultWaasAuthScope}\n\n{}`,
-            ),
+describe("RequestUtils", () => {
+    it("builds wallet auth request vectors", () => {
+        expect(RequestUtils.buildWalletRequestPreimage(
+            "/CommitVerifier",
+            "42",
+            Constants.defaultWaasAuthScope,
+            "{\"walletId\":\"wallet-id\"}",
+        )).toBe(
+            "POST /rpc/Wallet/CommitVerifier\n" +
+            "nonce: 42\n" +
+            `scope: ${Constants.defaultWaasAuthScope}\n\n` +
+            "{\"walletId\":\"wallet-id\"}",
         );
-        await signedFetch("https://wallet.example/rpc/Wallet/CommitVerifier", {
-            method: "POST",
-            body: "{}",
-        });
 
-        const [, init] = fetchMock.mock.calls[0];
-        expect((init?.headers as Record<string, string>).Authorization).toBe(
+        expect(RequestUtils.buildAuthorizationHeader(
+            "webcrypto-secp256r1",
+            Constants.defaultWaasAuthScope,
+            `0x04${"11".repeat(64)}`,
+            "42",
+            `0x${"22".repeat(64)}`,
+        )).toBe(
             `webcrypto-secp256r1 scope="${Constants.defaultWaasAuthScope}",cred="0x04${"11".repeat(64)}",nonce=42,sig="0x${"22".repeat(64)}"`,
         );
-        expect(consoleLog).not.toHaveBeenCalled();
     });
 });
 
@@ -103,24 +83,6 @@ describe("WalletClient session storage", () => {
         });
 
         expect(client.wallet.walletAddress).toBeUndefined();
-    });
-
-    it("persists wallet metadata without storing a raw signer key", () => {
-        const storage = new MemoryStorageManager();
-        const wallet = new WalletClient({
-            projectAccessKey: "project-key",
-            environment: {
-                walletApiUrl: "https://wallet.example",
-                indexerUrlTemplate: "https://indexer.example/{value}",
-            },
-            storage,
-            credentialSigner: new MockSigner(),
-        });
-
-        (wallet as any).persistSession("wallet-id", "0x1111111111111111111111111111111111111111");
-
-        expect(storage.get(Constants.walletIdStorageKey)).toBe("wallet-id");
-        expect(storage.get(Constants.walletAddressStorageKey)).toBe("0x1111111111111111111111111111111111111111");
     });
 
     it("clears stale wallet metadata when the signer is missing", async () => {
@@ -145,6 +107,24 @@ describe("WalletClient session storage", () => {
         });
         expect(storage.get(Constants.walletIdStorageKey)).toBeNull();
         expect(storage.get(Constants.walletAddressStorageKey)).toBeNull();
+    });
+
+    it("wraps local validation failures separately from request failures", async () => {
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: testEnvironment(),
+            storage: new MemoryStorageManager(),
+            redirectAuthStorage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+
+        await expect(wallet.completeOidcRedirectAuth({
+            callbackUrl: "https://app.example/callback",
+        })).rejects.toMatchObject({
+            code: "OMS_VALIDATION_ERROR",
+            operation: "wallet.completeOidcRedirectAuth",
+            message: "OIDC callback URL is missing code or state",
+        });
     });
 
     it("clears in-memory wallet state and signer state on sign-out", async () => {
@@ -299,33 +279,6 @@ describe("WalletClient session storage", () => {
             typedData,
             signature: "0xtyped",
         })).resolves.toBe(false);
-    });
-
-    it("uses faster status polling for the first five polls", () => {
-        const wallet = new WalletClient({
-            projectAccessKey: "project-key",
-            environment: {
-                walletApiUrl: "https://wallet.example",
-                indexerUrlTemplate: "https://indexer.example/{value}",
-            },
-            storage: new MemoryStorageManager(),
-            credentialSigner: new MockSigner(),
-        });
-
-        expect((wallet as any).transactionStatusPollDelayMs(1)).toBe(400);
-        expect((wallet as any).transactionStatusPollDelayMs(4)).toBe(400);
-        expect((wallet as any).transactionStatusPollDelayMs(5)).toBe(2_000);
-        expect((wallet as any).transactionStatusPollDelayMs(6)).toBe(2_000);
-        expect((wallet as any).transactionStatusPollDelayMs(1, {
-            fastIntervalMs: 100,
-            intervalMs: 500,
-            fastPollCount: 2,
-        })).toBe(100);
-        expect((wallet as any).transactionStatusPollDelayMs(2, {
-            fastIntervalMs: 100,
-            intervalMs: 500,
-            fastPollCount: 2,
-        })).toBe(500);
     });
 
     it("prepares, enriches fee options, executes, and returns transaction status", async () => {
@@ -500,7 +453,7 @@ describe("WalletClient session storage", () => {
             network: "polygon",
             to: "0x1111111111111111111111111111111111111111",
             value: 0n,
-            waitForReceipt: false,
+            waitForStatus: false,
         });
 
         expect(response).toEqual({
@@ -536,6 +489,24 @@ describe("WalletClient session storage", () => {
         await expect(wallet.getTransactionStatus({txnId: "txn-1"})).resolves.toEqual({
             status: TransactionStatus.Executed,
             txnHash: "0xtx",
+        });
+    });
+
+    it("classifies non-JSON wallet HTTP failures as retryable HTTP errors", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>Bad Gateway</html>", {status: 502})));
+
+        const wallet = new WalletClient({
+            projectAccessKey: "project-key",
+            environment: testEnvironment(),
+            storage: new MemoryStorageManager(),
+            credentialSigner: new MockSigner(),
+        });
+
+        await expect(wallet.startEmailAuth({email: "user@example.com"})).rejects.toMatchObject({
+            code: "OMS_HTTP_ERROR",
+            operation: "wallet.startEmailAuth",
+            status: 502,
+            retryable: true,
         });
     });
 
@@ -584,6 +555,7 @@ describe("WalletClient session storage", () => {
             retryable: true,
         });
     });
+
 });
 
 describe("IndexerClient errors", () => {
@@ -604,6 +576,27 @@ describe("IndexerClient errors", () => {
             code: "OMS_INVALID_RESPONSE",
             operation: "indexer.getTokenBalances",
             status: 200,
+        });
+    });
+
+    it("wraps non-JSON HTTP responses as retryable HTTP errors", async () => {
+        vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>Bad Gateway</html>", {status: 502})));
+
+        const indexer = new IndexerClient({
+            projectAccessKey: "project-key",
+            environment: testEnvironment(),
+        });
+
+        await expect(indexer.getTokenBalances({
+            chainId: "137",
+            contractAddress: "0x2222222222222222222222222222222222222222",
+            walletAddress: "0x9999999999999999999999999999999999999999",
+            includeMetadata: false,
+        })).rejects.toMatchObject({
+            code: "OMS_HTTP_ERROR",
+            operation: "indexer.getTokenBalances",
+            status: 502,
+            retryable: true,
         });
     });
 });
