@@ -42,9 +42,11 @@ async function main() {
     t = Date.now();
 
     try {
-        await client.wallet.completeEmailAuth({code});
+        const result = await client.wallet.completeEmailAuth({code});
 
         console.log(`[step 2] ok (${Date.now() - t}ms)`);
+        console.log(`[step 2] wallet ${result.walletAddress}`);
+        console.log(`[step 2] credential ${result.credential.credentialId}`);
     } catch (err) {
         console.error(`[step 2] FAILED (${Date.now() - t}ms):`, err);
         process.exit(1);

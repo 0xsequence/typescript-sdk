@@ -6,7 +6,7 @@ export interface StorageManager {
 
 /**
  * Browser implementation backed by localStorage.
- * For Node.js or React Native, supply your own StorageManager to OmsWalletSdk.
+ * For Node.js or React Native, supply your own StorageManager to OMSClient.
  */
 export class LocalStorageManager implements StorageManager {
     static isAvailable(): boolean {

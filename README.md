@@ -34,10 +34,11 @@ const oms = new OMSClient({ projectAccessKey: 'your-project-access-key' })
 await oms.wallet.startEmailAuth({ email: 'user@example.com' })
 
 // 2. User enters the code — verifies it and sets up the wallet automatically
-await oms.wallet.completeEmailAuth({ code: '123456' })
+const { walletAddress, credential } = await oms.wallet.completeEmailAuth({ code: '123456' })
 
 // 3. The wallet is ready
-console.log('Wallet address:', oms.wallet.walletAddress)
+console.log('Wallet address:', walletAddress)
+console.log('Credential:', credential.credentialId)
 
 // 4. Send a transaction
 const tx = await oms.wallet.sendTransaction({
@@ -64,7 +65,7 @@ OMS supports email-based OTP and OIDC authorization-code PKCE redirect auth.
 Email OTP is a two-step flow:
 
 1. **`startEmailAuth({ email })`** — sends a one-time code to the user's inbox.
-2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists.
+2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists. Returns `{ walletAddress, credential }`.
 
 The session stores wallet metadata in the configured storage. Browser storage defaults to `localStorage` when available; non-browser runtimes fall back to in-memory storage unless you provide a custom `StorageManager`. Browser signing defaults to a non-extractable WebCrypto P-256 credential (`webcrypto-secp256r1`), so the private session key is not written to `localStorage`.
 
@@ -89,7 +90,7 @@ const { url } = await oms.wallet.startOidcRedirectAuth({
 window.location.assign(url)
 
 // On the callback route:
-await oms.wallet.completeOidcRedirectAuth({
+const { walletAddress, credential } = await oms.wallet.completeOidcRedirectAuth({
   callbackUrl: window.location.href,
   cleanUrl: true,
 })
@@ -312,6 +313,15 @@ for (const b of result.balances) {
 
 ```typescript
 const grants = await oms.wallet.listAccess()
+
+for (const grant of grants) {
+  console.log(grant.credentialId, grant.expiresAt, grant.isCaller)
+}
+
+for await (const page of oms.wallet.listAccessPages({ pageSize: 25 })) {
+  console.log('Page:', page.grants)
+}
+
 await oms.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
 ```
 
@@ -331,6 +341,9 @@ try {
   await oms.wallet.signMessage({ network: 'polygon', message: '0xdeadbeef' })
 } catch (err) {
   if (err instanceof OmsSdkError) {
+    if (err.code === 'OMS_AUTH_COMMITMENT_CONSUMED') {
+      // Restart the auth flow; this OTP/OIDC commitment has already been used.
+    }
     console.error(err.code, err.operation, err.status, err.txnId, err.retryable)
   }
 }

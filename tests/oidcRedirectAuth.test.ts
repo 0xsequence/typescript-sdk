@@ -283,6 +283,7 @@ describe("WalletClient OIDC redirect auth", () => {
                         type: WalletType.Ethereum,
                         address: "0x1111111111111111111111111111111111111111",
                     }],
+                    credential: testCredential(),
                 });
             }
 
@@ -315,6 +316,7 @@ describe("WalletClient OIDC redirect auth", () => {
         });
 
         expect(completed.walletAddress).toBe("0x1111111111111111111111111111111111111111");
+        expect(completed.credential).toEqual(testCredential());
         expect(wallet.walletAddress).toBe("0x1111111111111111111111111111111111111111");
         expect(redirectAuthStorage.get(Constants.redirectAuthStorageKey)).toBeNull();
         expect(replaceUrl).toHaveBeenCalledWith("https://app.example/auth/callback");
@@ -463,6 +465,7 @@ describe("WalletClient OIDC redirect auth", () => {
                 return jsonResponse({
                     identity: {type: "oidc", sub: "user-1"},
                     wallets: [],
+                    credential: testCredential(),
                 });
             }
 
@@ -493,12 +496,16 @@ describe("WalletClient OIDC redirect auth", () => {
         expect(redirectUriFromCurrentUrl("https://app.example/login?from=home#section")).toBe("https://app.example/login");
 
         const replaceUrl = vi.fn();
-        await wallet.signInWithOidcRedirect({
+        const completed = await wallet.signInWithOidcRedirect({
             provider: "google",
             currentUrl: `https://app.example/login?code=auth-code&state=${assignedUrl.searchParams.get("state")}`,
             replaceUrl,
         });
 
+        expect(completed).toEqual({
+            walletAddress: "0x2222222222222222222222222222222222222222",
+            credential: testCredential(),
+        });
         expect(wallet.walletAddress).toBe("0x2222222222222222222222222222222222222222");
         expect(replaceUrl).toHaveBeenCalledWith("https://app.example/login");
     });
@@ -548,4 +555,12 @@ function jsonResponse(body: unknown): Response {
         status: 200,
         headers: {"Content-Type": "application/json"},
     });
+}
+
+function testCredential() {
+    return {
+        credentialId: "0x" + "11".repeat(32),
+        expiresAt: "2026-01-01T00:00:00Z",
+        isCaller: true,
+    };
 }

@@ -77,8 +77,8 @@ function App() {
   async function completeEmailAuth() {
     if (!code.trim()) return
     await run('Completing sign-in...', setEmailAuthStatus, async () => {
-      await oms.wallet.completeEmailAuth({ code: code.trim() })
-      setWalletAddress(oms.wallet.walletAddress ?? '')
+      const result = await oms.wallet.completeEmailAuth({ code: code.trim() })
+      setWalletAddress(result.walletAddress)
       setStep('wallet')
       setWalletStatus('Wallet ready.')
     })
@@ -92,8 +92,8 @@ function App() {
 
   async function completeOidcRedirect() {
     await run('Completing redirect sign-in...', setRedirectStatus, async () => {
-      await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
-      setWalletAddress(oms.wallet.walletAddress ?? '')
+      const result = await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
+      setWalletAddress(result?.walletAddress ?? oms.wallet.walletAddress ?? '')
       setStep('wallet')
       setWalletStatus('Wallet ready.')
     })
