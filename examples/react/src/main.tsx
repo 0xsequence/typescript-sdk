@@ -410,7 +410,7 @@ function App() {
           </div>
         )}
 
-        {step === 'wallet' && <output>{walletStatus}</output>}
+        {step === 'wallet' && walletStatus && <output>{walletStatus}</output>}
       </section>
     </main>
   )
