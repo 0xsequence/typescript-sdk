@@ -155,6 +155,77 @@ button:disabled {
   line-height: 1.25;
 }
 
+.tool h3 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 6px;
+  background: #eef2f7;
+}
+
+.segmented button {
+  min-height: 38px;
+  color: #344054;
+  background: transparent;
+}
+
+.segmented button[aria-checked="true"] {
+  color: #ffffff;
+  background: #1d4ed8;
+}
+
+.fee-options {
+  display: grid;
+  gap: 10px;
+}
+
+.fee-option-list {
+  display: grid;
+  gap: 8px;
+}
+
+.fee-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 54px;
+  padding: 10px 12px;
+  color: #1f2937;
+  background: #eef2f7;
+  text-align: left;
+}
+
+.fee-option span {
+  min-width: 0;
+}
+
+.fee-option span:last-child {
+  color: #475467;
+  font-size: 13px;
+  text-align: right;
+}
+
+.fee-option strong,
+.fee-option small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.fee-option small {
+  margin-top: 3px;
+  color: #667085;
+  font-size: 12px;
+}
+
 output {
   min-height: 42px;
   padding: 11px 12px;
@@ -183,6 +254,39 @@ output {
   border-radius: 6px;
   background: #101828;
   color: #dbeafe;
+}
+
+.session-info {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.session-info div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e1e6ee;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.session-info span,
+.session-info strong {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.session-info span {
+  color: #5f6c7b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.session-info strong {
+  margin-top: 4px;
+  color: #1f2937;
+  font-size: 13px;
 }
 
 .result {
@@ -222,6 +326,10 @@ output {
   }
 
   .actions {
+    grid-template-columns: 1fr;
+  }
+
+  .session-info {
     grid-template-columns: 1fr;
   }
 }
