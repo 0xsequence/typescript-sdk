@@ -18,19 +18,16 @@ type FeeSelectionController = {
 const NETWORKS: Array<{
   id: DemoNetworkId
   label: string
-  description: string
   explorerTxUrl: string
 }> = [
   {
     id: 'polygon',
     label: 'Polygon',
-    description: 'Mainnet transactions use real assets.',
     explorerTxUrl: 'https://polygonscan.com/tx/',
   },
   {
     id: 'amoy',
     label: 'Polygon Amoy',
-    description: 'Testnet transactions use Amoy test assets.',
     explorerTxUrl: 'https://amoy.polygonscan.com/tx/',
   },
 ]
@@ -326,7 +323,6 @@ function App() {
                   </button>
                 ))}
               </div>
-              <p className="field-hint">{selectedNetwork.description}</p>
             </section>
 
             <section className="tool">
