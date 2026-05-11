@@ -92,7 +92,6 @@ new OMSClient(params: {
 |---|---|---|
 | `wallet` | `WalletClient` | Handles authentication, signing, and transactions. |
 | `indexer` | `IndexerClient` | Queries on-chain state and token balances. |
-| `session` | `OMSClientSessionState` | Durable metadata for the completed wallet session. Mirrors `wallet.session`. |
 
 ---
 

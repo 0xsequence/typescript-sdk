@@ -57,7 +57,6 @@ console.log(tx.txHash ?? tx.txnId)
 |---|---|---|
 | `oms.wallet` | `WalletClient` | Authentication, signing, and transaction submission. |
 | `oms.indexer` | `IndexerClient` | Read token balances and on-chain state. |
-| `oms.session` | `OMSClientSessionState` | Completed wallet session metadata. |
 
 ## Authentication Flow
 
@@ -73,7 +72,7 @@ The session stores wallet metadata in the configured storage, including the wall
 To end the session, call `await oms.wallet.signOut()`.
 
 ```typescript
-const { walletAddress, expiresAt, loginType, sessionEmail } = oms.session
+const { walletAddress, expiresAt, loginType, sessionEmail } = oms.wallet.session
 ```
 
 ### OIDC Redirect Auth

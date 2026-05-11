@@ -37,7 +37,7 @@ if (false) {
 }
 
 const defaultClient = new OMSClient({projectAccessKey: "project-key"});
-const session: OMSClientSessionState = defaultClient.session;
+const session: OMSClientSessionState = defaultClient.wallet.session;
 const loginType: OMSClientSessionLoginType | undefined = defaultClient.wallet.session.loginType;
 void session;
 void loginType;

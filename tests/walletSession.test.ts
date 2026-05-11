@@ -121,13 +121,12 @@ describe("WalletClient session storage", () => {
             credentialSigner: new MockSigner(),
         });
 
-        expect(client.session).toEqual({
+        expect(client.wallet.session).toEqual({
             walletAddress: "0x1111111111111111111111111111111111111111",
             expiresAt: "2026-01-01T00:00:00Z",
             loginType: "google-auth",
             sessionEmail: "user@example.com",
         });
-        expect(client.wallet.session).toEqual(client.session);
     });
 
     it("requests a one-week auth lifetime and stores completed email session metadata", async () => {
