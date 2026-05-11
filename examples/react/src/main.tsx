@@ -82,6 +82,18 @@ function App() {
     }
   }, [oms])
 
+  useEffect(() => {
+    feeSelection.current?.reject(new Error('Network changed'))
+    feeSelection.current = null
+    setFeeOptions([])
+    setLastSignature('')
+    setLastTransactionHash('')
+    setLastTransactionExplorerUrl('')
+    if (step === 'wallet') {
+      setWalletStatus('')
+    }
+  }, [selectedNetworkId, step])
+
   async function run(
     label: string,
     setActiveStatus: (message: string) => void,
