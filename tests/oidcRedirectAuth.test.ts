@@ -275,9 +275,10 @@ describe("WalletClient OIDC redirect auth", () => {
                     authMode: "auth-code-pkce",
                     verifier: "verifier-1",
                     answer: "auth-code",
+                    lifetime: 604_800,
                 });
                 return jsonResponse({
-                    identity: {type: "oidc", sub: "user-1"},
+                    identity: {type: "oidc", iss: "https://accounts.google.com", sub: "user-1"},
                     wallets: [{
                         id: "wallet-id",
                         type: WalletType.Ethereum,
@@ -318,6 +319,12 @@ describe("WalletClient OIDC redirect auth", () => {
         expect(completed.walletAddress).toBe("0x1111111111111111111111111111111111111111");
         expect(completed.credential).toEqual(testCredential());
         expect(wallet.walletAddress).toBe("0x1111111111111111111111111111111111111111");
+        expect(wallet.session).toEqual({
+            walletAddress: "0x1111111111111111111111111111111111111111",
+            expiresAt: "2026-01-01T00:00:00Z",
+            loginType: "google-auth",
+            sessionEmail: undefined,
+        });
         expect(redirectAuthStorage.get(Constants.redirectAuthStorageKey)).toBeNull();
         expect(replaceUrl).toHaveBeenCalledWith("https://app.example/auth/callback");
     });

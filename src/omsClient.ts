@@ -1,4 +1,4 @@
-import { WalletClient } from "./clients/walletClient.js";
+import { WalletClient, type OMSClientSessionState } from "./clients/walletClient.js";
 import {defaultOmsEnvironment, OmsEnvironment} from "./omsEnvironment.js";
 import {createDefaultStorage, StorageManager} from "./storageManager.js";
 import {IndexerClient} from "./clients/indexerClient.js";
@@ -36,6 +36,10 @@ class OMSClientImpl<Env extends OmsEnvironment = OmsEnvironment> {
             projectAccessKey: params.projectAccessKey,
             environment
         });
+    }
+
+    get session(): OMSClientSessionState {
+        return this.wallet.session
     }
 }
 

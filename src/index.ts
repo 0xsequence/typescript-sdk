@@ -48,6 +48,8 @@ export type {
     CompleteOidcRedirectAuthResult,
     IsValidMessageSignatureParams,
     IsValidTypedDataSignatureParams,
+    OMSClientSessionLoginType,
+    OMSClientSessionState,
     OidcProviderInput,
     OidcProviderName,
     SignMessageParams,
