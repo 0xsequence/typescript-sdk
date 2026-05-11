@@ -6,6 +6,7 @@
   - [Constructor](#constructor)
 - [WalletClient](#walletclient)
   - [walletAddress](#walletaddress)
+  - [session](#session)
   - [startEmailAuth](#startemailauth)
   - [completeEmailAuth](#completeemailauth)
   - [startOidcRedirectAuth](#startoidcredirectauth)
@@ -91,6 +92,7 @@ new OMSClient(params: {
 |---|---|---|
 | `wallet` | `WalletClient` | Handles authentication, signing, and transactions. |
 | `indexer` | `IndexerClient` | Queries on-chain state and token balances. |
+| `session` | `OMSClientSessionState` | Durable metadata for the completed wallet session. Mirrors `wallet.session`. |
 
 ---
 
@@ -105,6 +107,23 @@ walletAddress: Address | undefined
 ```
 
 The on-chain address of the active wallet (`Address` is the viem/abitype hex address type). Undefined until email or OIDC auth completes successfully, or a persisted session is restored.
+
+### session
+
+```typescript
+type OMSClientSessionLoginType = 'email' | 'google-auth' | 'oidc'
+
+interface OMSClientSessionState {
+  walletAddress: Address | undefined
+  expiresAt: string | undefined
+  loginType: OMSClientSessionLoginType | undefined
+  sessionEmail: string | undefined
+}
+
+wallet.session: OMSClientSessionState
+```
+
+Completed wallet sessions persist `walletAddress`, credential expiry, login type, and returned email in the configured `storage`. Pending email OTP and OIDC redirect state are not exposed through `session`; use the auth method results to drive pending UI.
 
 ---
 
@@ -147,7 +166,7 @@ completeEmailAuth(params: {
 
 Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
 
-This method verifies the code, then automatically selects an existing wallet matching `walletType` from the user's account, or creates a new one if none exists. Wallet metadata is persisted to storage. The default browser session credential uses a non-extractable WebCrypto P-256 private key and does not persist raw private key bytes.
+This method verifies the code with a one-week WaaS session lifetime, then automatically selects an existing wallet matching `walletType` from the user's account, or creates a new one if none exists. Wallet metadata is persisted to storage. The default browser session credential uses a non-extractable WebCrypto P-256 private key and does not persist raw private key bytes.
 
 **Parameters**
 
@@ -212,7 +231,7 @@ completeOidcRedirectAuth(params: {
 }): Promise<{ walletAddress: Address; credential: WalletCredential }>
 ```
 
-Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS, and activating an existing wallet or creating one. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
+Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime, and activating an existing wallet or creating one. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
 
 ```typescript
 const { walletAddress, credential } = await oms.wallet.completeOidcRedirectAuth({
@@ -253,7 +272,7 @@ void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
 signOut(): Promise<void>
 ```
 
-Clears the wallet session from storage and clears the active credential signer where supported. After calling this, `walletAddress` is no longer available and the user must authenticate again via [`startEmailAuth`](#startemailauth).
+Clears the wallet session metadata from storage and clears the active credential signer where supported. After calling this, `walletAddress` and `session` metadata are no longer available and the user must authenticate again via [`startEmailAuth`](#startemailauth).
 
 **Returns** `Promise<void>`
 

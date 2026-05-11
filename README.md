@@ -57,6 +57,7 @@ console.log(tx.txHash ?? tx.txnId)
 |---|---|---|
 | `oms.wallet` | `WalletClient` | Authentication, signing, and transaction submission. |
 | `oms.indexer` | `IndexerClient` | Read token balances and on-chain state. |
+| `oms.session` | `OMSClientSessionState` | Completed wallet session metadata. |
 
 ## Authentication Flow
 
@@ -67,9 +68,13 @@ Email OTP is a two-step flow:
 1. **`startEmailAuth({ email })`** — sends a one-time code to the user's inbox.
 2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists. Returns `{ walletAddress, credential }`.
 
-The session stores wallet metadata in the configured storage. Browser storage defaults to `localStorage` when available; non-browser runtimes fall back to in-memory storage unless you provide a custom `StorageManager`. Browser signing defaults to a non-extractable WebCrypto P-256 credential (`webcrypto-secp256r1`), so the private session key is not written to `localStorage`.
+The session stores wallet metadata in the configured storage, including the wallet address, credential expiry, login type, and email returned by the wallet API. Browser storage defaults to `localStorage` when available; non-browser runtimes fall back to in-memory storage unless you provide a custom `StorageManager`. Browser signing defaults to a non-extractable WebCrypto P-256 credential (`webcrypto-secp256r1`), so the private session key is not written to `localStorage`. Completed auth requests ask WaaS for a one-week session lifetime.
 
 To end the session, call `await oms.wallet.signOut()`.
+
+```typescript
+const { walletAddress, expiresAt, loginType, sessionEmail } = oms.session
+```
 
 ### OIDC Redirect Auth
 
@@ -248,7 +253,7 @@ const oms = new OMSClient({
 })
 ```
 
-OIDC redirect auth uses separate transient storage for verifier/state data. In browsers it defaults to `sessionStorage`; pass `redirectAuthStorage` to override it.
+OIDC redirect auth uses separate transient storage for verifier/state data. In browsers it defaults to `sessionStorage`; pass `redirectAuthStorage` to override it. Final wallet session metadata continues to use the configured `storage`.
 
 ## More Examples
 
