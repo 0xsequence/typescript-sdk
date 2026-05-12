@@ -1,12 +1,36 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
-import { OMSClient } from 'typescript-sdk'
+import {
+  OMSClient,
+  type FeeOptionSelection,
+  type FeeOptionWithBalance,
+  type OMSClientSessionLoginType,
+} from 'typescript-sdk'
 import './styles.css'
 
 type Step = 'email' | 'code' | 'wallet'
+type DemoNetworkId = 'polygon' | 'amoy'
+type FeeSelectionController = {
+  resolve: (selection: FeeOptionSelection) => void
+  reject: (error: Error) => void
+}
 
-const NETWORK = 'amoy'
-const EXPLORER_TX_URL = 'https://amoy.polygonscan.com/tx/'
+const NETWORKS: Array<{
+  id: DemoNetworkId
+  label: string
+  explorerTxUrl: string
+}> = [
+  {
+    id: 'polygon',
+    label: 'Polygon',
+    explorerTxUrl: 'https://polygonscan.com/tx/',
+  },
+  {
+    id: 'amoy',
+    label: 'Polygon Amoy',
+    explorerTxUrl: 'https://amoy.polygonscan.com/tx/',
+  },
+]
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
 const PROJECT_ACCESS_KEY = import.meta.env.VITE_OMS_PROJECT_ACCESS_KEY ?? 'AQAAAAAAAAK2JvvZhWqZ51riasWBftkrVXE'
@@ -16,22 +40,28 @@ function App() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [message, setMessage] = useState(DEFAULT_MESSAGE)
+  const [selectedNetworkId, setSelectedNetworkId] = useState<DemoNetworkId>('amoy')
   const [transactionTo, setTransactionTo] = useState(DEFAULT_TX_TO)
   const [transactionValue, setTransactionValue] = useState('0')
   const [walletAddress, setWalletAddress] = useState('')
   const [lastSignature, setLastSignature] = useState('')
   const [lastTransactionHash, setLastTransactionHash] = useState('')
+  const [lastTransactionExplorerUrl, setLastTransactionExplorerUrl] = useState('')
+  const [feeOptions, setFeeOptions] = useState<FeeOptionWithBalance[]>([])
   const [emailAuthStatus, setEmailAuthStatus] = useState('Enter an email to start.')
   const [redirectStatus, setRedirectStatus] = useState('')
   const [walletStatus, setWalletStatus] = useState('')
   const [isBusy, setIsBusy] = useState(false)
   const oidcCallbackStarted = useRef(false)
+  const feeSelection = useRef<FeeSelectionController | null>(null)
 
   const oms = useMemo(() => {
     return new OMSClient({
       projectAccessKey: PROJECT_ACCESS_KEY,
     })
   }, [])
+  const selectedNetwork = NETWORKS.find(network => network.id === selectedNetworkId) ?? NETWORKS[1]
+  const session = oms.wallet.session
 
   useEffect(() => {
     if (oms.wallet.walletAddress) {
@@ -48,6 +78,18 @@ function App() {
       void completeOidcRedirect()
     }
   }, [oms])
+
+  useEffect(() => {
+    feeSelection.current?.reject(new Error('Network changed'))
+    feeSelection.current = null
+    setFeeOptions([])
+    setLastSignature('')
+    setLastTransactionHash('')
+    setLastTransactionExplorerUrl('')
+    if (step === 'wallet') {
+      setWalletStatus('')
+    }
+  }, [selectedNetworkId, step])
 
   async function run(
     label: string,
@@ -102,7 +144,7 @@ function App() {
   async function signMessage() {
     await run('Signing message...', setWalletStatus, async () => {
       const signature = await oms.wallet.signMessage({
-        network: NETWORK,
+        network: selectedNetwork.id,
         message,
       })
       setLastSignature(signature)
@@ -112,14 +154,44 @@ function App() {
 
   async function sendTransaction() {
     await run('Sending transaction...', setWalletStatus, async () => {
-      const tx = await oms.wallet.sendTransaction({
-        network: NETWORK,
-        to: transactionTo as `0x${string}`,
-        value: BigInt(transactionValue || '0'),
-      })
-      setLastTransactionHash(tx.txHash ?? tx.txnId)
-      setWalletStatus('Transaction sent.')
+      setFeeOptions([])
+      setLastTransactionExplorerUrl('')
+      try {
+        const tx = await oms.wallet.sendTransaction({
+          network: selectedNetwork.id,
+          to: transactionTo as `0x${string}`,
+          value: BigInt(transactionValue || '0'),
+          selectFeeOption: waitForFeeOptionSelection,
+        })
+        setLastTransactionHash(tx.txHash ?? tx.txnId)
+        setLastTransactionExplorerUrl(tx.txHash ? `${selectedNetwork.explorerTxUrl}${tx.txHash}` : '')
+        setWalletStatus('Transaction sent.')
+      } finally {
+        feeSelection.current = null
+        setFeeOptions([])
+      }
     })
+  }
+
+  function waitForFeeOptionSelection(options: FeeOptionWithBalance[]): Promise<FeeOptionSelection> {
+    setFeeOptions(options)
+    setWalletStatus('Choose a fee token to continue.')
+    return new Promise((resolve, reject) => {
+      feeSelection.current = { resolve, reject }
+    })
+  }
+
+  function chooseFeeOption(option: FeeOptionWithBalance) {
+    feeSelection.current?.resolve({ token: option.feeOption.token.symbol })
+    feeSelection.current = null
+    setFeeOptions([])
+    setWalletStatus(`Selected ${option.feeOption.token.symbol}. Sending transaction...`)
+  }
+
+  function cancelFeeSelection() {
+    feeSelection.current?.reject(new Error('Fee option selection cancelled'))
+    feeSelection.current = null
+    setFeeOptions([])
   }
 
   async function signOut() {
@@ -129,6 +201,8 @@ function App() {
       setWalletAddress('')
       setLastSignature('')
       setLastTransactionHash('')
+      setLastTransactionExplorerUrl('')
+      setFeeOptions([])
       setStep('email')
       setEmailAuthStatus('Enter an email to start.')
       setRedirectStatus('')
@@ -218,6 +292,39 @@ function App() {
               <code>{walletAddress}</code>
             </div>
 
+            <div className="session-info">
+              <div>
+                <span>Login</span>
+                <strong>{formatLoginType(session.loginType)}</strong>
+              </div>
+              <div>
+                <span>Email</span>
+                <strong>{session.sessionEmail ?? 'Unknown'}</strong>
+              </div>
+              <div>
+                <span>Expires</span>
+                <strong>{formatSessionExpiry(session.expiresAt)}</strong>
+              </div>
+            </div>
+
+            <section className="tool">
+              <h2>Network</h2>
+              <div className="segmented" role="radiogroup" aria-label="Network">
+                {NETWORKS.map(network => (
+                  <button
+                    key={network.id}
+                    type="button"
+                    role="radio"
+                    aria-checked={selectedNetwork.id === network.id}
+                    onClick={() => setSelectedNetworkId(network.id)}
+                    disabled={isBusy}
+                  >
+                    {network.label}
+                  </button>
+                ))}
+              </div>
+            </section>
+
             <section className="tool">
               <h2>Sign message</h2>
               <label>
@@ -253,16 +360,42 @@ function App() {
               <button type="button" onClick={sendTransaction} disabled={isBusy || !transactionTo.trim()}>
                 Send transaction
               </button>
+              {feeOptions.length > 0 && (
+                <div className="fee-options" aria-live="polite">
+                  <h3>Fee option</h3>
+                  <div className="fee-option-list">
+                    {feeOptions.map(option => (
+                      <button
+                        key={`${option.feeOption.token.symbol}-${option.feeOption.value}`}
+                        type="button"
+                        className="fee-option"
+                        onClick={() => chooseFeeOption(option)}
+                      >
+                        <span>
+                          <strong>{option.feeOption.token.symbol}</strong>
+                          <small>{option.feeOption.displayValue || option.feeOption.value}</small>
+                        </span>
+                        <span>{option.available ?? 'Balance unavailable'}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" className="secondary" onClick={cancelFeeSelection}>
+                    Cancel transaction
+                  </button>
+                </div>
+              )}
               {lastTransactionHash && (
                 <div className="result-block">
                   <code className="result">{lastTransactionHash}</code>
-                  <a
-                    href={`${EXPLORER_TX_URL}${lastTransactionHash}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    View on explorer
-                  </a>
+                  {lastTransactionExplorerUrl && (
+                    <a
+                      href={lastTransactionExplorerUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      View on explorer
+                    </a>
+                  )}
                 </div>
               )}
             </section>
@@ -273,7 +406,7 @@ function App() {
           </div>
         )}
 
-        {step === 'wallet' && <output>{walletStatus}</output>}
+        {step === 'wallet' && walletStatus && <output>{walletStatus}</output>}
       </section>
     </main>
   )
@@ -284,3 +417,23 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>,
 )
+
+function formatLoginType(loginType: OMSClientSessionLoginType | undefined): string {
+  switch (loginType) {
+    case 'email':
+      return 'Email'
+    case 'google-auth':
+      return 'Google'
+    case 'oidc':
+      return 'OIDC'
+    default:
+      return 'Unknown'
+  }
+}
+
+function formatSessionExpiry(expiresAt: string | undefined): string {
+  if (!expiresAt) return 'Unknown'
+
+  const date = new Date(expiresAt)
+  return Number.isNaN(date.getTime()) ? expiresAt : date.toLocaleString()
+}

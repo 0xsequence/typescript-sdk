@@ -1,5 +1,5 @@
 import {WalletClient, type OidcProviderName} from "../src/clients/walletClient";
-import {OMSClient} from "../src/index";
+import {OMSClient, type OMSClientSessionLoginType, type OMSClientSessionState} from "../src/index";
 import {defineOmsEnvironment, type OmsEnvironment} from "../src/omsEnvironment";
 import {googleOidcProvider} from "../src/oidc";
 
@@ -37,6 +37,10 @@ if (false) {
 }
 
 const defaultClient = new OMSClient({projectAccessKey: "project-key"});
+const session: OMSClientSessionState = defaultClient.wallet.session;
+const loginType: OMSClientSessionLoginType | undefined = defaultClient.wallet.session.loginType;
+void session;
+void loginType;
 void defaultClient.wallet.startOidcRedirectAuth({
     provider: "google",
     redirectUri: "https://app.example/auth/callback",

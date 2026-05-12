@@ -37,6 +37,7 @@ class OMSClientImpl<Env extends OmsEnvironment = OmsEnvironment> {
             environment
         });
     }
+
 }
 
 export type OMSClient<Env extends OmsEnvironment = OmsEnvironment> = OMSClientImpl<Env>;
