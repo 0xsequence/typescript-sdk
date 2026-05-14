@@ -17,14 +17,14 @@ describe("RequestUtils", () => {
             "{\"walletId\":\"wallet-id\"}",
         );
 
-        expect(RequestUtils.buildAuthorizationHeader(
-            "webcrypto-secp256r1",
+        expect(RequestUtils.buildWalletSignatureHeader(
+            "ecdsa-p256-sha256",
             Constants.defaultWaasAuthScope,
             `0x04${"11".repeat(64)}`,
             "42",
             `0x${"22".repeat(64)}`,
         )).toBe(
-            `webcrypto-secp256r1 scope="${Constants.defaultWaasAuthScope}",cred="0x04${"11".repeat(64)}",nonce=42,sig="0x${"22".repeat(64)}"`,
+            `alg="ecdsa-p256-sha256", scope="${Constants.defaultWaasAuthScope}", cred="0x04${"11".repeat(64)}", nonce=42, sig="0x${"22".repeat(64)}"`,
         );
     });
 });

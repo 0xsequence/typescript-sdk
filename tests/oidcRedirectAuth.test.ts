@@ -14,7 +14,7 @@ import {
 } from "../src/utils/oidcRedirect";
 
 class MockSigner implements CredentialSigner {
-    readonly keyType = "webcrypto-secp256r1";
+    readonly signingAlgorithm = "ecdsa-p256-sha256";
     readonly preimages: string[] = [];
 
     async credentialId(): Promise<string> {
@@ -116,7 +116,9 @@ describe("WalletClient OIDC redirect auth", () => {
 
     it("uses provider relay defaults and custom WaaS auth scope in headers and state", async () => {
         const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-            expect((init?.headers as Record<string, string>).Authorization).toContain('scope="proj_custom"');
+            const headers = init?.headers as Record<string, string>;
+            expect(headers["OMS-Wallet-Signature"]).toContain('scope="proj_custom"');
+            expect(headers.Authorization).toBeUndefined();
             const body = JSON.parse(init?.body as string);
             expect(body.metadata.redirect_uri).toBe("https://relay.example/callback");
             return jsonResponse({

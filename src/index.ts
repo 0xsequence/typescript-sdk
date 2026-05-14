@@ -15,7 +15,7 @@ export {
 export {
     EthereumPrivateKeyCredentialSigner,
     WebCryptoP256CredentialSigner,
-    type CredentialKeyType,
+    type CredentialSigningAlgorithm,
     type CredentialSigner,
 } from './credentialSigner.js'
 export {
@@ -28,6 +28,7 @@ export {
 export {
     TransactionMode,
     TransactionStatus,
+    SigningAlgorithm,
     WalletType,
     type TransactionStatusResponse,
 } from './generated/waas.gen.js'

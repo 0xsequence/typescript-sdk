@@ -5,7 +5,7 @@ import type {CredentialSigner} from "../src/credentialSigner";
 import {MemoryStorageManager} from "../src/storageManager";
 
 class MockSigner implements CredentialSigner {
-    readonly keyType = "webcrypto-secp256r1";
+    readonly signingAlgorithm = "ecdsa-p256-sha256";
 
     async credentialId(): Promise<string> {
         return "0x04" + "11".repeat(64);
@@ -64,7 +64,9 @@ describe("WalletClient signing", () => {
             const body = JSON.parse(init?.body as string);
 
             expect((init?.headers as Record<string, string>)["X-Access-Key"]).toBe("project-key");
-            expect((init?.headers as Record<string, string>).Authorization).toBeDefined();
+            const headers = init?.headers as Record<string, string>;
+            expect(headers["OMS-Wallet-Signature"]).toContain('alg="ecdsa-p256-sha256"');
+            expect(headers.Authorization).toBeUndefined();
 
             if (url.endsWith("/SignTypedData")) {
                 expect(body).toEqual({
@@ -103,6 +105,7 @@ describe("WalletClient signing", () => {
             const headers = init?.headers as Record<string, string>;
 
             expect(headers["X-Access-Key"]).toBe("project-key");
+            expect(headers["OMS-Wallet-Signature"]).toBeUndefined();
             expect(headers.Authorization).toBeUndefined();
 
             if (url.endsWith("/IsValidMessageSignature")) {

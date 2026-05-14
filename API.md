@@ -84,7 +84,7 @@ new OMSClient(params: {
 | `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the SDK's configured OMS endpoints. |
 | `storage` | `StorageManager` | No | Storage backend for wallet metadata. Defaults to `LocalStorageManager` when browser `localStorage` is available, otherwise `MemoryStorageManager`. |
 | `redirectAuthStorage` | `StorageManager` | No | Transient storage for OIDC redirect verifier/state. Defaults to `sessionStorage` when available. |
-| `credentialSigner` | `CredentialSigner` | No | Request credential signer. Defaults to a non-extractable WebCrypto P-256 signer (`webcrypto-secp256r1`) where WebCrypto is available. |
+| `credentialSigner` | `CredentialSigner` | No | Request credential signer. Defaults to a non-extractable WebCrypto P-256 signer (`ecdsa-p256-sha256`) where WebCrypto is available. |
 
 **Properties**
 
@@ -773,7 +773,7 @@ Interface for wallet metadata storage. Implement this to use a custom backend. T
 
 ```typescript
 interface CredentialSigner {
-  readonly keyType: 'ethereum-secp256k1' | 'webcrypto-secp256r1'
+  readonly signingAlgorithm: 'ecdsa-p256k-eip191' | 'ecdsa-p256-sha256'
   credentialId(): Promise<string>
   nextNonce(): Promise<string>
   sign(preimage: string): Promise<string>
@@ -782,7 +782,7 @@ interface CredentialSigner {
 }
 ```
 
-Interface for request credential signing. The default implementation is `WebCryptoP256CredentialSigner`, which uses `webcrypto-secp256r1` and a non-extractable WebCrypto private key.
+Interface for request credential signing. The default implementation is `WebCryptoP256CredentialSigner`, which uses `ecdsa-p256-sha256` and a non-extractable WebCrypto private key.
 
 ---
 

@@ -3,7 +3,7 @@ import {Constants} from "./utils/constants.js";
 import {RequestUtils} from "./utils/requestUtils.js";
 import type {CredentialSigner} from "./credentialSigner.js";
 
-async function buildAuthHeader(
+async function buildWalletSignatureHeader(
     endpoint: string,
     signer: CredentialSigner,
     payload: string,
@@ -13,7 +13,7 @@ async function buildAuthHeader(
     const nonce = await signer.nextNonce()
     const preimage = RequestUtils.buildWalletRequestPreimage(endpoint, nonce, waasAuthScope, payload)
     const signature = await signer.sign(preimage)
-    return RequestUtils.buildAuthorizationHeader(signer.keyType, waasAuthScope, credentialId, nonce, signature)
+    return RequestUtils.buildWalletSignatureHeader(signer.signingAlgorithm, waasAuthScope, credentialId, nonce, signature)
 }
 
 export function createSignedFetch(
@@ -28,13 +28,13 @@ export function createSignedFetch(
 
         const body = typeof init?.body === 'string' ? init.body : ''
 
-        const authHeader = await buildAuthHeader(endpoint, signer, body, waasAuthScope)
+        const signatureHeader = await buildWalletSignatureHeader(endpoint, signer, body, waasAuthScope)
 
         const existingHeaders = (init?.headers ?? {}) as Record<string, string>
         const headers: Record<string, string> = {
             ...existingHeaders,
             'X-Access-Key': projectAccessKey,
-            'Authorization': authHeader,
+            'OMS-Wallet-Signature': signatureHeader,
         }
 
         return globalThis.fetch(input, { ...init, headers })

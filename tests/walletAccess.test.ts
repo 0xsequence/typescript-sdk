@@ -5,7 +5,7 @@ import type {CredentialSigner} from "../src/credentialSigner";
 import {MemoryStorageManager} from "../src/storageManager";
 
 class MockSigner implements CredentialSigner {
-    readonly keyType = "webcrypto-secp256r1";
+    readonly signingAlgorithm = "ecdsa-p256-sha256";
 
     async credentialId(): Promise<string> {
         return "0x04" + "11".repeat(64);

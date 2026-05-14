@@ -8,7 +8,7 @@ import {Constants} from "../src/utils/constants";
 import {WalletType} from "../src/generated/waas.gen";
 
 class MockSigner implements CredentialSigner {
-    readonly keyType = "webcrypto-secp256r1";
+    readonly signingAlgorithm = "ecdsa-p256-sha256";
     clear = vi.fn(async () => {});
 
     constructor(private readonly available = true) {}

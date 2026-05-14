@@ -688,7 +688,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 : { walletId: this.walletId }
             const response = await this.client.listAccess(request)
 
-            cursor = response.page.cursor || undefined
+            cursor = response.page?.cursor || undefined
             yield {
                 grants: response.credentials.map(c => this.toWalletCredential(c)),
             }

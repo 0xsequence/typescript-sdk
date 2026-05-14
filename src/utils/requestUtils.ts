@@ -1,4 +1,4 @@
-import type {CredentialKeyType} from "../credentialSigner.js";
+import type {CredentialSigningAlgorithm} from "../credentialSigner.js";
 
 export class RequestUtils {
     static buildWalletRequestPreimage(
@@ -10,14 +10,14 @@ export class RequestUtils {
         return `POST /rpc/Wallet${endpoint}\nnonce: ${nonce}\nscope: ${scope}\n\n${payload}`;
     }
 
-    static buildAuthorizationHeader(
-        keyType: CredentialKeyType,
+    static buildWalletSignatureHeader(
+        alg: CredentialSigningAlgorithm,
         scope: string,
         cred: string,
         nonce: string,
         sig: string,
     ): string {
-        return `${keyType} scope="${scope}",cred="${cred}",nonce=${nonce},sig="${sig}"`;
+        return `alg="${alg}", scope="${scope}", cred="${cred}", nonce=${nonce}, sig="${sig}"`;
     }
 
     static async hashEmailAuthAnswer(challenge: string, code: string): Promise<string> {
