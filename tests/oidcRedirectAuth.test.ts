@@ -511,7 +511,7 @@ describe("WalletClient OIDC redirect auth", () => {
             replaceUrl,
         });
 
-        expect(completed).toEqual({
+        expect(completed).toMatchObject({
             walletAddress: "0x2222222222222222222222222222222222222222",
             credential: testCredential(),
         });

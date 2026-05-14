@@ -64,8 +64,8 @@ OMS supports email-based OTP and OIDC authorization-code PKCE redirect auth.
 
 Email OTP is a two-step flow:
 
-1. **`startEmailAuth({ email })`** — sends a one-time code to the user's inbox.
-2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists. Returns `{ walletAddress, credential }`.
+1. **`startEmailAuth({ email })`** — clears any active session and sends a one-time code to the user's inbox.
+2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists. Returns `{ walletAddress, wallet, wallets, credential }`.
 
 The session stores wallet metadata in the configured storage, including the wallet address, credential expiry, login type, and email returned by the wallet API. Browser storage defaults to `localStorage` when available; non-browser runtimes fall back to in-memory storage unless you provide a custom `StorageManager`. Browser signing defaults to a non-extractable WebCrypto P-256 credential using `ecdsa-p256-sha256`, so the private session key is not written to `localStorage`. Completed auth requests ask WaaS for a one-week session lifetime.
 
@@ -73,6 +73,21 @@ To end the session, call `await oms.wallet.signOut()`.
 
 ```typescript
 const { walletAddress, expiresAt, loginType, sessionEmail } = oms.wallet.session
+```
+
+Apps that need wallet selection can opt out of automatic activation:
+
+```typescript
+const { wallets, credential } = await oms.wallet.completeEmailAuth({
+  code,
+  autoActivate: false,
+})
+
+// Show wallets in your UI, then either:
+await oms.wallet.useWallet({ walletId: wallets[0].id })
+
+// Or create and activate a new wallet:
+await oms.wallet.createWallet({ type: WalletType.Ethereum })
 ```
 
 ### OIDC Redirect Auth
@@ -94,7 +109,7 @@ const { url } = await oms.wallet.startOidcRedirectAuth({
 window.location.assign(url)
 
 // On the callback route:
-const { walletAddress, credential } = await oms.wallet.completeOidcRedirectAuth({
+const { walletAddress, wallet, wallets, credential } = await oms.wallet.completeOidcRedirectAuth({
   callbackUrl: window.location.href,
   cleanUrl: true,
 })
