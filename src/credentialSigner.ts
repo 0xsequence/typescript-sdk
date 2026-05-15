@@ -1,12 +1,13 @@
 import {keccak256, toBytes, type Hex} from "viem";
 import {privateKeyToAccount} from "viem/accounts";
 
+import {SigningAlgorithm} from "./generated/waas.gen.js";
 import {ByteUtils} from "./utils/byteUtils.js";
 
-export type CredentialKeyType = "ethereum-secp256k1" | "webcrypto-secp256r1";
+export type CredentialSigningAlgorithm = `${SigningAlgorithm}`;
 
 export interface CredentialSigner {
-    readonly keyType: CredentialKeyType;
+    readonly signingAlgorithm: CredentialSigningAlgorithm;
     credentialId(): Promise<string>;
     nextNonce(): Promise<string>;
     sign(preimage: string): Promise<string>;
@@ -16,7 +17,7 @@ export interface CredentialSigner {
 
 interface StoredWebCryptoCredential {
     id: string;
-    keyType: "webcrypto-secp256r1";
+    signingAlgorithm: typeof SigningAlgorithm.ECDSA_P256_SHA256;
     credentialId: string;
     keyPair: CryptoKeyPair;
     nonce: string;
@@ -27,7 +28,7 @@ const credentialStoreName = "credentials";
 const defaultWebCryptoCredentialId = "default-webcrypto-p256";
 
 export class WebCryptoP256CredentialSigner implements CredentialSigner {
-    readonly keyType = "webcrypto-secp256r1";
+    readonly signingAlgorithm = SigningAlgorithm.ECDSA_P256_SHA256;
 
     private keyPair?: CryptoKeyPair;
     private credential?: string;
@@ -174,7 +175,7 @@ export class WebCryptoP256CredentialSigner implements CredentialSigner {
 
         return {
             id: this.id,
-            keyType: this.keyType,
+            signingAlgorithm: this.signingAlgorithm,
             credentialId: this.credential,
             keyPair: this.keyPair,
             nonce: this.nonce.toString(),
@@ -183,7 +184,7 @@ export class WebCryptoP256CredentialSigner implements CredentialSigner {
 }
 
 export class EthereumPrivateKeyCredentialSigner implements CredentialSigner {
-    readonly keyType = "ethereum-secp256k1";
+    readonly signingAlgorithm = SigningAlgorithm.ECDSA_P256K_EIP191;
     private nonce = 0n;
 
     constructor(private readonly privateKey: Uint8Array) {}
@@ -216,7 +217,7 @@ function assertWebCryptoSupport(): void {
 function isUsableStoredCredential(stored: StoredWebCryptoCredential | undefined): stored is StoredWebCryptoCredential {
     return Boolean(
         stored
-        && stored.keyType === "webcrypto-secp256r1"
+        && stored.signingAlgorithm === SigningAlgorithm.ECDSA_P256_SHA256
         && stored.credentialId.startsWith("0x04")
         && stored.keyPair?.privateKey
         && stored.keyPair.privateKey.extractable === false,

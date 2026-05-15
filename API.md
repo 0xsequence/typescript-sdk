@@ -13,6 +13,9 @@
   - [completeOidcRedirectAuth](#completeoidcredirectauth)
   - [signInWithOidcRedirect](#signinwithoidcredirect)
   - [signOut](#signout)
+  - [listWallets](#listwallets)
+  - [useWallet](#usewallet)
+  - [createWallet](#createwallet)
   - [signMessage](#signmessage)
   - [signTypedData](#signtypeddata)
   - [isValidMessageSignature](#isvalidmessagesignature)
@@ -36,6 +39,7 @@
   - [OidcProviderConfig](#oidcproviderconfig)
   - [StorageManager](#storagemanager)
   - [CredentialSigner](#credentialsigner)
+  - [OmsWallet](#omswallet)
   - [WalletCredential](#walletcredential)
   - [AccessGrant](#accessgrant)
   - [ListAccessParams](#listaccessparams)
@@ -84,7 +88,7 @@ new OMSClient(params: {
 | `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the SDK's configured OMS endpoints. |
 | `storage` | `StorageManager` | No | Storage backend for wallet metadata. Defaults to `LocalStorageManager` when browser `localStorage` is available, otherwise `MemoryStorageManager`. |
 | `redirectAuthStorage` | `StorageManager` | No | Transient storage for OIDC redirect verifier/state. Defaults to `sessionStorage` when available. |
-| `credentialSigner` | `CredentialSigner` | No | Request credential signer. Defaults to a non-extractable WebCrypto P-256 signer (`webcrypto-secp256r1`) where WebCrypto is available. |
+| `credentialSigner` | `CredentialSigner` | No | Request credential signer. Defaults to a non-extractable WebCrypto P-256 signer (`ecdsa-p256-sha256`) where WebCrypto is available. |
 
 **Properties**
 
@@ -132,7 +136,7 @@ Completed wallet sessions persist `walletAddress`, credential expiry, login type
 startEmailAuth(params: { email: string }): Promise<void>
 ```
 
-Sends a one-time passcode to the provided email address to begin authentication.
+Sends a one-time passcode to the provided email address to begin authentication. If a wallet session is already active, it is cleared before the new auth attempt starts.
 
 After this resolves, display an OTP input and pass the code to [`completeEmailAuth`](#completeemailauth).
 
@@ -160,12 +164,13 @@ await oms.wallet.startEmailAuth({ email: 'user@example.com' })
 completeEmailAuth(params: {
   code: string
   walletType?: WalletType
-}): Promise<{ walletAddress: Address; credential: WalletCredential }>
+  autoActivate?: boolean
+}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>
 ```
 
 Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
 
-This method verifies the code with a one-week WaaS session lifetime, then automatically selects an existing wallet matching `walletType` from the user's account, or creates a new one if none exists. Wallet metadata is persisted to storage. The default browser session credential uses a non-extractable WebCrypto P-256 private key and does not persist raw private key bytes.
+This method verifies the code with a one-week WaaS session lifetime, loads all wallet pages, then automatically selects an existing wallet matching `walletType`, or creates a new one if none exists. Wallet metadata is persisted to storage. Pass `autoActivate: false` to return `{ wallets, credential }` without selecting or creating a wallet; then call [`useWallet`](#usewallet) or [`createWallet`](#createwallet).
 
 **Parameters**
 
@@ -173,8 +178,9 @@ This method verifies the code with a one-week WaaS session lifetime, then automa
 |---|---|---|---|
 | `code` | `string` | Yes | The one-time passcode entered by the user. |
 | `walletType` | `WalletType` | No | The wallet type to load or create. Defaults to `WalletType.Ethereum`. |
+| `autoActivate` | `boolean` | No | Defaults to `true`. Set to `false` to let the app choose an existing wallet or create a new one. |
 
-**Returns** `Promise<{ walletAddress: Address; credential: WalletCredential }>`
+**Returns** `Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>` by default, or `Promise<{ wallets: OmsWallet[]; credential: WalletCredential }>` when `autoActivate` is `false`.
 
 **Throws** if the code is incorrect, expired, or the network request fails.
 
@@ -203,7 +209,7 @@ startOidcRedirectAuth(params: {
 }): Promise<{ url: string; state: string; challenge: string }>
 ```
 
-Starts an OIDC authorization-code PKCE flow and returns the provider authorization URL. The pending verifier/state is stored in transient redirect auth storage so the callback can complete after a full-page redirect.
+Starts an OIDC authorization-code PKCE flow and returns the provider authorization URL. If a wallet session is already active, it is cleared before the new auth attempt starts. The pending verifier/state is stored in transient redirect auth storage so the callback can complete after a full-page redirect.
 
 If `provider` is a string, it must match a configured `environment.auth.oidcProviders` key. Passing an `OidcProviderConfig` object directly is also supported.
 
@@ -227,10 +233,11 @@ completeOidcRedirectAuth(params: {
   callbackUrl: string
   cleanUrl?: boolean
   replaceUrl?: (url: string) => void
-}): Promise<{ walletAddress: Address; credential: WalletCredential }>
+  autoActivate?: boolean
+}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>
 ```
 
-Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime, and activating an existing wallet or creating one. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
+Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime, and activating an existing wallet or creating one. Pass `autoActivate: false` to return `{ wallets, credential }` for app-driven wallet selection. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
 
 ```typescript
 const { walletAddress, credential } = await oms.wallet.completeOidcRedirectAuth({
@@ -248,16 +255,17 @@ signInWithOidcRedirect(params: {
   provider: string | OidcProviderConfig
   redirectUri?: string
   walletType?: WalletType
+  autoActivate?: boolean
   relayRedirectUri?: string
   authorizeParams?: Record<string, string>
   cleanUrl?: boolean
   currentUrl?: string
   assignUrl?: (url: string) => void
   replaceUrl?: (url: string) => void
-}): Promise<{ walletAddress: Address; credential: WalletCredential } | void>
+}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential } | { wallets: OmsWallet[]; credential: WalletCredential } | void>
 ```
 
-Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth and returns `{ walletAddress, credential }`. Otherwise it starts auth, redirects with `window.location.assign`, and returns `void`. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
+Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth and returns the same result as [`completeOidcRedirectAuth`](#completeoidcredirectauth). Otherwise it starts auth, redirects with `window.location.assign`, and returns `void`. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
 
 ```typescript
 void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
@@ -281,6 +289,36 @@ Clears the wallet session metadata from storage and clears the active credential
 await oms.wallet.signOut()
 // Navigate to sign-in screen
 ```
+
+---
+
+### listWallets
+
+```typescript
+listWallets(): Promise<OmsWallet[]>
+```
+
+Returns all wallets available to the authenticated credential. This can be used after completing auth with `autoActivate: false` to show a wallet picker.
+
+---
+
+### useWallet
+
+```typescript
+useWallet(params: { walletId: string }): Promise<{ walletAddress: Address; wallet: OmsWallet }>
+```
+
+Activates an existing wallet by server-side wallet id and persists it as the current wallet session.
+
+---
+
+### createWallet
+
+```typescript
+createWallet(params?: { type?: WalletType; reference?: string }): Promise<{ walletAddress: Address; wallet: OmsWallet }>
+```
+
+Creates a new wallet, activates it, and persists it as the current wallet session. `type` defaults to `WalletType.Ethereum`.
 
 ---
 
@@ -773,7 +811,7 @@ Interface for wallet metadata storage. Implement this to use a custom backend. T
 
 ```typescript
 interface CredentialSigner {
-  readonly keyType: 'ethereum-secp256k1' | 'webcrypto-secp256r1'
+  readonly signingAlgorithm: 'ecdsa-p256k-eip191' | 'ecdsa-p256-sha256'
   credentialId(): Promise<string>
   nextNonce(): Promise<string>
   sign(preimage: string): Promise<string>
@@ -782,7 +820,22 @@ interface CredentialSigner {
 }
 ```
 
-Interface for request credential signing. The default implementation is `WebCryptoP256CredentialSigner`, which uses `webcrypto-secp256r1` and a non-extractable WebCrypto private key.
+Interface for request credential signing. The default implementation is `WebCryptoP256CredentialSigner`, which uses `ecdsa-p256-sha256` and a non-extractable WebCrypto private key.
+
+---
+
+### OmsWallet
+
+```typescript
+interface OmsWallet {
+  id: string
+  type: WalletType
+  address: Address
+  reference?: string
+}
+```
+
+Wallet metadata returned by auth and wallet listing APIs.
 
 ---
 

@@ -34,6 +34,17 @@ if (false) {
         provider: "github",
         redirectUri: "https://app.example/auth/callback",
     });
+
+    void (async () => {
+        const manualAuth = await wallet.completeEmailAuth({code: "123456", autoActivate: false});
+        void manualAuth.wallets;
+        // @ts-expect-error manual auth does not activate a wallet.
+        void manualAuth.walletAddress;
+
+        const activatedAuth = await wallet.completeEmailAuth({code: "123456"});
+        void activatedAuth.walletAddress;
+        void activatedAuth.wallets;
+    });
 }
 
 const defaultClient = new OMSClient({projectAccessKey: "project-key"});
