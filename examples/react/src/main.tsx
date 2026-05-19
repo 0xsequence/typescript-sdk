@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import {
   Networks,
   OMSClient,
+  supportedNetworks,
   type FeeOptionSelection,
   type FeeOptionWithBalance,
   type Network,
@@ -16,7 +17,6 @@ type FeeSelectionController = {
   reject: (error: Error) => void
 }
 
-const NETWORKS: readonly Network[] = Object.values(Networks)
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
 const PUBLIC_API_KEY = requiredEnv('VITE_OMS_PUBLIC_API_KEY', import.meta.env.VITE_OMS_PUBLIC_API_KEY)
@@ -55,7 +55,7 @@ function App() {
       projectId: PROJECT_ID,
     })
   }, [])
-  const selectedNetwork = NETWORKS.find(network => network.id === selectedNetworkId) ?? Networks.amoy
+  const selectedNetwork = supportedNetworks.find(network => network.id === selectedNetworkId) ?? Networks.amoy
   const session = oms.wallet.session
 
   useEffect(() => {
@@ -313,7 +313,7 @@ function App() {
                 onChange={(event) => setSelectedNetworkId(Number(event.target.value))}
                 disabled={isBusy}
               >
-                {NETWORKS.map(network => (
+                {supportedNetworks.map(network => (
                   <option key={network.id} value={network.id}>
                     {networkLabel(network)}
                   </option>

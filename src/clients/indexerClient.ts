@@ -1,7 +1,6 @@
 // Converted from Swift IndexerClient.
 
 import {HttpClient} from "../httpClient.js";
-import {findNetworkById} from "../networks.js";
 import {errorMessage, OmsRequestError, OmsResponseError} from "../errors.js";
 import type {Network} from "../networks.js";
 
@@ -102,7 +101,7 @@ export class IndexerClient {
         };
 
         const bodyString = JSON.stringify(request);
-        const baseUrl = this.indexerUrl(params.network.id);
+        const baseUrl = this.indexerUrl(params.network);
 
         const response = await this.postJson<TokenBalancesPayloadRaw>("indexer.getTokenBalances", {
             baseUrl,
@@ -123,7 +122,7 @@ export class IndexerClient {
         walletAddress: string
     }): Promise<TokenBalance | undefined> {
         const response = await this.postJson<NativeTokenBalancePayloadRaw>("indexer.getNativeTokenBalance", {
-            baseUrl: this.indexerUrl(params.network.id),
+            baseUrl: this.indexerUrl(params.network),
             path: "/GetNativeTokenBalance",
             body: JSON.stringify({ accountAddress: params.walletAddress }),
             headers: this.defaultHeaders(),
@@ -188,12 +187,8 @@ export class IndexerClient {
         return {statusCode: response.statusCode, payload};
     }
 
-    private indexerUrl(chainId: number): string {
-        return this.environment.indexerUrlTemplate.replace("{value}", this.indexerNetworkValue(chainId));
-    }
-
-    private indexerNetworkValue(chainId: number): string {
-        return findNetworkById(chainId)?.name ?? chainId.toString();
+    private indexerUrl(network: Network): string {
+        return this.environment.indexerUrlTemplate.replace("{value}", network.name);
     }
 
     private defaultHeaders(): Record<string, string> {
