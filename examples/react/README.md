@@ -3,7 +3,7 @@
 This example consumes the SDK as a workspace package:
 
 ```ts
-import { OMSClient } from 'typescript-sdk'
+import { OMSClient } from '@0xsequence/typescript-sdk'
 ```
 
 Run it from the repository root:
@@ -18,7 +18,7 @@ The dev server runs at `http://localhost:5173`.
 
 The deployed example is available at `https://0xsequence.github.io/typescript-sdk/react-example`.
 
-The example includes a default demo project access key. To override it locally:
+The example requires a public API key and project ID. Configure them locally before running the dev server:
 
 ```bash
 cp examples/react/.env.example examples/react/.env.local

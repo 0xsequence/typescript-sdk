@@ -4,7 +4,7 @@ A TypeScript SDK for the OMS (Open Money Stack) platform. Provides email and OID
 
 ## Usage
 
-This SDK is not published as an npm package yet. In this repository it is consumed as the local pnpm workspace package `typescript-sdk`.
+For local development in this repository, install dependencies and build the workspace package:
 
 From the repository root:
 
@@ -26,9 +26,13 @@ pnpm dev:example
 ## Quick Start
 
 ```typescript
-import { OMSClient } from 'typescript-sdk'
+import { Networks, OMSClient } from '@0xsequence/typescript-sdk'
+import { parseUnits } from 'viem'
 
-const oms = new OMSClient({ projectAccessKey: 'your-project-access-key' })
+const oms = new OMSClient({
+  publicApiKey: 'your-public-api-key',
+  projectId: 'your-project-id',
+})
 
 // 1. Send a one-time code to the user's email
 await oms.wallet.startEmailAuth({ email: 'user@example.com' })
@@ -42,9 +46,9 @@ console.log('Credential:', credential.credentialId)
 
 // 4. Send a transaction
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xRecipient',
-  value: 1_000_000_000_000_000_000n, // 1 MATIC
+  value: parseUnits('1', 18), // 1 POL
 })
 console.log(tx.txnHash ?? tx.txnId)
 ```
@@ -95,7 +99,10 @@ await oms.wallet.createWallet({ type: WalletType.Ethereum })
 Google redirect auth is configured on the default environment. The redirect auth APIs are provider-neutral, so custom environments can add or replace providers.
 
 ```typescript
-const oms = new OMSClient({ projectAccessKey: 'your-key' })
+const oms = new OMSClient({
+  publicApiKey: 'your-public-api-key',
+  projectId: 'your-project-id',
+})
 ```
 
 For routers such as React Router or Next.js, use the explicit start/complete methods:
@@ -125,19 +132,37 @@ Pending redirect state is stored in `sessionStorage` by default. Final wallet se
 
 ## Networks
 
-The `network` parameter on all transaction and signing methods accepts any of three forms:
+The SDK exports `Networks`, `supportedNetworks`, `findNetworkById(id)`, and `findNetworkByName(name)` for the networks currently configured by OMS. Each network has `id`, `name`, `nativeTokenSymbol`, and `explorerUrl`.
+
+The `network` parameter on all transaction and signing methods accepts a `Network` from the SDK registry:
 
 ```typescript
-// Chain name string
-await oms.wallet.signMessage({ network: 'polygon', message: '0xdeadbeef' })
+import { Networks, findNetworkById, supportedNetworks } from '@0xsequence/typescript-sdk'
 
-// Chain ID as bigint
-await oms.wallet.signMessage({ network: 137n, message: '0xdeadbeef' })
+await oms.wallet.signMessage({ network: Networks.polygon, message: '0xdeadbeef' })
 
-// viem Chain object
-import { polygon } from 'viem/chains'
-await oms.wallet.signMessage({ network: polygon, message: '0xdeadbeef' })
+console.log(supportedNetworks)
+console.log(findNetworkById(80002)) // Networks.amoy
 ```
+
+| Key | id | name | native token | explorerUrl |
+|---|---:|---|---|---|
+| `Networks.mainnet` | 1 | `mainnet` | ETH | `https://etherscan.io` |
+| `Networks.sepolia` | 11155111 | `sepolia` | ETH | `https://sepolia.etherscan.io` |
+| `Networks.polygon` | 137 | `polygon` | POL | `https://polygonscan.com` |
+| `Networks.amoy` | 80002 | `amoy` | POL | `https://amoy.polygonscan.com` |
+| `Networks.arbitrum` | 42161 | `arbitrum` | ETH | `https://arbiscan.io` |
+| `Networks.arbitrumSepolia` | 421614 | `arbitrum-sepolia` | ETH | `https://sepolia.arbiscan.io` |
+| `Networks.optimism` | 10 | `optimism` | ETH | `https://optimistic.etherscan.io` |
+| `Networks.optimismSepolia` | 11155420 | `optimism-sepolia` | ETH | `https://sepolia-optimism.etherscan.io` |
+| `Networks.base` | 8453 | `base` | ETH | `https://basescan.org` |
+| `Networks.baseSepolia` | 84532 | `base-sepolia` | ETH | `https://sepolia.basescan.org` |
+| `Networks.bsc` | 56 | `bsc` | BNB | `https://bscscan.com` |
+| `Networks.bscTestnet` | 97 | `bsc-testnet` | BNB | `https://testnet.bscscan.com` |
+| `Networks.arbitrumNova` | 42170 | `arbitrum-nova` | ETH | `https://nova.arbiscan.io` |
+| `Networks.avalanche` | 43114 | `avalanche` | AVAX | `https://subnets.avax.network/c-chain` |
+| `Networks.avalancheTestnet` | 43113 | `avalanche-testnet` | AVAX | `https://subnets-test.avax.network/c-chain` |
+| `Networks.katana` | 747474 | `katana` | ETH | `https://katanascan.com` |
 
 ## Sending Transactions
 
@@ -146,10 +171,12 @@ await oms.wallet.signMessage({ network: polygon, message: '0xdeadbeef' })
 ### Native Token Transfer
 
 ```typescript
+import { parseUnits } from 'viem'
+
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xRecipient',
-  value: 1_000_000_000_000_000_000n, // 1 MATIC in wei
+  value: parseUnits('1', 18), // 1 POL
 })
 ```
 
@@ -157,7 +184,7 @@ const tx = await oms.wallet.sendTransaction({
 
 ```typescript
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xContract',
   data: '0xa9059cbb000000000000000000000000...',
 })
@@ -168,6 +195,8 @@ const tx = await oms.wallet.sendTransaction({
 Pass an ABI and function name — the SDK encodes the calldata automatically using viem.
 
 ```typescript
+import { parseUnits } from 'viem'
+
 const erc20Abi = [
   {
     name: 'transfer',
@@ -180,11 +209,11 @@ const erc20Abi = [
 ] as const
 
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xTokenContract',
   abi: erc20Abi,
   functionName: 'transfer',
-  args: ['0xRecipient', 1_000_000_000_000_000_000n],
+  args: ['0xRecipient', parseUnits('1', 18)],
 })
 ```
 
@@ -197,10 +226,12 @@ To return immediately after execute without status polling, pass
 returned `txnId`.
 
 ```typescript
+import { parseUnits } from 'viem'
+
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xRecipient',
-  value: 1n,
+  value: parseUnits('0.001', 18),
   waitForStatus: false,
 })
 
@@ -210,10 +241,12 @@ const status = await oms.wallet.getTransactionStatus({ txnId: tx.txnId })
 To tune polling, pass `statusPolling`:
 
 ```typescript
+import { parseUnits } from 'viem'
+
 await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xRecipient',
-  value: 1n,
+  value: parseUnits('0.001', 18),
   statusPolling: {
     timeoutMs: 30_000,
     intervalMs: 1_000,
@@ -227,7 +260,7 @@ available.
 
 ```typescript
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xTokenContract',
   data: '0xa9059cbb000000000000000000000000...',
   selectFeeOption: async (feeOptions) => {
@@ -243,13 +276,11 @@ const tx = await oms.wallet.sendTransaction({
 
 ```typescript
 const oms = new OMSClient({
-  projectAccessKey: 'your-key',
+  publicApiKey: 'your-public-api-key',
+  projectId: 'your-project-id',
   environment: {
     walletApiUrl: 'https://staging-wallet.example.com',
     indexerUrlTemplate: 'https://staging-indexer.example.com/{value}',
-    auth: {
-      waasAuthScope: 'proj_1',
-    },
   },
 })
 ```
@@ -259,10 +290,11 @@ const oms = new OMSClient({
 The default storage backend is browser `localStorage` when available, otherwise in-memory storage for wallet metadata only. The default browser signer stores its non-extractable key reference separately through WebCrypto-compatible browser storage. Provide a custom `StorageManager` for persistent Node.js, React Native, or testing sessions:
 
 ```typescript
-import { MemoryStorageManager, OMSClient } from 'typescript-sdk'
+import { MemoryStorageManager, OMSClient } from '@0xsequence/typescript-sdk'
 
 const oms = new OMSClient({
-  projectAccessKey: 'your-key',
+  publicApiKey: 'your-public-api-key',
+  projectId: 'your-project-id',
   storage: new MemoryStorageManager(),
 })
 ```
@@ -275,7 +307,7 @@ OIDC redirect auth uses separate transient storage for verifier/state data. In b
 
 ```typescript
 const signature = await oms.wallet.signMessage({
-  network: 'polygon',
+  network: Networks.polygon,
   message: '0xdeadbeef',
 })
 ```
@@ -284,12 +316,12 @@ const signature = await oms.wallet.signMessage({
 
 ```typescript
 const signature = await oms.wallet.signTypedData({
-  network: 'polygon',
+  network: Networks.polygon,
   typedData,
 })
 
 const isValid = await oms.wallet.isValidTypedDataSignature({
-  network: 'polygon',
+  network: Networks.polygon,
   walletAddress: oms.wallet.walletAddress,
   typedData,
   signature,
@@ -299,13 +331,15 @@ const isValid = await oms.wallet.isValidTypedDataSignature({
 ### Call a Contract (method string + args)
 
 ```typescript
+import { parseUnits } from 'viem'
+
 const tx = await oms.wallet.callContract({
-  network: 'polygon',
+  network: Networks.polygon,
   contractAddress: '0xTokenContract',
   method: 'transfer(address,uint256)',
   args: [
     { type: 'address', value: '0xRecipient' },
-    { type: 'uint256', value: '1000000000000000000' },
+    { type: 'uint256', value: parseUnits('1', 18).toString() },
   ],
 })
 ```
@@ -354,10 +388,10 @@ await oms.wallet.signOut()
 ### Handle SDK Errors
 
 ```typescript
-import { OmsSdkError } from 'typescript-sdk'
+import { OmsSdkError } from '@0xsequence/typescript-sdk'
 
 try {
-  await oms.wallet.signMessage({ network: 'polygon', message: '0xdeadbeef' })
+  await oms.wallet.signMessage({ network: Networks.polygon, message: '0xdeadbeef' })
 } catch (err) {
   if (err instanceof OmsSdkError) {
     if (err.code === 'OMS_AUTH_COMMITMENT_CONSUMED') {

@@ -3,7 +3,7 @@
 This example consumes the SDK as a workspace package:
 
 ```ts
-import { MemoryStorageManager, OMSClient } from 'typescript-sdk'
+import { MemoryStorageManager, Networks, OMSClient } from '@0xsequence/typescript-sdk'
 ```
 
 Run it from the repository root:
@@ -11,7 +11,7 @@ Run it from the repository root:
 ```bash
 pnpm install
 pnpm build
-pnpm dev:node-example
+OMS_PUBLIC_API_KEY=your-public-api-key OMS_PROJECT_ID=your-project-id pnpm dev:node-example
 ```
 
 The example prompts for an email address, sends an OTP code, then prompts for the code.

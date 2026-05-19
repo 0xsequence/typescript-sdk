@@ -1,46 +1,40 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
+  Networks,
   OMSClient,
   type FeeOptionSelection,
   type FeeOptionWithBalance,
+  type Network,
   type OMSClientSessionLoginType,
-} from 'typescript-sdk'
+} from '@0xsequence/typescript-sdk'
 import './styles.css'
 
 type Step = 'email' | 'code' | 'wallet'
-type DemoNetworkId = 'polygon' | 'amoy'
 type FeeSelectionController = {
   resolve: (selection: FeeOptionSelection) => void
   reject: (error: Error) => void
 }
 
-const NETWORKS: Array<{
-  id: DemoNetworkId
-  label: string
-  explorerTxUrl: string
-}> = [
-  {
-    id: 'polygon',
-    label: 'Polygon',
-    explorerTxUrl: 'https://polygonscan.com/tx/',
-  },
-  {
-    id: 'amoy',
-    label: 'Polygon Amoy',
-    explorerTxUrl: 'https://amoy.polygonscan.com/tx/',
-  },
-]
+const NETWORKS: readonly Network[] = Object.values(Networks)
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
-const PROJECT_ACCESS_KEY = import.meta.env.VITE_OMS_PROJECT_ACCESS_KEY ?? 'AQAAAAAAAAK2JvvZhWqZ51riasWBftkrVXE'
+const PUBLIC_API_KEY = requiredEnv('VITE_OMS_PUBLIC_API_KEY', import.meta.env.VITE_OMS_PUBLIC_API_KEY)
+const PROJECT_ID = requiredEnv('VITE_OMS_PROJECT_ID', import.meta.env.VITE_OMS_PROJECT_ID)
+
+function requiredEnv(name: string, value: string | undefined): string {
+  if (!value) {
+    throw new Error(`Missing ${name}. Copy examples/react/.env.example to examples/react/.env.local and set it.`)
+  }
+  return value
+}
 
 function App() {
   const [step, setStep] = useState<Step>('email')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [message, setMessage] = useState(DEFAULT_MESSAGE)
-  const [selectedNetworkId, setSelectedNetworkId] = useState<DemoNetworkId>('amoy')
+  const [selectedNetworkId, setSelectedNetworkId] = useState<number>(Networks.amoy.id)
   const [transactionTo, setTransactionTo] = useState(DEFAULT_TX_TO)
   const [transactionValue, setTransactionValue] = useState('0')
   const [walletAddress, setWalletAddress] = useState('')
@@ -57,10 +51,11 @@ function App() {
 
   const oms = useMemo(() => {
     return new OMSClient({
-      projectAccessKey: PROJECT_ACCESS_KEY,
+      publicApiKey: PUBLIC_API_KEY,
+      projectId: PROJECT_ID,
     })
   }, [])
-  const selectedNetwork = NETWORKS.find(network => network.id === selectedNetworkId) ?? NETWORKS[1]
+  const selectedNetwork = NETWORKS.find(network => network.id === selectedNetworkId) ?? Networks.amoy
   const session = oms.wallet.session
 
   useEffect(() => {
@@ -144,7 +139,7 @@ function App() {
   async function signMessage() {
     await run('Signing message...', setWalletStatus, async () => {
       const signature = await oms.wallet.signMessage({
-        network: selectedNetwork.id,
+        network: selectedNetwork,
         message,
       })
       setLastSignature(signature)
@@ -158,13 +153,13 @@ function App() {
       setLastTransactionExplorerUrl('')
       try {
         const tx = await oms.wallet.sendTransaction({
-          network: selectedNetwork.id,
+          network: selectedNetwork,
           to: transactionTo as `0x${string}`,
           value: BigInt(transactionValue || '0'),
           selectFeeOption: waitForFeeOptionSelection,
         })
         setLastTransactionHash(tx.txnHash ?? tx.txnId)
-        setLastTransactionExplorerUrl(tx.txnHash ? `${selectedNetwork.explorerTxUrl}${tx.txnHash}` : '')
+        setLastTransactionExplorerUrl(tx.txnHash ? transactionExplorerUrl(selectedNetwork, tx.txnHash) : '')
         setWalletStatus('Transaction sent.')
       } finally {
         feeSelection.current = null
@@ -307,22 +302,23 @@ function App() {
               </div>
             </div>
 
-            <section className="tool">
-              <h2>Network</h2>
-              <div className="segmented" role="radiogroup" aria-label="Network">
-                {NETWORKS.map(network => (
-                  <button
-                    key={network.id}
-                    type="button"
-                    role="radio"
-                    aria-checked={selectedNetwork.id === network.id}
-                    onClick={() => setSelectedNetworkId(network.id)}
-                    disabled={isBusy}
-                  >
-                    {network.label}
-                  </button>
-                ))}
+            <section className="tool network-tool">
+              <div className="tool-header">
+                <h2>Network</h2>
+                <span className="network-meta">{selectedNetwork.nativeTokenSymbol}</span>
               </div>
+              <select
+                aria-label="Network"
+                value={selectedNetworkId}
+                onChange={(event) => setSelectedNetworkId(Number(event.target.value))}
+                disabled={isBusy}
+              >
+                {NETWORKS.map(network => (
+                  <option key={network.id} value={network.id}>
+                    {networkLabel(network)}
+                  </option>
+                ))}
+              </select>
             </section>
 
             <section className="tool">
@@ -417,6 +413,18 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>,
 )
+
+function transactionExplorerUrl(network: Network, txnHash: string): string {
+  return `${network.explorerUrl.replace(/\/+$/, '')}/tx/${txnHash}`
+}
+
+function networkLabel(network: Network): string {
+  const label = network.name
+    .split('-')
+    .map(part => part.toUpperCase() === 'BSC' ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1))
+    .join(' ')
+  return `${label} (${network.id})`
+}
 
 function formatLoginType(loginType: OMSClientSessionLoginType | undefined): string {
   switch (loginType) {

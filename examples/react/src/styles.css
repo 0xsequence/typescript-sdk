@@ -15,7 +15,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -79,7 +80,8 @@ label {
   font-size: 14px;
 }
 
-input {
+input,
+select {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
@@ -89,7 +91,8 @@ input {
   background: #ffffff;
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: 2px solid #7aa7ff;
   outline-offset: 1px;
   border-color: #6b9dff;
@@ -162,24 +165,32 @@ button:disabled {
   line-height: 1.25;
 }
 
-.segmented {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  padding: 4px;
+.network-tool {
+  gap: 8px;
+}
+
+.tool-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.network-meta {
+  min-width: 48px;
+  padding: 4px 8px;
   border-radius: 6px;
-  background: #eef2f7;
-}
-
-.segmented button {
-  min-height: 38px;
-  color: #344054;
-  background: transparent;
-}
-
-.segmented button[aria-checked="true"] {
   color: #ffffff;
   background: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+
+select:disabled {
+  color: #667085;
+  background: #eef2f7;
 }
 
 .fee-options {

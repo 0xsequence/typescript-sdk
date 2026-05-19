@@ -1,14 +1,14 @@
 import readline from "node:readline/promises";
-import {MemoryStorageManager, OMSClient} from "typescript-sdk";
-import {polygonAmoy} from "viem/chains";
+import {MemoryStorageManager, Networks, OMSClient} from "@0xsequence/typescript-sdk";
 
-const projectAccessKey = "AQAAAAAAAAK2JvvZhWqZ51riasWBftkrVXE";
+const publicApiKey = requiredEnv("OMS_PUBLIC_API_KEY", process.env.OMS_PUBLIC_API_KEY);
+const projectId = requiredEnv("OMS_PROJECT_ID", process.env.OMS_PROJECT_ID);
 
 async function main() {
     console.log("------------------------------------------------------------");
     console.log(" OmsWallet sign-in flow");
     console.log("------------------------------------------------------------");
-    console.log("project access key :", mask(projectAccessKey));
+    console.log("public API key :", mask(publicApiKey));
     console.log();
 
     const email = await prompt("Enter your email: ");
@@ -17,7 +17,8 @@ async function main() {
     console.log("[setup] creating OmsWallet…");
 
     const client = new OMSClient({
-        projectAccessKey,
+        publicApiKey,
+        projectId,
         storage: new MemoryStorageManager(),
     });
 
@@ -56,7 +57,7 @@ async function main() {
     console.log("✓ sign-in flow complete");
 
     await client.wallet.signMessage({
-        network: polygonAmoy,
+        network: Networks.amoy,
         message: "test"
     });
 }
@@ -65,6 +66,13 @@ function mask(value: string | undefined): string {
     if (!value) return "<missing>";
     if (value.length <= 8) return "***";
     return `${value.slice(0, 4)}…${value.slice(-4)}`;
+}
+
+function requiredEnv(name: string, value: string | undefined): string {
+    if (!value) {
+        throw new Error(`Missing ${name}. Set it before running pnpm dev:node-example`);
+    }
+    return value;
 }
 
 async function prompt(question: string): Promise<string> {
