@@ -962,11 +962,11 @@ Used for fully-typed ABI-encoded contract calls. `abi` and `functionName` are re
 type SendTransactionResponse = {
   txnId: string
   status: TransactionStatus
-  txHash?: string
+  txnHash?: string
 }
 ```
 
-`txHash` is present once WaaS reports a published transaction. If polling times out while the transaction is still pending, use `txnId` to check status later.
+`txnHash` is present once WaaS reports a published transaction. If polling times out while the transaction is still pending, use `txnId` to check status later.
 
 ---
 

@@ -30,7 +30,7 @@ export type FeeOptionSelector = (
 export type SendTransactionResponse = {
     txnId: string
     status: TransactionStatus
-    txHash?: string
+    txnHash?: string
 }
 
 export type TransactionStatusPollingOptions = {

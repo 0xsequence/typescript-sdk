@@ -46,7 +46,7 @@ const tx = await oms.wallet.sendTransaction({
   to: '0xRecipient',
   value: 1_000_000_000_000_000_000n, // 1 MATIC
 })
-console.log(tx.txHash ?? tx.txnId)
+console.log(tx.txnHash ?? tx.txnId)
 ```
 
 ## Overview
@@ -189,7 +189,7 @@ const tx = await oms.wallet.sendTransaction({
 ```
 
 `sendTransaction` prepares and executes the transaction, then polls WaaS for
-the latest transaction status. The response includes `txnId`, `status`, and `txHash`
+the latest transaction status. The response includes `txnId`, `status`, and `txnHash`
 when the transaction has been published.
 
 To return immediately after execute without status polling, pass

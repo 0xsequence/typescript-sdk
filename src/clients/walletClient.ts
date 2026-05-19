@@ -1047,7 +1047,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         return {
             txnId: params.prepared.txnId,
             status: status.status,
-            txHash: status.txnHash,
+            txnHash: status.txnHash,
         }
     }
 

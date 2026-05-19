@@ -163,8 +163,8 @@ function App() {
           value: BigInt(transactionValue || '0'),
           selectFeeOption: waitForFeeOptionSelection,
         })
-        setLastTransactionHash(tx.txHash ?? tx.txnId)
-        setLastTransactionExplorerUrl(tx.txHash ? `${selectedNetwork.explorerTxUrl}${tx.txHash}` : '')
+        setLastTransactionHash(tx.txnHash ?? tx.txnId)
+        setLastTransactionExplorerUrl(tx.txnHash ? `${selectedNetwork.explorerTxUrl}${tx.txnHash}` : '')
         setWalletStatus('Transaction sent.')
       } finally {
         feeSelection.current = null
