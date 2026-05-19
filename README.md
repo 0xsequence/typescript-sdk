@@ -68,6 +68,8 @@ console.log(tx.txnHash ?? tx.txnId)
 
 OMS supports email-based OTP and OIDC authorization-code PKCE redirect auth.
 
+### Email OTP Auth
+
 Email OTP is a two-step flow:
 
 1. **`startEmailAuth({ email })`** — clears any active session and sends a one-time code to the user's inbox.
