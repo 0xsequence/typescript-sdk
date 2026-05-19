@@ -387,7 +387,6 @@ await oms.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
 
 ```typescript
 await oms.wallet.signOut()
-// Redirect to sign-in screen
 ```
 
 ### Handle SDK Errors
