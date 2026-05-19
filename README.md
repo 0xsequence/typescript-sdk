@@ -307,7 +307,7 @@ OIDC redirect auth uses separate transient storage for verifier/state data. In b
 
 ## More Examples
 
-### Sign a Message
+### Sign and Validate Message
 
 ```typescript
 const signature = await oms.wallet.signMessage({
