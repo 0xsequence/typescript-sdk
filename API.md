@@ -56,6 +56,7 @@
   - [TokenBalance](#tokenbalance)
   - [TokenContractInfo](#tokencontractinfo)
   - [TokenMetadata](#tokenmetadata)
+  - [TokenMetadataAsset](#tokenmetadataasset)
   - [AbiArg](#abiarg)
   - [WalletType](#wallettype)
 
@@ -180,7 +181,10 @@ completeEmailAuth(params: {
   code: string
   walletType?: WalletType
   autoActivate?: boolean
-}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>
+}): Promise<
+  | { walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }
+  | { wallets: OmsWallet[]; credential: WalletCredential }
+>
 ```
 
 Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
@@ -249,7 +253,10 @@ completeOidcRedirectAuth(params: {
   cleanUrl?: boolean
   replaceUrl?: (url: string) => void
   autoActivate?: boolean
-}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>
+}): Promise<
+  | { walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }
+  | { wallets: OmsWallet[]; credential: WalletCredential }
+>
 ```
 
 Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime, and activating an existing wallet or creating one. Pass `autoActivate: false` to return `{ wallets, credential }` for app-driven wallet selection. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
@@ -302,7 +309,6 @@ Clears the wallet session metadata from storage and clears the active credential
 
 ```typescript
 await oms.wallet.signOut()
-// Navigate to sign-in screen
 ```
 
 ---
@@ -1130,12 +1136,17 @@ interface TokenBalance {
 interface TokenContractInfo {
   chainId?: number
   address?: string
+  source?: string
   name?: string
   type?: string
   symbol?: string
   decimals?: number
   logoURI?: string
+  deployed?: boolean
+  bytecodeHash?: string
   extensions?: Record<string, unknown>
+  updatedAt?: string
+  queuedAt?: string | null
   status?: string
 }
 ```
@@ -1151,16 +1162,50 @@ interface TokenMetadata {
   chainId?: number
   contractAddress?: string
   tokenId?: string
+  source?: string
   name?: string
   description?: string
   image?: string
-  decimals?: number
+  video?: string
+  audio?: string
+  properties?: Record<string, unknown>
   attributes?: Record<string, unknown>[]
+  image_data?: string
+  external_url?: string
+  background_color?: string
+  animation_url?: string
+  decimals?: number
+  updatedAt?: string
+  assets?: TokenMetadataAsset[]
   status?: string
+  queuedAt?: string | null
+  lastFetched?: string
 }
 ```
 
 Token-level metadata returned by the Indexer when available.
+
+---
+
+### TokenMetadataAsset
+
+```typescript
+interface TokenMetadataAsset {
+  id?: number
+  collectionId?: number
+  tokenId?: string
+  url?: string
+  metadataField?: string
+  name?: string
+  filesize?: number
+  mimeType?: string
+  width?: number
+  height?: number
+  updatedAt?: string
+}
+```
+
+Media asset metadata associated with token metadata when returned.
 
 ---
 
