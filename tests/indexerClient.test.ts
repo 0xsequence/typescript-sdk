@@ -9,7 +9,8 @@ afterEach(() => {
 
 describe("IndexerClient errors", () => {
     it("wraps invalid JSON responses in typed SDK errors", async () => {
-        vi.stubGlobal("fetch", vi.fn(async () => new Response("not-json", {status: 200})));
+        const fetchMock = vi.fn(async () => new Response("not-json", {status: 200}));
+        vi.stubGlobal("fetch", fetchMock);
 
         const indexer = new IndexerClient({
             publicApiKey: "public-api-key",
@@ -17,7 +18,7 @@ describe("IndexerClient errors", () => {
         });
 
         await expect(indexer.getTokenBalances({
-            chainId: "137",
+            chainId: 137,
             contractAddress: "0x2222222222222222222222222222222222222222",
             walletAddress: "0x9999999999999999999999999999999999999999",
             includeMetadata: false,
@@ -26,6 +27,7 @@ describe("IndexerClient errors", () => {
             operation: "indexer.getTokenBalances",
             status: 200,
         });
+        expect(fetchMock.mock.calls[0][0].toString()).toBe("https://indexer.example/polygon/GetTokenBalances");
     });
 
     it("wraps non-JSON HTTP responses as retryable HTTP errors", async () => {
@@ -37,7 +39,7 @@ describe("IndexerClient errors", () => {
         });
 
         await expect(indexer.getTokenBalances({
-            chainId: "137",
+            chainId: 137,
             contractAddress: "0x2222222222222222222222222222222222222222",
             walletAddress: "0x9999999999999999999999999999999999999999",
             includeMetadata: false,

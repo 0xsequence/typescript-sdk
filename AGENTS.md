@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This repository is a pnpm workspace for the OMS TypeScript SDK. The root package exports the `typescript-sdk` library used by the React and Node examples. The SDK covers wallet authentication, OIDC redirect auth, signed WaaS requests, wallet/session storage, transaction submission, signing, access management, and indexer balance queries.
+This repository is a pnpm workspace for the OMS TypeScript SDK. The root package exports the `@0xsequence/typescript-sdk` library used by the React and Node examples. The SDK covers wallet authentication, OIDC redirect auth, signed WaaS requests, wallet/session storage, transaction submission, signing, access management, and indexer balance queries.
 
 ## Setup and Tooling
 
@@ -56,7 +56,7 @@ This repository is a pnpm workspace for the OMS TypeScript SDK. The root package
 - Route wallet API calls through `WalletClient`, generated WaaS types, `createSignedFetch`, and `CredentialSigner` instead of duplicating signing or header logic.
 - Use `StorageManager` abstractions for persistence-sensitive code. Browser storage and memory fallback behavior are part of the SDK contract.
 - Preserve typed SDK error classes and `toOmsSdkError` behavior when wrapping network, generated-client, validation, session, and transaction-status failures.
-- Keep network names and chain IDs going through `NetworkBindings` instead of ad hoc string conversion.
+- Keep supported network metadata and chain ID lookup going through `src/networks.ts`, `Networks`, `supportedNetworks`, `findNetworkById`, and `findNetworkByName` instead of ad hoc conversion.
 - The TypeScript compiler is the enforced style gate. There is no separate lint or formatter command in the root scripts, so avoid broad formatting churn and match the local file style.
 
 ## Testing Guidance
@@ -78,9 +78,9 @@ This repository is a pnpm workspace for the OMS TypeScript SDK. The root package
 ## Security and Configuration
 
 - Do not commit real secrets. `.env.local` and `.env.*.local` files are ignored for local overrides.
-- The React example uses `examples/react/.env.example` for `VITE_OMS_PROJECT_ACCESS_KEY`; keep local overrides in `examples/react/.env.local`.
+- The React example uses `examples/react/.env.example` for `VITE_OMS_PUBLIC_API_KEY` and `VITE_OMS_PROJECT_ID`; keep local overrides in `examples/react/.env.local`.
 - Treat credential signing, nonce handling, OIDC redirect state cleanup, session persistence, transaction execution/status polling, and access revocation as high-risk paths. Prefer focused regression tests for changes in these areas.
-- CI may provide `OMS_PROJECT_ACCESS_KEY` for tests. Do not require that secret for ordinary local unit tests unless the test explicitly needs an external boundary.
+- GitHub Pages may provide `OMS_PUBLIC_API_KEY` and `OMS_PROJECT_ID` secrets for the deployed React example. Do not require those secrets for ordinary local unit tests unless the test explicitly needs an external boundary.
 
 ## Agent Workflow Rules
 

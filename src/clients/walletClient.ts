@@ -548,7 +548,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         return this.runOperation("wallet.signMessage", async () => {
             await this.requireActiveSession("wallet.signMessage")
             const request: SignMessageRequest = {
-                network: this.parseWalletNetwork(params.network),
+                network: this.parseWalletNetwork(params.network).toString(),
                 walletId: this.walletId,
                 message: params.message,
             }
@@ -561,7 +561,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         return this.runOperation("wallet.signTypedData", async () => {
             await this.requireActiveSession("wallet.signTypedData")
             const request: SignTypedDataRequest = {
-                network: this.parseWalletNetwork(params.network),
+                network: this.parseWalletNetwork(params.network).toString(),
                 walletId: this.walletId,
                 typedData: normalizeJsonBigInts(params.typedData),
             }
@@ -573,7 +573,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     async isValidMessageSignature(params: IsValidMessageSignatureParams): Promise<boolean> {
         return this.runOperation("wallet.isValidMessageSignature", async () => {
             const request: IsValidMessageSignatureRequest = {
-                network: params.network === undefined ? undefined : this.parseWalletNetwork(params.network),
+                network: params.network === undefined ? undefined : this.parseWalletNetwork(params.network).toString(),
                 walletAddress: params.walletAddress,
                 walletId: params.walletId ?? (params.walletAddress ? undefined : this.activeWalletId()),
                 message: params.message,
@@ -587,7 +587,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     async isValidTypedDataSignature(params: IsValidTypedDataSignatureParams): Promise<boolean> {
         return this.runOperation("wallet.isValidTypedDataSignature", async () => {
             const request: IsValidTypedDataSignatureRequest = {
-                network: params.network === undefined ? undefined : this.parseWalletNetwork(params.network),
+                network: params.network === undefined ? undefined : this.parseWalletNetwork(params.network).toString(),
                 walletAddress: params.walletAddress,
                 walletId: params.walletId ?? (params.walletAddress ? undefined : this.activeWalletId()),
                 typedData: normalizeJsonBigInts(params.typedData),
@@ -613,7 +613,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                     : params.data
 
             const request: PrepareEthereumTransactionRequest = {
-                network: this.parseWalletNetwork(params.network),
+                network: this.parseWalletNetwork(params.network).toString(),
                 walletId: this.walletId,
                 to: params.to,
                 value: (params.value ?? 0n).toString(),
@@ -645,7 +645,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         return this.runOperation("wallet.callContract", async () => {
             await this.requireActiveSession("wallet.callContract")
             const request: PrepareEthereumContractCallRequest = {
-                network: this.parseWalletNetwork(params.network),
+                network: this.parseWalletNetwork(params.network).toString(),
                 walletId: this.walletId,
                 contract: params.contractAddress,
                 method: params.method,
@@ -1139,7 +1139,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             balance: '0',
             blockHash: undefined,
             blockNumber: undefined,
-            chainId: Number(this.parseWalletNetwork(network)),
+            chainId: this.parseWalletNetwork(network),
         }).catch(() => undefined)
     }
 
@@ -1209,12 +1209,12 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         return this.walletId || undefined
     }
 
-    private parseWalletNetwork(network: Network): string {
-        return network.id.toString()
+    private parseWalletNetwork(network: Network): number {
+        return network.id
     }
 
-    private parseIndexerNetwork(network: Network): string {
-        return network.name
+    private parseIndexerNetwork(network: Network): number {
+        return network.id
     }
 
     private isNativeToken(feeOption: FeeOption): boolean {
