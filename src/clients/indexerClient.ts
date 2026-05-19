@@ -3,6 +3,7 @@
 import {HttpClient} from "../httpClient.js";
 import {findNetworkById} from "../networks.js";
 import {errorMessage, OmsRequestError, OmsResponseError} from "../errors.js";
+import type {Network} from "../networks.js";
 
 export interface TokenBalancesPage {
     page: number;
@@ -88,7 +89,7 @@ export class IndexerClient {
     }
 
     async getTokenBalances(params: {
-        chainId: number
+        network: Network
         contractAddress: string
         walletAddress: string
         includeMetadata: boolean
@@ -101,7 +102,7 @@ export class IndexerClient {
         };
 
         const bodyString = JSON.stringify(request);
-        const baseUrl = this.indexerUrl(params.chainId);
+        const baseUrl = this.indexerUrl(params.network.id);
 
         const response = await this.postJson<TokenBalancesPayloadRaw>("indexer.getTokenBalances", {
             baseUrl,
@@ -118,11 +119,11 @@ export class IndexerClient {
     }
 
     async getNativeTokenBalance(params: {
-        chainId: number
+        network: Network
         walletAddress: string
     }): Promise<TokenBalance | undefined> {
         const response = await this.postJson<NativeTokenBalancePayloadRaw>("indexer.getNativeTokenBalance", {
-            baseUrl: this.indexerUrl(params.chainId),
+            baseUrl: this.indexerUrl(params.network.id),
             path: "/GetNativeTokenBalance",
             body: JSON.stringify({ accountAddress: params.walletAddress }),
             headers: this.defaultHeaders(),

@@ -631,7 +631,7 @@ Accessed via `oms.indexer`. Queries on-chain token balances through the OMS Inde
 
 ```typescript
 getTokenBalances(params: {
-  chainId: number
+  network: Network
   contractAddress: string
   walletAddress: string
   includeMetadata: boolean
@@ -644,7 +644,7 @@ Fetches token balances for a wallet on a given chain and contract (first page, u
 
 | Name | Type | Description |
 |---|---|---|
-| `chainId` | `number` | Numeric chain ID, e.g. `137` for Polygon or `1` for Ethereum mainnet. |
+| `network` | `Network` | The network to query. Use an exported registry value such as `Networks.polygon`. |
 | `contractAddress` | `string` | The token contract address to query. |
 | `walletAddress` | `string` | The wallet address whose balances to fetch. Use `oms.wallet.walletAddress` after checking it is defined. |
 | `includeMetadata` | `boolean` | When `true`, the response includes token metadata such as name, symbol, and decimals. |
@@ -658,7 +658,7 @@ const { walletAddress } = oms.wallet
 if (!walletAddress) throw new Error('No active wallet session')
 
 const result = await oms.indexer.getTokenBalances({
-  chainId: 137,
+  network: Networks.polygon,
   contractAddress: '0xTokenContract',
   walletAddress,
   includeMetadata: true,
@@ -675,7 +675,7 @@ for (const b of result.balances) {
 
 ```typescript
 getNativeTokenBalance(params: {
-  chainId: number
+  network: Network
   walletAddress: string
 }): Promise<TokenBalance | undefined>
 ```

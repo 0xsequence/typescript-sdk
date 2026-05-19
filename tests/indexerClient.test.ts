@@ -1,6 +1,7 @@
 import {afterEach, describe, expect, it, vi} from "vitest";
 
 import {IndexerClient} from "../src/clients/indexerClient";
+import {Networks} from "../src/networks";
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -18,7 +19,7 @@ describe("IndexerClient errors", () => {
         });
 
         await expect(indexer.getTokenBalances({
-            chainId: 137,
+            network: Networks.polygon,
             contractAddress: "0x2222222222222222222222222222222222222222",
             walletAddress: "0x9999999999999999999999999999999999999999",
             includeMetadata: false,
@@ -39,7 +40,7 @@ describe("IndexerClient errors", () => {
         });
 
         await expect(indexer.getTokenBalances({
-            chainId: 137,
+            network: Networks.polygon,
             contractAddress: "0x2222222222222222222222222222222222222222",
             walletAddress: "0x9999999999999999999999999999999999999999",
             includeMetadata: false,

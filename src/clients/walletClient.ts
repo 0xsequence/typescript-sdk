@@ -1114,7 +1114,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         walletAddress: Address,
     ): Promise<TokenBalance | undefined> {
         return this.indexerClient.getNativeTokenBalance({
-            chainId: this.parseIndexerNetwork(network),
+            network,
             walletAddress,
         }).catch(() => undefined)
     }
@@ -1125,7 +1125,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         walletAddress: Address,
     ): Promise<TokenBalance | undefined> {
         return this.indexerClient.getTokenBalances({
-            chainId: this.parseIndexerNetwork(network),
+            network,
             contractAddress,
             walletAddress,
             includeMetadata: false,
@@ -1210,10 +1210,6 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     }
 
     private parseWalletNetwork(network: Network): number {
-        return network.id
-    }
-
-    private parseIndexerNetwork(network: Network): number {
         return network.id
     }
 

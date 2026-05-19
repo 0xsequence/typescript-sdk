@@ -84,25 +84,37 @@ void defaultClient.supportedNetworks;
 // @ts-expect-error findNetworkById accepts numeric chain IDs only.
 findNetworkById("80002");
 void defaultClient.indexer.getTokenBalances({
-    chainId: 137,
+    network: Networks.polygon,
     contractAddress: "0x2222222222222222222222222222222222222222",
     walletAddress: "0x9999999999999999999999999999999999999999",
     includeMetadata: false,
 });
 void defaultClient.indexer.getTokenBalances({
-    // @ts-expect-error Indexer chain IDs are numeric.
-    chainId: "137",
+    // @ts-expect-error Indexer public methods accept Network objects, not numeric chain IDs.
+    network: 137,
+    contractAddress: "0x2222222222222222222222222222222222222222",
+    walletAddress: "0x9999999999999999999999999999999999999999",
+    includeMetadata: false,
+});
+void defaultClient.indexer.getTokenBalances({
+    // @ts-expect-error chainId is not a public indexer parameter.
+    chainId: 137,
     contractAddress: "0x2222222222222222222222222222222222222222",
     walletAddress: "0x9999999999999999999999999999999999999999",
     includeMetadata: false,
 });
 void defaultClient.indexer.getNativeTokenBalance({
-    chainId: 137,
+    network: Networks.polygon,
     walletAddress: "0x9999999999999999999999999999999999999999",
 });
 void defaultClient.indexer.getNativeTokenBalance({
-    // @ts-expect-error Indexer chain IDs are numeric.
-    chainId: "137",
+    // @ts-expect-error Indexer public methods accept Network objects, not numeric chain IDs.
+    network: 137,
+    walletAddress: "0x9999999999999999999999999999999999999999",
+});
+void defaultClient.indexer.getNativeTokenBalance({
+    // @ts-expect-error chainId is not a public indexer parameter.
+    chainId: 137,
     walletAddress: "0x9999999999999999999999999999999999999999",
 });
 void defaultClient.wallet.startOidcRedirectAuth({

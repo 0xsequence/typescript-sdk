@@ -351,7 +351,7 @@ const { walletAddress } = oms.wallet
 if (!walletAddress) throw new Error('No active wallet session')
 
 const result = await oms.indexer.getTokenBalances({
-  chainId: 137,
+  network: Networks.polygon,
   contractAddress: '0xTokenContract',
   walletAddress,
   includeMetadata: true,
