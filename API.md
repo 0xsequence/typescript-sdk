@@ -361,7 +361,7 @@ Signs an arbitrary message using the active wallet session credential.
 
 ```typescript
 import { Networks } from '@0xsequence/typescript-sdk'
-const sigFromNetwork = await oms.wallet.signMessage({ network: Networks.polygon, message: '0xdeadbeef' })
+const sigFromNetwork = await oms.wallet.signMessage({ network: Networks.polygon, message: 'some message to sing' })
 ```
 
 ---
