@@ -632,22 +632,27 @@ Accessed via `oms.indexer`. Queries on-chain token balances through the OMS Inde
 ```typescript
 getTokenBalances(params: {
   network: Network
-  contractAddress: string
+  contractAddress?: string
   walletAddress: string
   includeMetadata: boolean
+  page?: {
+    page?: number
+    pageSize?: number
+  }
 }): Promise<TokenBalancesResult>
 ```
 
-Fetches token balances for a wallet on a given network and contract (first page, up to 40 entries).
+Fetches token balances for a wallet on a given network. Omit `contractAddress` to query balances across contracts; provide it to filter to one token contract. The default request returns page `0` with up to `40` entries.
 
 **Parameters**
 
 | Name | Type | Description |
 |---|---|---|
 | `network` | `Network` | The network to query. Use an exported registry value such as `Networks.polygon`. |
-| `contractAddress` | `string` | The token contract address to query. |
+| `contractAddress` | `string` | Optional token contract filter. Omit to query balances across contracts. |
 | `walletAddress` | `string` | The wallet address whose balances to fetch. Use `oms.wallet.walletAddress` after checking it is defined. |
 | `includeMetadata` | `boolean` | When `true`, the response includes token metadata such as name, symbol, and decimals. |
+| `page` | `{ page?: number; pageSize?: number }` | Optional pagination request. Defaults to `{ page: 0, pageSize: 40 }`. |
 
 **Returns** `Promise<TokenBalancesResult>` — see [TokenBalancesResult](#tokenbalancesresult).
 
@@ -659,7 +664,6 @@ if (!walletAddress) throw new Error('No active wallet session')
 
 const result = await oms.indexer.getTokenBalances({
   network: Networks.polygon,
-  contractAddress: '0xTokenContract',
   walletAddress,
   includeMetadata: true,
 })

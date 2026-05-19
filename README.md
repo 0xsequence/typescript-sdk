@@ -356,7 +356,6 @@ if (!walletAddress) throw new Error('No active wallet session')
 
 const result = await oms.indexer.getTokenBalances({
   network: Networks.polygon,
-  contractAddress: '0xTokenContract',
   walletAddress,
   includeMetadata: true,
 })
@@ -365,6 +364,8 @@ for (const b of result.balances) {
   console.log(b.contractAddress, b.balance)
 }
 ```
+
+Pass `contractAddress` to filter balances to one token contract. The response is paginated; pass `page` when requesting later pages.
 
 ### Manage Access
 

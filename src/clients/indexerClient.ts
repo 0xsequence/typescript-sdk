@@ -63,7 +63,7 @@ interface RequestPage {
 
 interface TokenBalancesRequest {
     page: RequestPage;
-    contractAddress: string;
+    contractAddress?: string;
     accountAddress: string;
     includeMetadata: boolean;
 }
@@ -89,16 +89,26 @@ export class IndexerClient {
 
     async getTokenBalances(params: {
         network: Network
-        contractAddress: string
+        contractAddress?: string
         walletAddress: string
         includeMetadata: boolean
+        page?: {
+            page?: number
+            pageSize?: number
+        }
     }): Promise<TokenBalancesResult> {
         const request: TokenBalancesRequest = {
-            page: { page: 0, pageSize: 40, more: false },
-            contractAddress: params.contractAddress,
+            page: {
+                page: params.page?.page ?? 0,
+                pageSize: params.page?.pageSize ?? 40,
+                more: false,
+            },
             accountAddress: params.walletAddress,
             includeMetadata: params.includeMetadata,
         };
+        if (params.contractAddress) {
+            request.contractAddress = params.contractAddress;
+        }
 
         const bodyString = JSON.stringify(request);
         const baseUrl = this.indexerUrl(params.network);

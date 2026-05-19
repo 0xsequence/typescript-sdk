@@ -97,6 +97,12 @@ void defaultClient.indexer.getTokenBalances({
     includeMetadata: false,
 });
 void defaultClient.indexer.getTokenBalances({
+    network: Networks.polygon,
+    walletAddress: "0x9999999999999999999999999999999999999999",
+    includeMetadata: true,
+    page: {page: 1, pageSize: 25},
+});
+void defaultClient.indexer.getTokenBalances({
     // @ts-expect-error Indexer public methods accept Network objects, not numeric chain IDs.
     network: 137,
     contractAddress: "0x2222222222222222222222222222222222222222",

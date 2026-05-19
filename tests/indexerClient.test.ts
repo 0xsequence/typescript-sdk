@@ -8,7 +8,38 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-describe("IndexerClient errors", () => {
+describe("IndexerClient", () => {
+    it("omits contractAddress when querying balances across contracts", async () => {
+        const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+            page: {page: 1, pageSize: 25, more: false},
+            balances: [],
+        }), {status: 200}));
+        vi.stubGlobal("fetch", fetchMock);
+
+        const indexer = new IndexerClient({
+            publicApiKey: "public-api-key",
+            environment: testEnvironment(),
+        });
+
+        await expect(indexer.getTokenBalances({
+            network: Networks.polygon,
+            walletAddress: "0x9999999999999999999999999999999999999999",
+            includeMetadata: true,
+            page: {page: 1, pageSize: 25},
+        })).resolves.toMatchObject({
+            status: 200,
+            page: {page: 1, pageSize: 25, more: false},
+            balances: [],
+        });
+
+        expect(fetchMock.mock.calls[0][0].toString()).toBe("https://indexer.example/polygon/GetTokenBalances");
+        expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+            page: {page: 1, pageSize: 25, more: false},
+            accountAddress: "0x9999999999999999999999999999999999999999",
+            includeMetadata: true,
+        });
+    });
+
     it("wraps invalid JSON responses in typed SDK errors", async () => {
         const fetchMock = vi.fn(async () => new Response("not-json", {status: 200}));
         vi.stubGlobal("fetch", fetchMock);
