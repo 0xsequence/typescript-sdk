@@ -151,7 +151,7 @@ describe("WalletClient transactions", () => {
         expect(response).toEqual({
             txnId: "txn-1",
             status: TransactionStatus.Executed,
-            txHash: "0xtx",
+            txnHash: "0xtx",
         });
     });
 
