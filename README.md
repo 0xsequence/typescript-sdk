@@ -389,23 +389,6 @@ await oms.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
 await oms.wallet.signOut()
 ```
 
-### Handle SDK Errors
-
-```typescript
-import { OmsSdkError } from '@0xsequence/typescript-sdk'
-
-try {
-  await oms.wallet.signMessage({ network: Networks.polygon, message: '0xdeadbeef' })
-} catch (err) {
-  if (err instanceof OmsSdkError) {
-    if (err.code === 'OMS_AUTH_COMMITMENT_CONSUMED') {
-      // Restart the auth flow; this OTP/OIDC commitment has already been used.
-    }
-    console.error(err.code, err.operation, err.status, err.txnId, err.retryable)
-  }
-}
-```
-
 ## API Reference
 
 See [API.md](./API.md) for the full method and type reference.
