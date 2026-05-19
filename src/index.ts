@@ -26,6 +26,13 @@ export {
     type StorageManager,
 } from './storageManager.js'
 export {
+    Networks,
+    findNetworkById,
+    findNetworkByName,
+    supportedNetworks,
+    type Network,
+} from './networks.js'
+export {
     TransactionMode,
     TransactionStatus,
     SigningAlgorithm,

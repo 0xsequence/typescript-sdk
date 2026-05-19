@@ -12,7 +12,6 @@ export interface OidcProviderConfig {
 export interface OmsAuthConfig<
     OidcProviders extends Record<string, OidcProviderConfig> = Record<string, OidcProviderConfig>,
 > {
-    waasAuthScope?: string;
     oidcProviders?: OidcProviders;
 }
 
@@ -25,7 +24,7 @@ export interface OmsEnvironment<
 }
 
 export const defaultOmsEnvironment = {
-    walletApiUrl: "https://d1sctl7y41hot5.cloudfront.net",
+    walletApiUrl: "https://d26giflyqapd29.cloudfront.net",
     indexerUrlTemplate: "https://dev-{value}-indexer.sequence.app/rpc/Indexer/",
     auth: {
         oidcProviders: {

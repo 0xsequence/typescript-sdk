@@ -3,9 +3,11 @@ import {defaultOmsEnvironment, OmsEnvironment} from "./omsEnvironment.js";
 import {createDefaultStorage, StorageManager} from "./storageManager.js";
 import {IndexerClient} from "./clients/indexerClient.js";
 import type {CredentialSigner} from "./credentialSigner.js";
+import {supportedNetworks} from "./networks.js";
 
 interface OMSClientBaseParams {
-    projectAccessKey: string;
+    publicApiKey: string;
+    projectId: string;
     storage?: StorageManager;
     redirectAuthStorage?: StorageManager;
     credentialSigner?: CredentialSigner;
@@ -19,13 +21,15 @@ type DefaultOMSClientParams = OMSClientBaseParams & {environment?: undefined};
 class OMSClientImpl<Env extends OmsEnvironment = OmsEnvironment> {
     public readonly wallet: WalletClient<Env>;
     public readonly indexer: IndexerClient;
+    public readonly supportedNetworks = supportedNetworks;
 
     constructor(params: OMSClientBaseParams & {environment?: Env}) {
         const environment = (params.environment ?? defaultOmsEnvironment) as Env;
         const storage = params.storage ?? createDefaultStorage()
 
         this.wallet = new WalletClient({
-            projectAccessKey: params.projectAccessKey,
+            publicApiKey: params.publicApiKey,
+            projectId: params.projectId,
             environment,
             storage,
             redirectAuthStorage: params.redirectAuthStorage,
@@ -33,11 +37,10 @@ class OMSClientImpl<Env extends OmsEnvironment = OmsEnvironment> {
         });
 
         this.indexer = new IndexerClient({
-            projectAccessKey: params.projectAccessKey,
+            publicApiKey: params.publicApiKey,
             environment
         });
     }
-
 }
 
 export type OMSClient<Env extends OmsEnvironment = OmsEnvironment> = OMSClientImpl<Env>;

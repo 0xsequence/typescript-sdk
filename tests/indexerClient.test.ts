@@ -12,7 +12,7 @@ describe("IndexerClient errors", () => {
         vi.stubGlobal("fetch", vi.fn(async () => new Response("not-json", {status: 200})));
 
         const indexer = new IndexerClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
             environment: testEnvironment(),
         });
 
@@ -32,7 +32,7 @@ describe("IndexerClient errors", () => {
         vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>Bad Gateway</html>", {status: 502})));
 
         const indexer = new IndexerClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
             environment: testEnvironment(),
         });
 

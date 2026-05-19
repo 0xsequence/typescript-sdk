@@ -32,7 +32,8 @@ afterEach(() => {
 describe("WalletClient errors", () => {
     it("wraps local validation failures separately from request failures", async () => {
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
             redirectAuthStorage: new MemoryStorageManager(),
@@ -52,7 +53,8 @@ describe("WalletClient errors", () => {
         vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>Bad Gateway</html>", {status: 502})));
 
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
             credentialSigner: new MockSigner(),
@@ -82,7 +84,8 @@ describe("WalletClient errors", () => {
         }));
 
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
             credentialSigner: new MockSigner(),

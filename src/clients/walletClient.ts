@@ -54,8 +54,7 @@ import {
     Fetch,
     CredentialInfo,
 } from '../generated/waas.gen.js'
-import {NetworkBindings} from "../utils/networkBindings.js";
-import {Network} from "../types/evmTypes.js";
+import type {Network} from "../networks.js";
 import {
     FeeOptionSelector,
     FeeOptionWithBalance,
@@ -195,7 +194,7 @@ interface PendingOidcRedirectAuth {
     walletType: WalletType;
     redirectUri: string;
     issuer: string;
-    waasAuthScope: string;
+    projectId: string;
 }
 
 interface ResolvedOidcProvider {
@@ -214,11 +213,10 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     private readonly publicClient: WalletPublicclient
     private readonly storage: StorageManager
     private readonly redirectAuthStorage?: StorageManager
-    private readonly networks: NetworkBindings
     private readonly credentialSigner: CredentialSigner
     private readonly indexerClient: IndexerClient
     private readonly environment: Env
-    private readonly waasAuthScope: string
+    private readonly projectId: string
     private readonly fastTransactionStatusPollIntervalMs = 400
     private readonly fastTransactionStatusPollCount = 5
     private readonly transactionStatusPollIntervalMs = 2_000
@@ -236,7 +234,8 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     private challenge = ''
 
     constructor(params: {
-        projectAccessKey: string,
+        publicApiKey: string,
+        projectId: string,
         environment: Env,
         storage?: StorageManager
         redirectAuthStorage?: StorageManager
@@ -246,7 +245,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         this.storage = params.storage ?? createDefaultStorage()
         this.redirectAuthStorage = params.redirectAuthStorage ?? defaultRedirectAuthStorage()
         this.credentialSigner = params.credentialSigner ?? new WebCryptoP256CredentialSigner()
-        this.waasAuthScope = params.environment.auth?.waasAuthScope ?? Constants.defaultWaasAuthScope
+        this.projectId = params.projectId
 
         const storedId      = this.storage.get(Constants.walletIdStorageKey)
         const storedAddress = this.storage.get(Constants.walletAddressStorageKey)
@@ -265,17 +264,16 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             this.sessionEmail = undefined
         }
 
-        const signedFetch = createSignedFetch(params.projectAccessKey, this.credentialSigner, this.waasAuthScope)
+        const signedFetch = createSignedFetch(params.publicApiKey, this.credentialSigner, this.projectId)
         this.client = new Walletclient(params.environment.walletApiUrl, signedFetch)
         this.publicClient = new WalletPublicclient(
             params.environment.walletApiUrl,
-            createAccessKeyFetch(params.projectAccessKey),
+            createAccessKeyFetch(params.publicApiKey),
         )
         this.indexerClient = new IndexerClient({
-            projectAccessKey: params.projectAccessKey,
+            publicApiKey: params.publicApiKey,
             environment: params.environment,
         })
-        this.networks = new NetworkBindings()
     }
 
     /** Durable metadata for the completed wallet session. */
@@ -374,7 +372,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             const nonce = generateOidcNonce()
             const state = encodeOidcState({
                 nonce,
-                scope: this.waasAuthScope,
+                scope: this.projectId,
                 ...(oauthRedirectUri !== params.redirectUri ? {redirect_uri: params.redirectUri} : {}),
             })
 
@@ -385,7 +383,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 walletType: params.walletType ?? WalletType.Ethereum,
                 redirectUri: params.redirectUri,
                 issuer: provider.config.issuer,
-                waasAuthScope: this.waasAuthScope,
+                projectId: this.projectId,
             })
 
             const authorizeParams = {
@@ -941,7 +939,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 typeof parsed.nonce !== 'string' ||
                 typeof parsed.redirectUri !== 'string' ||
                 typeof parsed.issuer !== 'string' ||
-                typeof parsed.waasAuthScope !== 'string'
+                typeof parsed.projectId !== 'string'
             ) {
                 throw new Error('Pending OIDC redirect auth is invalid')
             }
@@ -953,7 +951,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 walletType: isWalletType(parsed.walletType) ? parsed.walletType : WalletType.Ethereum,
                 redirectUri: parsed.redirectUri,
                 issuer: parsed.issuer,
-                waasAuthScope: parsed.waasAuthScope,
+                projectId: parsed.projectId,
             }
         } catch (error) {
             throw error instanceof Error ? error : new Error('Pending OIDC redirect auth is invalid')
@@ -965,7 +963,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         if (state.nonce !== pending.nonce) {
             throw new Error('OIDC state nonce mismatch')
         }
-        if (state.scope !== pending.waasAuthScope) {
+        if (state.scope !== pending.projectId) {
             throw new Error('OIDC state scope mismatch')
         }
         if (state.redirect_uri !== undefined && state.redirect_uri !== pending.redirectUri) {
@@ -1212,29 +1210,11 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     }
 
     private parseWalletNetwork(network: Network): string {
-        if (typeof network === 'string') {
-            const normalized = network.toLowerCase()
-            return this.networks.getChainIdByName(normalized)?.toString() ?? normalized
-        } else if (typeof network === 'bigint') {
-            return network.toString()
-        } else {
-            return BigInt(network.id).toString()
-        }
+        return network.id.toString()
     }
 
     private parseIndexerNetwork(network: Network): string {
-        if (typeof network === 'string') {
-            const normalized = network.toLowerCase()
-            if (/^\d+$/.test(normalized)) {
-                return this.networks.findChainNameById(BigInt(normalized)) ?? normalized
-            }
-            return normalized
-        } else if (typeof network === 'bigint') {
-            return this.networks.findChainNameById(network) ?? network.toString()
-        } else {
-            const chainId = BigInt(network.id)
-            return this.networks.findChainNameById(chainId) ?? chainId.toString()
-        }
+        return network.name
     }
 
     private isNativeToken(feeOption: FeeOption): boolean {
@@ -1285,12 +1265,12 @@ function defaultRedirectAuthStorage(): StorageManager | undefined {
         : undefined
 }
 
-function createAccessKeyFetch(projectAccessKey: string): Fetch {
+function createAccessKeyFetch(publicApiKey: string): Fetch {
     return async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
         const existingHeaders = (init?.headers ?? {}) as Record<string, string>
         const headers: Record<string, string> = {
             ...existingHeaders,
-            'X-Access-Key': projectAccessKey,
+            'X-Access-Key': publicApiKey,
         }
 
         return globalThis.fetch(input, {...init, headers})

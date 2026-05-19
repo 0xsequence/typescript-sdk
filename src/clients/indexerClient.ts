@@ -1,7 +1,7 @@
 // Converted from Swift IndexerClient.
 
 import {HttpClient} from "../httpClient.js";
-import {NetworkBindings} from "../utils/networkBindings.js";
+import {findNetworkById, findNetworkByName} from "../networks.js";
 import {errorMessage, OmsRequestError, OmsResponseError} from "../errors.js";
 
 export interface TokenBalancesPage {
@@ -74,19 +74,17 @@ export interface OmsEnvironment {
 }
 
 export class IndexerClient {
-    private readonly projectAccessKey: string;
+    private readonly publicApiKey: string;
     private readonly environment: OmsEnvironment;
     private readonly client: HttpClient;
-    private readonly networks: NetworkBindings;
 
     constructor(params: {
-        projectAccessKey: string,
+        publicApiKey: string,
         environment: OmsEnvironment
     }) {
-        this.projectAccessKey = params.projectAccessKey;
+        this.publicApiKey = params.publicApiKey;
         this.environment = params.environment;
         this.client = new HttpClient();
-        this.networks = new NetworkBindings();
     }
 
     async getTokenBalances(params: {
@@ -194,16 +192,16 @@ export class IndexerClient {
     }
 
     private indexerNetworkValue(chainId: string): string {
-        const normalized = chainId.toLowerCase();
+        const normalized = chainId.trim().toLowerCase();
         if (/^\d+$/.test(normalized)) {
-            return this.networks.findChainNameById(BigInt(normalized)) ?? normalized;
+            return findNetworkById(Number(normalized))?.name ?? normalized;
         }
-        return normalized;
+        return findNetworkByName(normalized)?.name ?? normalized;
     }
 
     private defaultHeaders(): Record<string, string> {
         return {
-            "X-Access-Key": this.projectAccessKey,
+            "X-Access-Key": this.publicApiKey,
             Accept: "application/json",
         };
     }

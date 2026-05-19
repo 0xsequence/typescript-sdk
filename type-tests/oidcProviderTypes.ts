@@ -1,5 +1,14 @@
 import {WalletClient, type OidcProviderName} from "../src/clients/walletClient";
-import {OMSClient, type OMSClientSessionLoginType, type OMSClientSessionState} from "../src/index";
+import {
+    Networks,
+    OMSClient,
+    findNetworkById,
+    findNetworkByName,
+    supportedNetworks,
+    type Network,
+    type OMSClientSessionLoginType,
+    type OMSClientSessionState,
+} from "../src/index";
 import {defineOmsEnvironment, type OmsEnvironment} from "../src/omsEnvironment";
 import {googleOidcProvider} from "../src/oidc";
 
@@ -47,11 +56,33 @@ if (false) {
     });
 }
 
-const defaultClient = new OMSClient({projectAccessKey: "project-key"});
+const defaultClient = new OMSClient({
+    publicApiKey: "public-api-key",
+    projectId: "project-id",
+});
+// @ts-expect-error publicApiKey is required.
+new OMSClient({projectId: "project-id"});
+// @ts-expect-error projectId is required.
+new OMSClient({publicApiKey: "public-api-key"});
+// @ts-expect-error old projectAccessKey initializer name is not supported.
+new OMSClient({projectAccessKey: "public-api-key", projectId: "project-id"});
+// @ts-expect-error old authorizationScope initializer name is not supported.
+new OMSClient({publicApiKey: "public-api-key", authorizationScope: "project-id"});
 const session: OMSClientSessionState = defaultClient.wallet.session;
 const loginType: OMSClientSessionLoginType | undefined = defaultClient.wallet.session.loginType;
+const polygonNetwork: Network = Networks.polygon;
+const amoyNetwork: Network | undefined = findNetworkById(80002);
+const baseNetwork: Network | undefined = findNetworkByName("base");
+const allNetworks: readonly Network[] = supportedNetworks;
 void session;
 void loginType;
+void polygonNetwork;
+void amoyNetwork;
+void baseNetwork;
+void allNetworks;
+void defaultClient.supportedNetworks;
+// @ts-expect-error findNetworkById accepts numeric chain IDs only.
+findNetworkById("80002");
 void defaultClient.wallet.startOidcRedirectAuth({
     provider: "google",
     redirectUri: "https://app.example/auth/callback",
@@ -67,7 +98,8 @@ const customEnvironmentWithoutProviders = defineOmsEnvironment({
     indexerUrlTemplate: "https://indexer.example/{value}",
 });
 const customClient = new OMSClient({
-    projectAccessKey: "project-key",
+    publicApiKey: "public-api-key",
+    projectId: "project-id",
     environment: customEnvironmentWithoutProviders,
 });
 let broadlyTypedClient: OMSClient;
@@ -80,14 +112,19 @@ void customClient.wallet.startOidcRedirectAuth({
 });
 
 function createClient(params: {
-    projectAccessKey: string;
+    publicApiKey: string;
+    projectId: string;
     environment?: OmsEnvironment;
 }) {
     return new OMSClient(params);
 }
 
-void createClient({projectAccessKey: "project-key"});
 void createClient({
-    projectAccessKey: "project-key",
+    publicApiKey: "public-api-key",
+    projectId: "project-id",
+});
+void createClient({
+    publicApiKey: "public-api-key",
+    projectId: "project-id",
     environment: customEnvironmentWithoutProviders,
 });
