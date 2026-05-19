@@ -54,6 +54,8 @@
   - [TokenBalancesResult](#tokenbalancesresult)
   - [TokenBalancesPage](#tokenbalancespage)
   - [TokenBalance](#tokenbalance)
+  - [TokenContractInfo](#tokencontractinfo)
+  - [TokenMetadata](#tokenmetadata)
   - [AbiArg](#abiarg)
   - [WalletType](#wallettype)
 
@@ -642,7 +644,7 @@ getTokenBalances(params: {
 }): Promise<TokenBalancesResult>
 ```
 
-Fetches token balances for a wallet on a given network. Omit `contractAddress` to query balances across contracts; provide it to filter to one token contract. The default request returns page `0` with up to `40` entries.
+Fetches token balances for a wallet on a given network. Omit `contractAddress` to query balances across contracts; provide it to filter to one token contract. The default request returns page `0` with up to `40` entries. When `includeMetadata` is `true`, token display data is returned on `contractInfo` and `tokenMetadata`; ERC-20 decimals are available as `contractInfo.decimals`.
 
 **Parameters**
 
@@ -1089,9 +1091,16 @@ interface TokenBalance {
   accountAddress?: string
   tokenId?: string
   balance?: string
+  balanceUSD?: string
+  priceUSD?: string
+  priceUpdatedAt?: string
   blockHash?: string
   blockNumber?: number
   chainId?: number
+  uniqueCollectibles?: string
+  isSummary?: boolean
+  contractInfo?: TokenContractInfo
+  tokenMetadata?: TokenMetadata
 }
 ```
 
@@ -1102,9 +1111,56 @@ interface TokenBalance {
 | `accountAddress` | `string` | Wallet address this balance belongs to. |
 | `tokenId` | `string` | For ERC-721/ERC-1155 tokens, the token ID. |
 | `balance` | `string` | Balance in the token's smallest denomination. |
+| `balanceUSD` | `string` | USD value when returned by the Indexer. |
+| `priceUSD` | `string` | Token price in USD when returned by the Indexer. |
+| `priceUpdatedAt` | `string` | Timestamp for the returned USD price. |
 | `blockHash` | `string` | Block hash at which this balance was recorded. |
 | `blockNumber` | `number` | Block number at which this balance was recorded. |
 | `chainId` | `number` | Numeric chain ID. |
+| `uniqueCollectibles` | `string` | Number of unique collectibles represented by a summary row. |
+| `isSummary` | `boolean` | Whether the row represents an aggregated collection summary. |
+| `contractInfo` | `TokenContractInfo` | Contract display metadata. ERC-20 decimals are exposed as `contractInfo.decimals`. |
+| `tokenMetadata` | `TokenMetadata` | Token-level metadata for NFT/collection entries when returned. |
+
+---
+
+### TokenContractInfo
+
+```typescript
+interface TokenContractInfo {
+  chainId?: number
+  address?: string
+  name?: string
+  type?: string
+  symbol?: string
+  decimals?: number
+  logoURI?: string
+  extensions?: Record<string, unknown>
+  status?: string
+}
+```
+
+Contract-level metadata returned by the Indexer when `includeMetadata` is `true`.
+
+---
+
+### TokenMetadata
+
+```typescript
+interface TokenMetadata {
+  chainId?: number
+  contractAddress?: string
+  tokenId?: string
+  name?: string
+  description?: string
+  image?: string
+  decimals?: number
+  attributes?: Record<string, unknown>[]
+  status?: string
+}
+```
+
+Token-level metadata returned by the Indexer when available.
 
 ---
 

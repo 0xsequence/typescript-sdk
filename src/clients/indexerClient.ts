@@ -10,6 +10,61 @@ export interface TokenBalancesPage {
     more: boolean;
 }
 
+export interface TokenContractInfo {
+    chainId?: number;
+    address?: string;
+    source?: string;
+    name?: string;
+    type?: string;
+    symbol?: string;
+    decimals?: number;
+    logoURI?: string;
+    deployed?: boolean;
+    bytecodeHash?: string;
+    extensions?: Record<string, unknown>;
+    updatedAt?: string;
+    queuedAt?: string | null;
+    status?: string;
+}
+
+export interface TokenMetadataAsset {
+    id?: number;
+    collectionId?: number;
+    tokenId?: string;
+    url?: string;
+    metadataField?: string;
+    name?: string;
+    filesize?: number;
+    mimeType?: string;
+    width?: number;
+    height?: number;
+    updatedAt?: string;
+}
+
+export interface TokenMetadata {
+    chainId?: number;
+    contractAddress?: string;
+    tokenId?: string;
+    source?: string;
+    name?: string;
+    description?: string;
+    image?: string;
+    video?: string;
+    audio?: string;
+    properties?: Record<string, unknown>;
+    attributes?: Record<string, unknown>[];
+    image_data?: string;
+    external_url?: string;
+    background_color?: string;
+    animation_url?: string;
+    decimals?: number;
+    updatedAt?: string;
+    assets?: TokenMetadataAsset[];
+    status?: string;
+    queuedAt?: string | null;
+    lastFetched?: string;
+}
+
 export interface TokenBalance {
     contractType?: string;
     contractAddress?: string;
@@ -17,9 +72,16 @@ export interface TokenBalance {
     /** Wire format uses `tokenID`; this field is re-mapped during decoding. */
     tokenId?: string;
     balance?: string;
+    balanceUSD?: string;
+    priceUSD?: string;
+    priceUpdatedAt?: string;
     blockHash?: string;
     blockNumber?: number;
     chainId?: number;
+    uniqueCollectibles?: string;
+    isSummary?: boolean;
+    contractInfo?: TokenContractInfo;
+    tokenMetadata?: TokenMetadata;
 }
 
 export interface TokenBalancesResult {
@@ -50,9 +112,27 @@ interface TokenBalanceRaw {
     accountAddress?: string;
     tokenID?: string; // note the wire key
     balance?: string;
+    balanceUSD?: string;
+    priceUSD?: string;
+    priceUpdatedAt?: string;
     blockHash?: string;
     blockNumber?: number;
     chainId?: number;
+    uniqueCollectibles?: string;
+    isSummary?: boolean;
+    contractInfo?: TokenContractInfo;
+    tokenMetadata?: TokenMetadataRaw;
+}
+
+interface TokenMetadataRaw extends Omit<TokenMetadata, "tokenId" | "assets"> {
+    tokenId?: string;
+    tokenID?: string;
+    assets?: TokenMetadataAssetRaw[];
+}
+
+interface TokenMetadataAssetRaw extends Omit<TokenMetadataAsset, "tokenId"> {
+    tokenId?: string;
+    tokenID?: string;
 }
 
 interface RequestPage {
@@ -217,9 +297,31 @@ function mapTokenBalance(raw: TokenBalanceRaw): TokenBalance {
         accountAddress: raw.accountAddress,
         tokenId: raw.tokenID,
         balance: raw.balance,
+        balanceUSD: raw.balanceUSD,
+        priceUSD: raw.priceUSD,
+        priceUpdatedAt: raw.priceUpdatedAt,
         blockHash: raw.blockHash,
         blockNumber: raw.blockNumber,
         chainId: raw.chainId,
+        uniqueCollectibles: raw.uniqueCollectibles,
+        isSummary: raw.isSummary,
+        contractInfo: raw.contractInfo,
+        tokenMetadata: raw.tokenMetadata ? mapTokenMetadata(raw.tokenMetadata) : undefined,
+    };
+}
+
+function mapTokenMetadata(raw: TokenMetadataRaw): TokenMetadata {
+    const {tokenID, assets, ...metadata} = raw;
+    return {
+        ...metadata,
+        tokenId: raw.tokenId ?? tokenID,
+        assets: assets?.map(asset => {
+            const {tokenID: assetTokenID, ...metadataAsset} = asset;
+            return {
+                ...metadataAsset,
+                tokenId: asset.tokenId ?? assetTokenID,
+            };
+        }),
     };
 }
 

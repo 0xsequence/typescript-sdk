@@ -361,11 +361,11 @@ const result = await oms.indexer.getTokenBalances({
 })
 
 for (const b of result.balances) {
-  console.log(b.contractAddress, b.balance)
+  console.log(b.contractInfo?.symbol, b.balance, b.contractInfo?.decimals)
 }
 ```
 
-Pass `contractAddress` to filter balances to one token contract. The response is paginated; pass `page` when requesting later pages.
+Pass `contractAddress` to filter balances to one token contract. With `includeMetadata: true`, ERC-20 decimals are available as `contractInfo.decimals`. The response is paginated; pass `page` when requesting later pages.
 
 ### Manage Access
 

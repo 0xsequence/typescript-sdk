@@ -12,7 +12,21 @@ describe("IndexerClient", () => {
     it("omits contractAddress when querying balances across contracts", async () => {
         const fetchMock = vi.fn(async () => new Response(JSON.stringify({
             page: {page: 1, pageSize: 25, more: false},
-            balances: [],
+            balances: [{
+                contractType: "ERC20",
+                contractAddress: "0x3c499c542cef5e3811e1192ce70d8cc03d5c3359",
+                accountAddress: "0x9999999999999999999999999999999999999999",
+                tokenID: "0",
+                balance: "141799",
+                balanceUSD: "0.141799",
+                priceUSD: "1",
+                chainId: 137,
+                contractInfo: {
+                    name: "USDC",
+                    symbol: "USDC",
+                    decimals: 6,
+                },
+            }],
         }), {status: 200}));
         vi.stubGlobal("fetch", fetchMock);
 
@@ -29,7 +43,16 @@ describe("IndexerClient", () => {
         })).resolves.toMatchObject({
             status: 200,
             page: {page: 1, pageSize: 25, more: false},
-            balances: [],
+            balances: [{
+                tokenId: "0",
+                balance: "141799",
+                balanceUSD: "0.141799",
+                priceUSD: "1",
+                contractInfo: {
+                    symbol: "USDC",
+                    decimals: 6,
+                },
+            }],
         });
 
         expect(fetchMock.mock.calls[0][0].toString()).toBe("https://indexer.example/polygon/GetTokenBalances");

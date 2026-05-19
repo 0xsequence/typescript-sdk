@@ -11,6 +11,8 @@ import {
     type TokenBalance,
     type TokenBalancesPage,
     type TokenBalancesResult,
+    type TokenContractInfo,
+    type TokenMetadata,
 } from "../src/index";
 import {defineOmsEnvironment, type OmsEnvironment} from "../src/omsEnvironment";
 import {googleOidcProvider} from "../src/oidc";
@@ -77,7 +79,15 @@ const polygonNetwork: Network = Networks.polygon;
 const amoyNetwork: Network | undefined = findNetworkById(80002);
 const baseNetwork: Network | undefined = findNetworkByName("base");
 const allNetworks: readonly Network[] = supportedNetworks;
-const tokenBalance: TokenBalance = {chainId: Networks.polygon.id};
+const tokenContractInfo: TokenContractInfo = {symbol: "USDC", decimals: 6};
+const tokenMetadata: TokenMetadata = {tokenId: "0", name: "USDC"};
+const tokenBalance: TokenBalance = {
+    chainId: Networks.polygon.id,
+    contractInfo: tokenContractInfo,
+    tokenMetadata,
+    balanceUSD: "0.141799",
+    priceUSD: "1",
+};
 const tokenBalancesPage: TokenBalancesPage = {page: 0, pageSize: 40, more: false};
 const tokenBalancesResult: TokenBalancesResult = {status: 200, page: tokenBalancesPage, balances: [tokenBalance]};
 void session;
@@ -86,6 +96,8 @@ void polygonNetwork;
 void amoyNetwork;
 void baseNetwork;
 void allNetworks;
+void tokenContractInfo;
+void tokenMetadata;
 void tokenBalancesResult;
 void defaultClient.supportedNetworks;
 // @ts-expect-error findNetworkById accepts numeric chain IDs only.
