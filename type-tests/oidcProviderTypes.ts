@@ -8,6 +8,9 @@ import {
     type Network,
     type OMSClientSessionLoginType,
     type OMSClientSessionState,
+    type TokenBalance,
+    type TokenBalancesPage,
+    type TokenBalancesResult,
 } from "../src/index";
 import {defineOmsEnvironment, type OmsEnvironment} from "../src/omsEnvironment";
 import {googleOidcProvider} from "../src/oidc";
@@ -74,12 +77,16 @@ const polygonNetwork: Network = Networks.polygon;
 const amoyNetwork: Network | undefined = findNetworkById(80002);
 const baseNetwork: Network | undefined = findNetworkByName("base");
 const allNetworks: readonly Network[] = supportedNetworks;
+const tokenBalance: TokenBalance = {chainId: Networks.polygon.id};
+const tokenBalancesPage: TokenBalancesPage = {page: 0, pageSize: 40, more: false};
+const tokenBalancesResult: TokenBalancesResult = {status: 200, page: tokenBalancesPage, balances: [tokenBalance]};
 void session;
 void loginType;
 void polygonNetwork;
 void amoyNetwork;
 void baseNetwork;
 void allNetworks;
+void tokenBalancesResult;
 void defaultClient.supportedNetworks;
 // @ts-expect-error findNetworkById accepts numeric chain IDs only.
 findNetworkById("80002");

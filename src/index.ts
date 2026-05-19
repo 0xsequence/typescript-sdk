@@ -71,6 +71,11 @@ export type {
     WalletActivationResult,
 } from './clients/walletClient.js'
 export type {
+    TokenBalance,
+    TokenBalancesPage,
+    TokenBalancesResult,
+} from './clients/indexerClient.js'
+export type {
     AccessGrant,
     AccessGrantPage,
     ListAccessParams,

@@ -11,6 +11,8 @@ Run it from the repository root:
 ```bash
 pnpm install
 pnpm build
+cp examples/react/.env.example examples/react/.env.local
+# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID in examples/react/.env.local
 pnpm dev:example
 ```
 
@@ -22,6 +24,7 @@ The example requires a public API key and project ID. Configure them locally bef
 
 ```bash
 cp examples/react/.env.example examples/react/.env.local
+# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID in examples/react/.env.local
 ```
 
 Google/OIDC redirect sign-in uses the SDK default Google client id.

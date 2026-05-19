@@ -638,7 +638,7 @@ getTokenBalances(params: {
 }): Promise<TokenBalancesResult>
 ```
 
-Fetches token balances for a wallet on a given chain and contract (first page, up to 40 entries).
+Fetches token balances for a wallet on a given network and contract (first page, up to 40 entries).
 
 **Parameters**
 
@@ -778,7 +778,7 @@ interface OmsEnvironment {
 | Field | Type | Description |
 |---|---|---|
 | `walletApiUrl` | `string` | Base URL of the WaaS Wallet RPC host. |
-| `indexerUrlTemplate` | `string` | URL template for the Indexer API. `{value}` is replaced with the supported network name when known, otherwise the provided chain ID, e.g. `"https://indexer.example.com/{value}"`. |
+| `indexerUrlTemplate` | `string` | URL template for the Indexer API. `{value}` is replaced with the selected network name, e.g. `"https://indexer.example.com/{value}"`. |
 | `auth.oidcProviders` | `Record<string, OidcProviderConfig>` | OIDC provider configurations addressable by provider key. |
 
 The default is exported as `defaultOmsEnvironment` and includes the `google` OIDC provider.

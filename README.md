@@ -20,6 +20,8 @@ A deployed React example is available at [https://0xsequence.github.io/typescrip
 To run it locally from the repository root:
 
 ```bash
+cp examples/react/.env.example examples/react/.env.local
+# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID in examples/react/.env.local
 pnpm dev:example
 ```
 
@@ -284,6 +286,8 @@ const oms = new OMSClient({
   },
 })
 ```
+
+For indexer requests, `{value}` is replaced with the selected `Network.name`, such as `polygon` or `amoy`.
 
 ### Custom Storage and Signing
 

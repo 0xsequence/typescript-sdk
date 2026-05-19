@@ -24,7 +24,7 @@ async function main() {
 
     console.log("[setup] ready:", client.wallet.constructor.name);
     console.log();
-    console.log(`[step 1] signInWithEmail("${email}")`);
+    console.log(`[step 1] startEmailAuth("${email}")`);
 
     let t = Date.now();
     try {
@@ -39,7 +39,7 @@ async function main() {
 
     const code = await prompt("Enter the code from your email: ");
 
-    console.log(`[step 2] completeEmailSignIn("${mask(code)}")`);
+    console.log(`[step 2] completeEmailAuth("${mask(code)}")`);
     t = Date.now();
 
     try {
