@@ -75,29 +75,6 @@ Email OTP is a two-step flow:
 1. **`startEmailAuth({ email })`** — clears any active session and sends a one-time code to the user's inbox.
 2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists. Returns `{ walletAddress, wallet, wallets, credential }`.
 
-The session stores wallet metadata in the configured storage, including the wallet address, credential expiry, login type, and email returned by the wallet API. Browser storage defaults to `localStorage` when available; non-browser runtimes fall back to in-memory storage unless you provide a custom `StorageManager`. Browser signing defaults to a non-extractable WebCrypto P-256 credential using `ecdsa-p256-sha256`, so the private session key is not written to `localStorage`. Completed auth requests ask WaaS for a one-week session lifetime.
-
-To end the session, call `await oms.wallet.signOut()`.
-
-```typescript
-const { walletAddress, expiresAt, loginType, sessionEmail } = oms.wallet.session
-```
-
-Apps that need wallet selection can opt out of automatic activation:
-
-```typescript
-const { wallets, credential } = await oms.wallet.completeEmailAuth({
-  code,
-  autoActivate: false,
-})
-
-// Show wallets in your UI, then either:
-await oms.wallet.useWallet({ walletId: wallets[0].id })
-
-// Or create and activate a new wallet:
-await oms.wallet.createWallet({ type: WalletType.Ethereum })
-```
-
 ### OIDC Redirect Auth
 
 Google redirect auth is configured on the default environment. The redirect auth APIs are provider-neutral, so custom environments can add or replace providers.
@@ -133,6 +110,25 @@ void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
 ```
 
 Pending redirect state is stored in `sessionStorage` by default. Final wallet session metadata continues to use the configured SDK storage.
+
+### Session State
+
+Email and OIDC auth both persist the active wallet session in the configured SDK storage. Browser storage defaults to `localStorage` when available; non-browser runtimes fall back to in-memory storage unless you provide a custom `StorageManager`. Browser signing defaults to a non-extractable WebCrypto P-256 credential using `ecdsa-p256-sha256`, so the private session key is not written to `localStorage`. Completed auth requests ask WaaS for a one-week session lifetime.
+
+Use `oms.wallet.walletAddress` when you only need the active wallet address. Use `oms.wallet.session` when you also need credential expiry, login type, or the email returned by the wallet API.
+
+```typescript
+const walletAddress = oms.wallet.walletAddress
+const { expiresAt, loginType, sessionEmail } = oms.wallet.session
+```
+
+Pending email OTP and OIDC redirect state are not exposed through `session`; use the auth method results to drive pending UI.
+
+To end the session, call:
+
+```typescript
+await oms.wallet.signOut()
+```
 
 ## Networks
 
@@ -357,7 +353,7 @@ const tx = await oms.wallet.callContract({
 })
 ```
 
-### Query Token Balances
+### Query Token and Native Balances
 
 ```typescript
 const { walletAddress } = oms.wallet
@@ -372,6 +368,13 @@ const result = await oms.indexer.getTokenBalances({
 for (const b of result.balances) {
   console.log(b.contractInfo?.symbol, b.balance, b.contractInfo?.decimals)
 }
+
+const nativeBalance = await oms.indexer.getNativeTokenBalance({
+  network: Networks.polygon,
+  walletAddress,
+})
+
+console.log(nativeBalance?.balance)
 ```
 
 Pass `contractAddress` to filter balances to one token contract. With `includeMetadata: true`, ERC-20 decimals are available as `contractInfo.decimals`. The response is paginated; pass `page` when requesting later pages.
@@ -390,12 +393,6 @@ for await (const page of oms.wallet.listAccessPages({ pageSize: 25 })) {
 }
 
 await oms.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
-```
-
-### Sign Out
-
-```typescript
-await oms.wallet.signOut()
 ```
 
 ## API Reference
