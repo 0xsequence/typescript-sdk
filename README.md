@@ -314,6 +314,13 @@ const signature = await oms.wallet.signMessage({
   network: Networks.polygon,
   message: '0xdeadbeef',
 })
+
+const isValid = await oms.wallet.isValidMessageSignature({
+  network: Networks.polygon,
+  walletAddress: oms.wallet.walletAddress,
+  message: '0xdeadbeef',
+  signature,
+})
 ```
 
 ### Sign and Validate Typed Data
