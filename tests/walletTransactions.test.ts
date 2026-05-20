@@ -3,6 +3,7 @@ import {afterEach, describe, expect, it, vi} from "vitest";
 import {WalletClient} from "../src/clients/walletClient";
 import type {CredentialSigner} from "../src/credentialSigner";
 import {TransactionStatus} from "../src/generated/waas.gen";
+import {Networks} from "../src/networks";
 import {MemoryStorageManager} from "../src/storageManager";
 
 class MockSigner implements CredentialSigner {
@@ -138,7 +139,7 @@ describe("WalletClient transactions", () => {
         );
 
         const response = await wallet.sendTransaction({
-            network: "polygon",
+            network: Networks.polygon,
             to: "0x1111111111111111111111111111111111111111",
             value: 0n,
             selectFeeOption: (feeOptions) => {
@@ -187,7 +188,7 @@ describe("WalletClient transactions", () => {
         );
 
         const response = await wallet.sendTransaction({
-            network: "polygon",
+            network: Networks.polygon,
             to: "0x1111111111111111111111111111111111111111",
             value: 0n,
             waitForStatus: false,
@@ -217,7 +218,8 @@ describe("WalletClient transactions", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
             credentialSigner: new MockSigner(),
@@ -261,7 +263,7 @@ describe("WalletClient transactions", () => {
         );
 
         await expect(wallet.sendTransaction({
-            network: "polygon",
+            network: Networks.polygon,
             to: "0x1111111111111111111111111111111111111111",
             value: 0n,
         })).rejects.toMatchObject({
@@ -275,7 +277,8 @@ describe("WalletClient transactions", () => {
 
 function createWalletWithSession(storage: MemoryStorageManager, walletAddress: string): WalletClient {
     const wallet = new WalletClient({
-        projectAccessKey: "project-key",
+        publicApiKey: "public-api-key",
+        projectId: "project-id",
         environment: testEnvironment(),
         storage,
         credentialSigner: new MockSigner(),

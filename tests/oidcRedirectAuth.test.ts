@@ -81,7 +81,7 @@ describe("WalletClient OIDC redirect auth", () => {
         expect(authorizeUrl.searchParams.get("login_hint")).toBe("user@example.com");
 
         const state = decodeOidcState(result.state);
-        expect(state.scope).toBe(Constants.defaultWaasAuthScope);
+        expect(state.scope).toBe("project-id");
         expect(state.redirect_uri).toBe("https://app.example/auth/callback");
         expect(redirectAuthStorage.get(Constants.redirectAuthStorageKey)).toContain("verifier-1");
     });
@@ -114,7 +114,7 @@ describe("WalletClient OIDC redirect auth", () => {
         expect(state.redirect_uri).toBe("http://localhost:5173/auth/callback");
     });
 
-    it("uses provider relay defaults and custom WaaS auth scope in headers and state", async () => {
+    it("uses provider relay defaults and project ID in headers and state", async () => {
         const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
             const headers = init?.headers as Record<string, string>;
             expect(headers["OMS-Wallet-Signature"]).toContain('scope="proj_custom"');
@@ -132,11 +132,11 @@ describe("WalletClient OIDC redirect auth", () => {
         const wallet = createWalletClient({
             redirectAuthStorage: new MemoryStorageManager(),
             credentialSigner: signer,
+            projectId: "proj_custom",
             environment: defineOmsEnvironment({
                 walletApiUrl: "https://wallet.example",
                 indexerUrlTemplate: "https://indexer.example/{value}",
                 auth: {
-                    waasAuthScope: "proj_custom",
                     oidcProviders: {
                         google: googleOidcProvider({
                             clientId: "google-client",
@@ -383,7 +383,7 @@ describe("WalletClient OIDC redirect auth", () => {
         });
         const badState = encodeOidcState({
             nonce: "bad-nonce",
-            scope: Constants.defaultWaasAuthScope,
+            scope: "project-id",
         });
 
         await expect(wallet.completeOidcRedirectAuth({
@@ -448,7 +448,7 @@ describe("WalletClient OIDC redirect auth", () => {
         });
         const state = encodeOidcState({
             nonce: "nonce-1",
-            scope: Constants.defaultWaasAuthScope,
+            scope: "project-id",
         });
 
         await expect(wallet.completeOidcRedirectAuth({
@@ -536,10 +536,12 @@ function createWalletClient<Env extends OmsEnvironment = ReturnType<typeof testE
     redirectAuthStorage?: MemoryStorageManager;
     environment?: Env;
     credentialSigner?: CredentialSigner;
+    projectId?: string;
 } = {}): WalletClient<Env> {
     const environment = params.environment ?? testEnvironment() as Env;
     return new WalletClient<Env>({
-        projectAccessKey: "project-key",
+        publicApiKey: "public-api-key",
+        projectId: params.projectId ?? "project-id",
         environment,
         storage: new MemoryStorageManager(),
         redirectAuthStorage: params.redirectAuthStorage,

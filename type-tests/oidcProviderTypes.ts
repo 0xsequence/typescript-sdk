@@ -1,5 +1,19 @@
 import {WalletClient, type OidcProviderName} from "../src/clients/walletClient";
-import {OMSClient, type OMSClientSessionLoginType, type OMSClientSessionState} from "../src/index";
+import {
+    Networks,
+    OMSClient,
+    findNetworkById,
+    findNetworkByName,
+    supportedNetworks,
+    type Network,
+    type OMSClientSessionLoginType,
+    type OMSClientSessionState,
+    type TokenBalance,
+    type TokenBalancesPage,
+    type TokenBalancesResult,
+    type TokenContractInfo,
+    type TokenMetadata,
+} from "../src/index";
 import {defineOmsEnvironment, type OmsEnvironment} from "../src/omsEnvironment";
 import {googleOidcProvider} from "../src/oidc";
 
@@ -47,11 +61,87 @@ if (false) {
     });
 }
 
-const defaultClient = new OMSClient({projectAccessKey: "project-key"});
+const defaultClient = new OMSClient({
+    publicApiKey: "public-api-key",
+    projectId: "project-id",
+});
+// @ts-expect-error publicApiKey is required.
+new OMSClient({projectId: "project-id"});
+// @ts-expect-error projectId is required.
+new OMSClient({publicApiKey: "public-api-key"});
+// @ts-expect-error old projectAccessKey initializer name is not supported.
+new OMSClient({projectAccessKey: "public-api-key", projectId: "project-id"});
+// @ts-expect-error old authorizationScope initializer name is not supported.
+new OMSClient({publicApiKey: "public-api-key", authorizationScope: "project-id"});
 const session: OMSClientSessionState = defaultClient.wallet.session;
 const loginType: OMSClientSessionLoginType | undefined = defaultClient.wallet.session.loginType;
+const polygonNetwork: Network = Networks.polygon;
+const amoyNetwork: Network | undefined = findNetworkById(80002);
+const baseNetwork: Network | undefined = findNetworkByName("base");
+const allNetworks: readonly Network[] = supportedNetworks;
+const tokenContractInfo: TokenContractInfo = {symbol: "USDC", decimals: 6};
+const tokenMetadata: TokenMetadata = {tokenId: "0", name: "USDC"};
+const tokenBalance: TokenBalance = {
+    chainId: Networks.polygon.id,
+    contractInfo: tokenContractInfo,
+    tokenMetadata,
+    balanceUSD: "0.141799",
+    priceUSD: "1",
+};
+const tokenBalancesPage: TokenBalancesPage = {page: 0, pageSize: 40, more: false};
+const tokenBalancesResult: TokenBalancesResult = {status: 200, page: tokenBalancesPage, balances: [tokenBalance]};
 void session;
 void loginType;
+void polygonNetwork;
+void amoyNetwork;
+void baseNetwork;
+void allNetworks;
+void tokenContractInfo;
+void tokenMetadata;
+void tokenBalancesResult;
+void defaultClient.supportedNetworks;
+// @ts-expect-error findNetworkById accepts numeric chain IDs only.
+findNetworkById("80002");
+void defaultClient.indexer.getTokenBalances({
+    network: Networks.polygon,
+    contractAddress: "0x2222222222222222222222222222222222222222",
+    walletAddress: "0x9999999999999999999999999999999999999999",
+    includeMetadata: false,
+});
+void defaultClient.indexer.getTokenBalances({
+    network: Networks.polygon,
+    walletAddress: "0x9999999999999999999999999999999999999999",
+    includeMetadata: true,
+    page: {page: 1, pageSize: 25},
+});
+void defaultClient.indexer.getTokenBalances({
+    // @ts-expect-error Indexer public methods accept Network objects, not numeric chain IDs.
+    network: 137,
+    contractAddress: "0x2222222222222222222222222222222222222222",
+    walletAddress: "0x9999999999999999999999999999999999999999",
+    includeMetadata: false,
+});
+void defaultClient.indexer.getTokenBalances({
+    // @ts-expect-error chainId is not a public indexer parameter.
+    chainId: 137,
+    contractAddress: "0x2222222222222222222222222222222222222222",
+    walletAddress: "0x9999999999999999999999999999999999999999",
+    includeMetadata: false,
+});
+void defaultClient.indexer.getNativeTokenBalance({
+    network: Networks.polygon,
+    walletAddress: "0x9999999999999999999999999999999999999999",
+});
+void defaultClient.indexer.getNativeTokenBalance({
+    // @ts-expect-error Indexer public methods accept Network objects, not numeric chain IDs.
+    network: 137,
+    walletAddress: "0x9999999999999999999999999999999999999999",
+});
+void defaultClient.indexer.getNativeTokenBalance({
+    // @ts-expect-error chainId is not a public indexer parameter.
+    chainId: 137,
+    walletAddress: "0x9999999999999999999999999999999999999999",
+});
 void defaultClient.wallet.startOidcRedirectAuth({
     provider: "google",
     redirectUri: "https://app.example/auth/callback",
@@ -67,7 +157,8 @@ const customEnvironmentWithoutProviders = defineOmsEnvironment({
     indexerUrlTemplate: "https://indexer.example/{value}",
 });
 const customClient = new OMSClient({
-    projectAccessKey: "project-key",
+    publicApiKey: "public-api-key",
+    projectId: "project-id",
     environment: customEnvironmentWithoutProviders,
 });
 let broadlyTypedClient: OMSClient;
@@ -80,14 +171,19 @@ void customClient.wallet.startOidcRedirectAuth({
 });
 
 function createClient(params: {
-    projectAccessKey: string;
+    publicApiKey: string;
+    projectId: string;
     environment?: OmsEnvironment;
 }) {
     return new OMSClient(params);
 }
 
-void createClient({projectAccessKey: "project-key"});
 void createClient({
-    projectAccessKey: "project-key",
+    publicApiKey: "public-api-key",
+    projectId: "project-id",
+});
+void createClient({
+    publicApiKey: "public-api-key",
+    projectId: "project-id",
     environment: customEnvironmentWithoutProviders,
 });

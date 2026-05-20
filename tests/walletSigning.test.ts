@@ -2,6 +2,7 @@ import {afterEach, describe, expect, it, vi} from "vitest";
 
 import {WalletClient} from "../src/clients/walletClient";
 import type {CredentialSigner} from "../src/credentialSigner";
+import {Networks} from "../src/networks";
 import {MemoryStorageManager} from "../src/storageManager";
 
 class MockSigner implements CredentialSigner {
@@ -63,7 +64,7 @@ describe("WalletClient signing", () => {
             const url = input.toString();
             const body = JSON.parse(init?.body as string);
 
-            expect((init?.headers as Record<string, string>)["X-Access-Key"]).toBe("project-key");
+            expect((init?.headers as Record<string, string>)["X-Access-Key"]).toBe("public-api-key");
             const headers = init?.headers as Record<string, string>;
             expect(headers["OMS-Wallet-Signature"]).toContain('alg="ecdsa-p256-sha256"');
             expect(headers.Authorization).toBeUndefined();
@@ -83,7 +84,7 @@ describe("WalletClient signing", () => {
 
         const wallet = createWalletWithSession("0x1111111111111111111111111111111111111111");
 
-        await expect(wallet.signTypedData({network: "polygon", typedData})).resolves.toBe("0xsigned");
+        await expect(wallet.signTypedData({network: Networks.polygon, typedData})).resolves.toBe("0xsigned");
     });
 
     it("validates signatures through the generated wallet public client", async () => {
@@ -104,7 +105,7 @@ describe("WalletClient signing", () => {
             const body = JSON.parse(init?.body as string);
             const headers = init?.headers as Record<string, string>;
 
-            expect(headers["X-Access-Key"]).toBe("project-key");
+            expect(headers["X-Access-Key"]).toBe("public-api-key");
             expect(headers["OMS-Wallet-Signature"]).toBeUndefined();
             expect(headers.Authorization).toBeUndefined();
 
@@ -135,13 +136,13 @@ describe("WalletClient signing", () => {
         const wallet = createWalletWithSession("0x1111111111111111111111111111111111111111");
 
         await expect(wallet.isValidMessageSignature({
-            network: "polygon",
+            network: Networks.polygon,
             message: "hello",
             signature: "0xmessage",
         })).resolves.toBe(true);
 
         await expect(wallet.isValidTypedDataSignature({
-            network: 137n,
+            network: Networks.polygon,
             walletAddress: "0x1111111111111111111111111111111111111111",
             typedData,
             signature: "0xtyped",
@@ -151,7 +152,8 @@ describe("WalletClient signing", () => {
 
 function createWalletWithSession(walletAddress: string): WalletClient {
     const wallet = new WalletClient({
-        projectAccessKey: "project-key",
+        publicApiKey: "public-api-key",
+        projectId: "project-id",
         environment: testEnvironment(),
         storage: new MemoryStorageManager(),
         credentialSigner: new MockSigner(),

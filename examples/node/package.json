@@ -8,8 +8,7 @@
     "build": "tsc --noEmit"
   },
   "dependencies": {
-    "typescript-sdk": "workspace:*",
-    "viem": "^2.48.4"
+    "@0xsequence/typescript-sdk": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^22.19.19",

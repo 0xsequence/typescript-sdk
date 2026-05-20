@@ -1,5 +1,4 @@
 import {Fetch} from "./generated/waas.gen.js";
-import {Constants} from "./utils/constants.js";
 import {RequestUtils} from "./utils/requestUtils.js";
 import type {CredentialSigner} from "./credentialSigner.js";
 
@@ -7,19 +6,19 @@ async function buildWalletSignatureHeader(
     endpoint: string,
     signer: CredentialSigner,
     payload: string,
-    waasAuthScope: string,
+    projectId: string,
 ): Promise<string> {
     const credentialId = await signer.credentialId()
     const nonce = await signer.nextNonce()
-    const preimage = RequestUtils.buildWalletRequestPreimage(endpoint, nonce, waasAuthScope, payload)
+    const preimage = RequestUtils.buildWalletRequestPreimage(endpoint, nonce, projectId, payload)
     const signature = await signer.sign(preimage)
-    return RequestUtils.buildWalletSignatureHeader(signer.signingAlgorithm, waasAuthScope, credentialId, nonce, signature)
+    return RequestUtils.buildWalletSignatureHeader(signer.signingAlgorithm, projectId, credentialId, nonce, signature)
 }
 
 export function createSignedFetch(
-    projectAccessKey: string,
+    publicApiKey: string,
     signer: CredentialSigner,
-    waasAuthScope: string = Constants.defaultWaasAuthScope,
+    projectId: string,
 ): Fetch {
     return async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
         const url = typeof input === 'string' ? input : (input as Request).url
@@ -28,12 +27,12 @@ export function createSignedFetch(
 
         const body = typeof init?.body === 'string' ? init.body : ''
 
-        const signatureHeader = await buildWalletSignatureHeader(endpoint, signer, body, waasAuthScope)
+        const signatureHeader = await buildWalletSignatureHeader(endpoint, signer, body, projectId)
 
         const existingHeaders = (init?.headers ?? {}) as Record<string, string>
         const headers: Record<string, string> = {
             ...existingHeaders,
-            'X-Access-Key': projectAccessKey,
+            'X-Access-Key': publicApiKey,
             'OMS-Wallet-Signature': signatureHeader,
         }
 

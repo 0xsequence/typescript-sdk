@@ -26,6 +26,13 @@ export {
     type StorageManager,
 } from './storageManager.js'
 export {
+    Networks,
+    findNetworkById,
+    findNetworkByName,
+    supportedNetworks,
+    type Network,
+} from './networks.js'
+export {
     TransactionMode,
     TransactionStatus,
     SigningAlgorithm,
@@ -63,6 +70,14 @@ export type {
     StartOidcRedirectAuthResult,
     WalletActivationResult,
 } from './clients/walletClient.js'
+export type {
+    TokenContractInfo,
+    TokenBalance,
+    TokenBalancesPage,
+    TokenBalancesResult,
+    TokenMetadata,
+    TokenMetadataAsset,
+} from './clients/indexerClient.js'
 export type {
     AccessGrant,
     AccessGrantPage,

@@ -2,6 +2,7 @@ import {afterEach, describe, expect, it, vi} from "vitest";
 
 import {WalletClient} from "../src/clients/walletClient";
 import type {CredentialSigner} from "../src/credentialSigner";
+import {Networks} from "../src/networks";
 import {OMSClient} from "../src/omsClient";
 import {MemoryStorageManager} from "../src/storageManager";
 import {Constants} from "../src/utils/constants";
@@ -40,7 +41,8 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("localStorage", undefined);
 
         const client = new OMSClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             credentialSigner: new MockSigner(),
         });
@@ -57,13 +59,14 @@ describe("WalletClient session storage", () => {
         storage.set(Constants.sessionEmailStorageKey, "user@example.com");
 
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage,
             credentialSigner: new MockSigner(false),
         });
 
-        await expect(wallet.signMessage({network: "polygon", message: "hello"})).rejects.toMatchObject({
+        await expect(wallet.signMessage({network: Networks.polygon, message: "hello"})).rejects.toMatchObject({
             code: "OMS_SESSION_MISSING",
             operation: "wallet.signMessage",
             message: "No active wallet session",
@@ -81,7 +84,8 @@ describe("WalletClient session storage", () => {
         const redirectAuthStorage = new MemoryStorageManager();
         redirectAuthStorage.set(Constants.redirectAuthStorageKey, JSON.stringify({verifier: "old-verifier"}));
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage,
             redirectAuthStorage,
@@ -138,7 +142,8 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage,
             redirectAuthStorage,
@@ -166,7 +171,8 @@ describe("WalletClient session storage", () => {
         storage.set(Constants.sessionEmailStorageKey, "user@example.com");
 
         const client = new OMSClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage,
             credentialSigner: new MockSigner(),
@@ -221,7 +227,8 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage,
             credentialSigner: new MockSigner(),
@@ -293,7 +300,8 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
             credentialSigner: new MockSigner(),
@@ -348,7 +356,8 @@ describe("WalletClient session storage", () => {
 
         const storage = new MemoryStorageManager();
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage,
             credentialSigner: new MockSigner(),
@@ -397,7 +406,8 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            projectAccessKey: "project-key",
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
             credentialSigner: new MockSigner(),

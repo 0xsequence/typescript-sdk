@@ -1,3 +1,1 @@
-import {Chain} from "viem";
-
-export type Network = string | bigint | Chain;
+export type {Network} from "../networks.js";

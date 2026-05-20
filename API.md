@@ -4,6 +4,7 @@
 
 - [OMSClient](#omsclient)
   - [Constructor](#constructor)
+  - [supportedNetworks](#supportednetworks)
 - [WalletClient](#walletclient)
   - [walletAddress](#walletaddress)
   - [session](#session)
@@ -53,6 +54,9 @@
   - [TokenBalancesResult](#tokenbalancesresult)
   - [TokenBalancesPage](#tokenbalancespage)
   - [TokenBalance](#tokenbalance)
+  - [TokenContractInfo](#tokencontractinfo)
+  - [TokenMetadata](#tokenmetadata)
+  - [TokenMetadataAsset](#tokenmetadataasset)
   - [AbiArg](#abiarg)
   - [WalletType](#wallettype)
 
@@ -63,16 +67,20 @@
 The top-level entry point for the SDK.
 
 ```typescript
-import { OMSClient } from 'typescript-sdk'
+import { OMSClient } from '@0xsequence/typescript-sdk'
 
-const oms = new OMSClient({ projectAccessKey: 'your-key' })
+const oms = new OMSClient({
+  publicApiKey: 'your-public-api-key',
+  projectId: 'your-project-id',
+})
 ```
 
 ### Constructor
 
 ```typescript
 new OMSClient(params: {
-  projectAccessKey: string
+  publicApiKey: string
+  projectId: string
   environment?: OmsEnvironment
   storage?: StorageManager
   redirectAuthStorage?: StorageManager
@@ -84,7 +92,8 @@ new OMSClient(params: {
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `projectAccessKey` | `string` | Yes | Your OMS project access key. |
+| `publicApiKey` | `string` | Yes | Your OMS public API key. |
+| `projectId` | `string` | Yes | Your OMS project ID. Used as the WaaS signing scope for wallet requests and OIDC redirect state. |
 | `environment` | `OmsEnvironment` | No | API endpoint configuration. Defaults to the SDK's configured OMS endpoints. |
 | `storage` | `StorageManager` | No | Storage backend for wallet metadata. Defaults to `LocalStorageManager` when browser `localStorage` is available, otherwise `MemoryStorageManager`. |
 | `redirectAuthStorage` | `StorageManager` | No | Transient storage for OIDC redirect verifier/state. Defaults to `sessionStorage` when available. |
@@ -96,8 +105,15 @@ new OMSClient(params: {
 |---|---|---|
 | `wallet` | `WalletClient` | Handles authentication, signing, and transactions. |
 | `indexer` | `IndexerClient` | Queries on-chain state and token balances. |
+| `supportedNetworks` | `readonly Network[]` | Networks configured by the SDK. Same value as the exported `supportedNetworks`. |
 
----
+### supportedNetworks
+
+```typescript
+oms.supportedNetworks: readonly Network[]
+```
+
+Returns the supported network registry. Each entry has `id`, `name`, `nativeTokenSymbol`, and `explorerUrl`.
 
 ## WalletClient
 
@@ -165,7 +181,10 @@ completeEmailAuth(params: {
   code: string
   walletType?: WalletType
   autoActivate?: boolean
-}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>
+}): Promise<
+  | { walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }
+  | { wallets: OmsWallet[]; credential: WalletCredential }
+>
 ```
 
 Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
@@ -234,7 +253,10 @@ completeOidcRedirectAuth(params: {
   cleanUrl?: boolean
   replaceUrl?: (url: string) => void
   autoActivate?: boolean
-}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>
+}): Promise<
+  | { walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }
+  | { wallets: OmsWallet[]; credential: WalletCredential }
+>
 ```
 
 Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime, and activating an existing wallet or creating one. Pass `autoActivate: false` to return `{ wallets, credential }` for app-driven wallet selection. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
@@ -287,7 +309,6 @@ Clears the wallet session metadata from storage and clears the active credential
 
 ```typescript
 await oms.wallet.signOut()
-// Navigate to sign-in screen
 ```
 
 ---
@@ -337,7 +358,7 @@ Signs an arbitrary message using the active wallet session credential.
 
 | Name | Type | Description |
 |---|---|---|
-| `network` | `Network` | The network for the signing context. Accepts a chain name string, chain ID bigint, or viem `Chain` object. See [Network](#network). |
+| `network` | `Network` | The network for the signing context. Use an exported registry value such as `Networks.polygon`. See [Network](#network). |
 | `message` | `string` | The message to sign. |
 
 **Returns** `Promise<string>` — a hex-encoded signature.
@@ -345,11 +366,8 @@ Signs an arbitrary message using the active wallet session credential.
 **Example**
 
 ```typescript
-const sig = await oms.wallet.signMessage({ network: 'polygon', message: '0xdeadbeef' })
-
-// Using a viem Chain object
-import { polygon } from 'viem/chains'
-const sig = await oms.wallet.signMessage({ network: polygon, message: '0xdeadbeef' })
+import { Networks } from '@0xsequence/typescript-sdk'
+const sigFromNetwork = await oms.wallet.signMessage({ network: Networks.polygon, message: 'some message to sing' })
 ```
 
 ---
@@ -421,13 +439,15 @@ Fetches the latest WaaS status for a prepared/executed transaction. This is usef
 sendTransaction(params: SendNativeTransactionParams): Promise<SendTransactionResponse>
 ```
 
-Sends native tokens (ETH, MATIC, etc.) to an address.
+Sends native tokens (ETH, POL, etc.) to an address.
 
 ```typescript
+import { parseUnits } from 'viem'
+
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xRecipient',
-  value: 1_000_000_000_000_000_000n, // 1 MATIC in wei
+  value: parseUnits('1', 18), // 1 POL
 })
 ```
 
@@ -441,7 +461,7 @@ Sends a transaction with arbitrary calldata as a hex string. Use this when you h
 
 ```typescript
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xContract',
   data: '0xa9059cbb000000000000000000000000...',
 })
@@ -456,6 +476,8 @@ sendTransaction<abi, functionName>(params: SendContractTransactionParams<abi, fu
 Sends a contract interaction with fully-typed ABI encoding via viem. The calldata is encoded automatically from `abi`, `functionName`, and `args`.
 
 ```typescript
+import { parseUnits } from 'viem'
+
 const erc20Abi = [
   {
     name: 'transfer',
@@ -468,11 +490,11 @@ const erc20Abi = [
 ] as const
 
 const tx = await oms.wallet.sendTransaction({
-  network: 'polygon',
+  network: Networks.polygon,
   to: '0xTokenContract',
   abi: erc20Abi,
   functionName: 'transfer',
-  args: ['0xRecipient', 1_000_000_000_000_000_000n],
+  args: ['0xRecipient', parseUnits('1', 18)],
 })
 ```
 
@@ -531,13 +553,15 @@ Calls a state-changing smart contract function using a method signature string a
 **Example**
 
 ```typescript
+import { parseUnits } from 'viem'
+
 const tx = await oms.wallet.callContract({
-  network: 'polygon',
+  network: Networks.polygon,
   contractAddress: '0xTokenContract',
   method: 'transfer(address,uint256)',
   args: [
     { type: 'address', value: '0xRecipient' },
-    { type: 'uint256', value: '1000000000000000000' },
+    { type: 'uint256', value: parseUnits('1', 18).toString() },
   ],
 })
 ```
@@ -615,23 +639,28 @@ Accessed via `oms.indexer`. Queries on-chain token balances through the OMS Inde
 
 ```typescript
 getTokenBalances(params: {
-  chainId: string
-  contractAddress: string
+  network: Network
+  contractAddress?: string
   walletAddress: string
   includeMetadata: boolean
+  page?: {
+    page?: number
+    pageSize?: number
+  }
 }): Promise<TokenBalancesResult>
 ```
 
-Fetches token balances for a wallet on a given chain and contract (first page, up to 40 entries).
+Fetches token balances for a wallet on a given network. Omit `contractAddress` to query balances across contracts; provide it to filter to one token contract. The default request returns page `0` with up to `40` entries. When `includeMetadata` is `true`, token display data is returned on `contractInfo` and `tokenMetadata`; ERC-20 decimals are available as `contractInfo.decimals`.
 
 **Parameters**
 
 | Name | Type | Description |
 |---|---|---|
-| `chainId` | `string` | Numeric chain ID as a string, e.g. `"137"` for Polygon, `"1"` for Ethereum mainnet. |
-| `contractAddress` | `string` | The token contract address to query. |
+| `network` | `Network` | The network to query. Use an exported registry value such as `Networks.polygon`. |
+| `contractAddress` | `string` | Optional token contract filter. Omit to query balances across contracts. |
 | `walletAddress` | `string` | The wallet address whose balances to fetch. Use `oms.wallet.walletAddress` after checking it is defined. |
 | `includeMetadata` | `boolean` | When `true`, the response includes token metadata such as name, symbol, and decimals. |
+| `page` | `{ page?: number; pageSize?: number }` | Optional pagination request. Defaults to `{ page: 0, pageSize: 40 }`. |
 
 **Returns** `Promise<TokenBalancesResult>` — see [TokenBalancesResult](#tokenbalancesresult).
 
@@ -642,8 +671,7 @@ const { walletAddress } = oms.wallet
 if (!walletAddress) throw new Error('No active wallet session')
 
 const result = await oms.indexer.getTokenBalances({
-  chainId: '137',
-  contractAddress: '0xTokenContract',
+  network: Networks.polygon,
   walletAddress,
   includeMetadata: true,
 })
@@ -659,7 +687,7 @@ for (const b of result.balances) {
 
 ```typescript
 getNativeTokenBalance(params: {
-  chainId: string
+  network: Network
   walletAddress: string
 }): Promise<TokenBalance | undefined>
 ```
@@ -713,18 +741,39 @@ Use `isOmsSdkError(err)` or `err instanceof OmsSdkError` to branch on structured
 ### Network
 
 ```typescript
-type Network = string | bigint | Chain
+interface Network {
+  readonly id: number
+  readonly name: string
+  readonly nativeTokenSymbol: string
+  readonly explorerUrl: string
+}
 ```
 
-Accepted by all transaction and signing methods. The SDK resolves the appropriate chain name regardless of which form you pass:
+A supported OMS network entry. The SDK exports `Networks`, `supportedNetworks`, `findNetworkById(id)`, and `findNetworkByName(name)`.
 
-| Form | Example |
-|---|---|
-| Chain name string | `'polygon'`, `'mainnet'`, `'arbitrum'` |
-| Chain ID as bigint | `137n`, `1n`, `42161n` |
-| viem `Chain` object | `polygon`, `mainnet` (from `viem/chains`) |
+```typescript
+findNetworkById(id: number): Network | undefined
+findNetworkByName(name: string): Network | undefined
+```
 
----
+| Key | id | name | nativeTokenSymbol | explorerUrl |
+|---|---:|---|---|---|
+| `Networks.mainnet` | 1 | `mainnet` | `ETH` | `https://etherscan.io` |
+| `Networks.sepolia` | 11155111 | `sepolia` | `ETH` | `https://sepolia.etherscan.io` |
+| `Networks.polygon` | 137 | `polygon` | `POL` | `https://polygonscan.com` |
+| `Networks.amoy` | 80002 | `amoy` | `POL` | `https://amoy.polygonscan.com` |
+| `Networks.arbitrum` | 42161 | `arbitrum` | `ETH` | `https://arbiscan.io` |
+| `Networks.arbitrumSepolia` | 421614 | `arbitrum-sepolia` | `ETH` | `https://sepolia.arbiscan.io` |
+| `Networks.optimism` | 10 | `optimism` | `ETH` | `https://optimistic.etherscan.io` |
+| `Networks.optimismSepolia` | 11155420 | `optimism-sepolia` | `ETH` | `https://sepolia-optimism.etherscan.io` |
+| `Networks.base` | 8453 | `base` | `ETH` | `https://basescan.org` |
+| `Networks.baseSepolia` | 84532 | `base-sepolia` | `ETH` | `https://sepolia.basescan.org` |
+| `Networks.bsc` | 56 | `bsc` | `BNB` | `https://bscscan.com` |
+| `Networks.bscTestnet` | 97 | `bsc-testnet` | `BNB` | `https://testnet.bscscan.com` |
+| `Networks.arbitrumNova` | 42170 | `arbitrum-nova` | `ETH` | `https://nova.arbiscan.io` |
+| `Networks.avalanche` | 43114 | `avalanche` | `AVAX` | `https://subnets.avax.network/c-chain` |
+| `Networks.avalancheTestnet` | 43113 | `avalanche-testnet` | `AVAX` | `https://subnets-test.avax.network/c-chain` |
+| `Networks.katana` | 747474 | `katana` | `ETH` | `https://katanascan.com` |
 
 ### OmsEnvironment
 
@@ -733,7 +782,6 @@ interface OmsEnvironment {
   walletApiUrl: string
   indexerUrlTemplate: string
   auth?: {
-    waasAuthScope?: string
     oidcProviders?: Record<string, OidcProviderConfig>
   }
 }
@@ -742,8 +790,7 @@ interface OmsEnvironment {
 | Field | Type | Description |
 |---|---|---|
 | `walletApiUrl` | `string` | Base URL of the WaaS Wallet RPC host. |
-| `indexerUrlTemplate` | `string` | URL template for the Indexer API. `{value}` is replaced with the chain ID at request time, e.g. `"https://indexer.example.com/{value}"`. |
-| `auth.waasAuthScope` | `string` | WaaS credential auth scope used in signed wallet API requests. Defaults to `proj_1`. |
+| `indexerUrlTemplate` | `string` | URL template for the Indexer API. `{value}` is replaced with the selected network name, e.g. `"https://indexer.example.com/{value}"`. |
 | `auth.oidcProviders` | `Record<string, OidcProviderConfig>` | OIDC provider configurations addressable by provider key. |
 
 The default is exported as `defaultOmsEnvironment` and includes the `google` OIDC provider.
@@ -1050,9 +1097,16 @@ interface TokenBalance {
   accountAddress?: string
   tokenId?: string
   balance?: string
+  balanceUSD?: string
+  priceUSD?: string
+  priceUpdatedAt?: string
   blockHash?: string
   blockNumber?: number
   chainId?: number
+  uniqueCollectibles?: string
+  isSummary?: boolean
+  contractInfo?: TokenContractInfo
+  tokenMetadata?: TokenMetadata
 }
 ```
 
@@ -1063,9 +1117,95 @@ interface TokenBalance {
 | `accountAddress` | `string` | Wallet address this balance belongs to. |
 | `tokenId` | `string` | For ERC-721/ERC-1155 tokens, the token ID. |
 | `balance` | `string` | Balance in the token's smallest denomination. |
+| `balanceUSD` | `string` | USD value when returned by the Indexer. |
+| `priceUSD` | `string` | Token price in USD when returned by the Indexer. |
+| `priceUpdatedAt` | `string` | Timestamp for the returned USD price. |
 | `blockHash` | `string` | Block hash at which this balance was recorded. |
 | `blockNumber` | `number` | Block number at which this balance was recorded. |
 | `chainId` | `number` | Numeric chain ID. |
+| `uniqueCollectibles` | `string` | Number of unique collectibles represented by a summary row. |
+| `isSummary` | `boolean` | Whether the row represents an aggregated collection summary. |
+| `contractInfo` | `TokenContractInfo` | Contract display metadata. ERC-20 decimals are exposed as `contractInfo.decimals`. |
+| `tokenMetadata` | `TokenMetadata` | Token-level metadata for NFT/collection entries when returned. |
+
+---
+
+### TokenContractInfo
+
+```typescript
+interface TokenContractInfo {
+  chainId?: number
+  address?: string
+  source?: string
+  name?: string
+  type?: string
+  symbol?: string
+  decimals?: number
+  logoURI?: string
+  deployed?: boolean
+  bytecodeHash?: string
+  extensions?: Record<string, unknown>
+  updatedAt?: string
+  queuedAt?: string | null
+  status?: string
+}
+```
+
+Contract-level metadata returned by the Indexer when `includeMetadata` is `true`.
+
+---
+
+### TokenMetadata
+
+```typescript
+interface TokenMetadata {
+  chainId?: number
+  contractAddress?: string
+  tokenId?: string
+  source?: string
+  name?: string
+  description?: string
+  image?: string
+  video?: string
+  audio?: string
+  properties?: Record<string, unknown>
+  attributes?: Record<string, unknown>[]
+  image_data?: string
+  external_url?: string
+  background_color?: string
+  animation_url?: string
+  decimals?: number
+  updatedAt?: string
+  assets?: TokenMetadataAsset[]
+  status?: string
+  queuedAt?: string | null
+  lastFetched?: string
+}
+```
+
+Token-level metadata returned by the Indexer when available.
+
+---
+
+### TokenMetadataAsset
+
+```typescript
+interface TokenMetadataAsset {
+  id?: number
+  collectionId?: number
+  tokenId?: string
+  url?: string
+  metadataField?: string
+  name?: string
+  filesize?: number
+  mimeType?: string
+  width?: number
+  height?: number
+  updatedAt?: string
+}
+```
+
+Media asset metadata associated with token metadata when returned.
 
 ---
 

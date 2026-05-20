@@ -1,5 +1,5 @@
-import {Abi, Address, Chain, ContractFunctionName, EncodeFunctionDataParameters, Hex} from "viem";
-import {Network} from "./evmTypes.js";
+import {Abi, Address, ContractFunctionName, EncodeFunctionDataParameters, Hex} from "viem";
+import type {Network} from "../networks.js";
 import type {
     FeeOption,
     FeeOptionSelection,
