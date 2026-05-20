@@ -1,3 +1,5 @@
+import type {OmsSdkOperation} from "./operations.js";
+
 export type OmsSdkErrorCode =
     | "OMS_HTTP_ERROR"
     | "OMS_INVALID_RESPONSE"
@@ -93,7 +95,7 @@ export function isOmsSdkError(error: unknown): error is OmsSdkError {
     return error instanceof OmsSdkError
 }
 
-export function toOmsSdkError(error: unknown, operation: string): OmsSdkError {
+export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSdkError {
     if (isOmsSdkError(error)) {
         return error
     }
