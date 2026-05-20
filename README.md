@@ -4,6 +4,52 @@ A TypeScript SDK for the OMS (Open Money Stack) platform. Provides email and OID
 
 ## Usage
 
+Install the published SDK package in your application:
+
+```bash
+pnpm add @0xsequence/typescript-sdk@alpha
+```
+
+For npm or yarn projects:
+
+```bash
+npm install @0xsequence/typescript-sdk@alpha
+yarn add @0xsequence/typescript-sdk@alpha
+```
+
+Then initialize the client with your OMS project credentials:
+
+```typescript
+import { OMSClient } from '@0xsequence/typescript-sdk'
+
+const oms = new OMSClient({
+  publicApiKey: 'your-public-api-key',
+  projectId: 'your-project-id',
+})
+```
+
+In Vite browser apps, keep those values in local environment variables:
+
+```typescript
+function requiredEnv(name: string, value: string | undefined): string {
+  if (!value) {
+    throw new Error(`Missing ${name}`)
+  }
+  return value
+}
+
+const oms = new OMSClient({
+  publicApiKey: requiredEnv('VITE_OMS_PUBLIC_API_KEY', import.meta.env.VITE_OMS_PUBLIC_API_KEY),
+  projectId: requiredEnv('VITE_OMS_PROJECT_ID', import.meta.env.VITE_OMS_PROJECT_ID),
+})
+```
+
+If your app imports utilities from `viem`, such as the `parseUnits` helper used in the quick start below, install it as a direct dependency too:
+
+```bash
+pnpm add viem
+```
+
 For local development in this repository, install dependencies and build the workspace package:
 
 From the repository root:
