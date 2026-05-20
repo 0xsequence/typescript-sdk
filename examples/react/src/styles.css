@@ -52,6 +52,13 @@ h1 {
   line-height: 1.15;
 }
 
+.section-title {
+  margin: 0;
+  color: #1f2937;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
 .stack {
   display: grid;
   gap: 16px;
@@ -63,6 +70,32 @@ label {
   color: #374151;
   font-size: 14px;
   font-weight: 650;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #e1e6ee;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.checkbox-row input {
+  width: 18px;
+  min-height: 18px;
+  margin: 0;
+  accent-color: #1d4ed8;
+}
+
+.checkbox-row span {
+  min-width: 0;
+}
+
+.header-option {
+  margin-top: 14px;
 }
 
 .field-stack {
@@ -112,6 +145,12 @@ button {
 button.secondary {
   color: #243044;
   background: #e6ebf2;
+}
+
+button.subtle {
+  color: #475467;
+  background: transparent;
+  border: 1px solid #d8dee8;
 }
 
 button:disabled {
@@ -188,6 +227,19 @@ button:disabled {
   text-align: center;
 }
 
+.metadata-pill {
+  min-width: 48px;
+  padding: 4px 8px;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  color: #475467;
+  background: #eef2f7;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+
 select:disabled {
   color: #667085;
   background: #eef2f7;
@@ -203,7 +255,8 @@ select:disabled {
   gap: 8px;
 }
 
-.fee-option {
+.fee-option,
+.wallet-option {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -215,7 +268,13 @@ select:disabled {
   text-align: left;
 }
 
-.fee-option span {
+.wallet-option {
+  grid-template-columns: minmax(0, 1fr) auto;
+  row-gap: 6px;
+}
+
+.fee-option span,
+.wallet-option span {
   min-width: 0;
 }
 
@@ -226,15 +285,38 @@ select:disabled {
 }
 
 .fee-option strong,
-.fee-option small {
+.fee-option small,
+.wallet-option strong,
+.wallet-option small {
   display: block;
   overflow-wrap: anywhere;
 }
 
-.fee-option small {
+.fee-option small,
+.wallet-option small {
   margin-top: 3px;
   color: #667085;
   font-size: 12px;
+}
+
+.wallet-option code {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #344054;
+  font-size: 12px;
+}
+
+.wallet-option-action {
+  justify-self: end;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.wallet-option-list {
+  display: grid;
+  gap: 8px;
 }
 
 output {
