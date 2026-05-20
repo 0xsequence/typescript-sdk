@@ -7,8 +7,6 @@ export {
     type OmsEnvironment,
 } from './omsEnvironment.js'
 export {
-    defaultGoogleClientId,
-    defaultRelayRedirectUri,
     googleOidcProvider,
     type GoogleOidcProviderParams,
 } from './oidc.js'
@@ -35,7 +33,6 @@ export {
 export {
     TransactionMode,
     TransactionStatus,
-    SigningAlgorithm,
     WalletType,
     type TransactionStatusResponse,
 } from './generated/waas.gen.js'
@@ -49,7 +46,6 @@ export {
     OmsValidationError,
     isOmsSdkError,
     type OmsSdkErrorCode,
-    type OmsSdkErrorParams,
 } from './errors.js'
 export type {
     CompleteEmailAuthParams,
