@@ -50,8 +50,11 @@ if (false) {
     });
 
     void (async () => {
-        const manualAuth = await wallet.completeEmailAuth({code: "123456", autoActivate: false});
+        const manualAuth = await wallet.completeEmailAuth({code: "123456", walletSelection: "manual"});
+        void manualAuth.walletType;
         void manualAuth.wallets;
+        void manualAuth.selectWallet({walletId: manualAuth.wallets[0].id});
+        void manualAuth.createAndSelectWallet({reference: "main"});
         // @ts-expect-error manual auth does not activate a wallet.
         void manualAuth.walletAddress;
 

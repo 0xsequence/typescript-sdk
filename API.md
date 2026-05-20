@@ -41,6 +41,8 @@
   - [StorageManager](#storagemanager)
   - [CredentialSigner](#credentialsigner)
   - [OmsWallet](#omswallet)
+  - [PendingWalletSelection](#pendingwalletselection)
+  - [WalletSelectionBehavior](#walletselectionbehavior)
   - [WalletCredential](#walletcredential)
   - [AccessGrant](#accessgrant)
   - [ListAccessParams](#listaccessparams)
@@ -180,16 +182,16 @@ await oms.wallet.startEmailAuth({ email: 'user@example.com' })
 completeEmailAuth(params: {
   code: string
   walletType?: WalletType
-  autoActivate?: boolean
+  walletSelection?: 'automatic' | 'manual'
 }): Promise<
   | { walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }
-  | { wallets: OmsWallet[]; credential: WalletCredential }
+  | PendingWalletSelection
 >
 ```
 
 Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
 
-This method verifies the code with a one-week WaaS session lifetime, loads all wallet pages, then automatically selects an existing wallet matching `walletType`, or creates a new one if none exists. Wallet metadata is persisted to storage. Pass `autoActivate: false` to return `{ wallets, credential }` without selecting or creating a wallet; then call [`useWallet`](#usewallet) or [`createWallet`](#createwallet).
+This method verifies the code with a one-week WaaS session lifetime, loads all wallet pages, then automatically selects an existing wallet matching `walletType`, or creates a new one if none exists. Wallet metadata is persisted to storage. Pass `walletSelection: 'manual'` to return a [`PendingWalletSelection`](#pendingwalletselection) bound to the verified auth flow; complete selection through that object.
 
 **Parameters**
 
@@ -197,9 +199,9 @@ This method verifies the code with a one-week WaaS session lifetime, loads all w
 |---|---|---|---|
 | `code` | `string` | Yes | The one-time passcode entered by the user. |
 | `walletType` | `WalletType` | No | The wallet type to load or create. Defaults to `WalletType.Ethereum`. |
-| `autoActivate` | `boolean` | No | Defaults to `true`. Set to `false` to let the app choose an existing wallet or create a new one. |
+| `walletSelection` | `'automatic' \| 'manual'` | No | Defaults to `'automatic'`. Set to `'manual'` to let the app choose an existing wallet or create one through the returned pending selection. |
 
-**Returns** `Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>` by default, or `Promise<{ wallets: OmsWallet[]; credential: WalletCredential }>` when `autoActivate` is `false`.
+**Returns** `Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>` by default, or `Promise<PendingWalletSelection>` when `walletSelection` is `'manual'`.
 
 **Throws** if the code is incorrect, expired, or the network request fails.
 
@@ -212,6 +214,20 @@ try {
 } catch (err) {
   // Handle wrong or expired code
 }
+```
+
+Manual selection:
+
+```typescript
+const selection = await oms.wallet.completeEmailAuth({
+  code: '123456',
+  walletType: WalletType.Ethereum,
+  walletSelection: 'manual',
+})
+
+await selection.selectWallet({ walletId: selection.wallets[0].id })
+// or:
+await selection.createAndSelectWallet({ reference: 'main' })
 ```
 
 ---
@@ -252,14 +268,14 @@ completeOidcRedirectAuth(params: {
   callbackUrl: string
   cleanUrl?: boolean
   replaceUrl?: (url: string) => void
-  autoActivate?: boolean
+  walletSelection?: 'automatic' | 'manual'
 }): Promise<
   | { walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }
-  | { wallets: OmsWallet[]; credential: WalletCredential }
+  | PendingWalletSelection
 >
 ```
 
-Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime, and activating an existing wallet or creating one. Pass `autoActivate: false` to return `{ wallets, credential }` for app-driven wallet selection. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
+Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime, and activating an existing wallet or creating one. Pass `walletSelection: 'manual'` to return a [`PendingWalletSelection`](#pendingwalletselection) for app-driven wallet selection. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
 
 ```typescript
 const { walletAddress, credential } = await oms.wallet.completeOidcRedirectAuth({
@@ -277,14 +293,14 @@ signInWithOidcRedirect(params: {
   provider: string | OidcProviderConfig
   redirectUri?: string
   walletType?: WalletType
-  autoActivate?: boolean
+  walletSelection?: 'automatic' | 'manual'
   relayRedirectUri?: string
   authorizeParams?: Record<string, string>
   cleanUrl?: boolean
   currentUrl?: string
   assignUrl?: (url: string) => void
   replaceUrl?: (url: string) => void
-}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential } | { wallets: OmsWallet[]; credential: WalletCredential } | void>
+}): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential } | PendingWalletSelection | void>
 ```
 
 Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth and returns the same result as [`completeOidcRedirectAuth`](#completeoidcredirectauth). Otherwise it starts auth, redirects with `window.location.assign`, and returns `void`. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
@@ -319,7 +335,7 @@ await oms.wallet.signOut()
 listWallets(): Promise<OmsWallet[]>
 ```
 
-Returns all wallets available to the authenticated credential. This can be used after completing auth with `autoActivate: false` to show a wallet picker.
+Returns all wallets available to an authenticated active or pending wallet-selection session.
 
 ---
 
@@ -329,7 +345,7 @@ Returns all wallets available to the authenticated credential. This can be used 
 useWallet(params: { walletId: string }): Promise<{ walletAddress: Address; wallet: OmsWallet }>
 ```
 
-Activates an existing wallet by server-side wallet id and persists it as the current wallet session.
+Activates an existing wallet by server-side wallet id and persists it as the current wallet session. Manual auth flows should prefer [`PendingWalletSelection.selectWallet`](#pendingwalletselection).
 
 ---
 
@@ -339,7 +355,7 @@ Activates an existing wallet by server-side wallet id and persists it as the cur
 createWallet(params?: { type?: WalletType; reference?: string }): Promise<{ walletAddress: Address; wallet: OmsWallet }>
 ```
 
-Creates a new wallet, activates it, and persists it as the current wallet session. `type` defaults to `WalletType.Ethereum`.
+Creates a new wallet, activates it, and persists it as the current wallet session. `type` defaults to `WalletType.Ethereum`. Manual auth flows should prefer [`PendingWalletSelection.createAndSelectWallet`](#pendingwalletselection), which uses the auth-requested wallet type automatically.
 
 ---
 
@@ -718,6 +734,9 @@ type OmsSdkErrorCode =
   | 'OMS_REQUEST_FAILED'
   | 'OMS_AUTH_COMMITMENT_CONSUMED'
   | 'OMS_SESSION_MISSING'
+  | 'OMS_WALLET_SELECTION_STALE'
+  | 'OMS_WALLET_SELECTION_UNAVAILABLE'
+  | 'OMS_WALLET_SELECTION_IN_FLIGHT'
   | 'OMS_TRANSACTION_STATUS_LOOKUP_FAILED'
   | 'OMS_VALIDATION_ERROR'
 ```
@@ -730,6 +749,7 @@ type OmsSdkErrorCode =
 | `OmsRequestError` | Network, fetch, or non-2xx HTTP failures. |
 | `OmsResponseError` | Invalid JSON or malformed API responses. |
 | `OmsTransactionError` | Transaction was submitted but status polling failed; includes `txnId`. |
+| `OmsWalletSelectionError` | Manual wallet selection is stale, invalid, or already processing an action. |
 | `OmsValidationError` | SDK-side validation failures before a request is sent. |
 
 Use `isOmsSdkError(err)` or `err instanceof OmsSdkError` to branch on structured error fields.
@@ -883,6 +903,33 @@ interface OmsWallet {
 ```
 
 Wallet metadata returned by auth and wallet listing APIs.
+
+---
+
+### PendingWalletSelection
+
+```typescript
+interface PendingWalletSelection {
+  walletType: WalletType
+  wallets: OmsWallet[]
+  credential: WalletCredential
+
+  selectWallet(params: { walletId: string }): Promise<WalletActivationResult>
+  createAndSelectWallet(params?: { reference?: string }): Promise<WalletActivationResult>
+}
+```
+
+Returned by manual email or OIDC auth completion. The selection is bound to the verified auth flow and signer that created it. It can be used once to select one of the returned `wallets` or to create and select a new wallet of `walletType`.
+
+---
+
+### WalletSelectionBehavior
+
+```typescript
+type WalletSelectionBehavior = 'automatic' | 'manual'
+```
+
+Controls whether auth completion immediately activates a wallet or returns a [`PendingWalletSelection`](#pendingwalletselection).
 
 ---
 

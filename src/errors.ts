@@ -4,6 +4,9 @@ export type OmsSdkErrorCode =
     | "OMS_REQUEST_FAILED"
     | "OMS_AUTH_COMMITMENT_CONSUMED"
     | "OMS_SESSION_MISSING"
+    | "OMS_WALLET_SELECTION_STALE"
+    | "OMS_WALLET_SELECTION_UNAVAILABLE"
+    | "OMS_WALLET_SELECTION_IN_FLIGHT"
     | "OMS_TRANSACTION_STATUS_LOOKUP_FAILED"
     | "OMS_VALIDATION_ERROR"
 
@@ -64,6 +67,18 @@ export class OmsTransactionError extends OmsSdkError {
     constructor(params: Omit<OmsSdkErrorParams, "code"> & { code?: OmsSdkErrorCode }) {
         super({code: params.code ?? "OMS_TRANSACTION_STATUS_LOOKUP_FAILED", ...params})
         this.name = "OmsTransactionError"
+    }
+}
+
+export class OmsWalletSelectionError extends OmsSdkError {
+    constructor(params: Omit<OmsSdkErrorParams, "code"> & {
+        code:
+            | "OMS_WALLET_SELECTION_STALE"
+            | "OMS_WALLET_SELECTION_UNAVAILABLE"
+            | "OMS_WALLET_SELECTION_IN_FLIGHT"
+    }) {
+        super(params)
+        this.name = "OmsWalletSelectionError"
     }
 }
 

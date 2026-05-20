@@ -45,13 +45,13 @@ export {
     OmsSdkError,
     OmsSessionError,
     OmsTransactionError,
+    OmsWalletSelectionError,
     OmsValidationError,
     isOmsSdkError,
     type OmsSdkErrorCode,
     type OmsSdkErrorParams,
 } from './errors.js'
 export type {
-    CompleteAuthWalletSelectionResult,
     CompleteEmailAuthParams,
     CompleteEmailAuthResult,
     CompleteOidcRedirectAuthParams,
@@ -63,12 +63,14 @@ export type {
     OmsWallet,
     OidcProviderInput,
     OidcProviderName,
+    PendingWalletSelection,
     SignMessageParams,
     SignInWithOidcRedirectParams,
     SignTypedDataParams,
     StartOidcRedirectAuthParams,
     StartOidcRedirectAuthResult,
     WalletActivationResult,
+    WalletSelectionBehavior,
 } from './clients/walletClient.js'
 export type {
     TokenContractInfo,

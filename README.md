@@ -74,7 +74,7 @@ pnpm dev:example
 ## Quick Start
 
 ```typescript
-import { Networks, OMSClient } from '@0xsequence/typescript-sdk'
+import { Networks, OMSClient, WalletType } from '@0xsequence/typescript-sdk'
 import { parseUnits } from 'viem'
 
 const oms = new OMSClient({
@@ -121,6 +121,22 @@ Email OTP is a two-step flow:
 1. **`startEmailAuth({ email })`** — clears any active session and sends a one-time code to the user's inbox.
 2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists. Returns `{ walletAddress, wallet, wallets, credential }`.
 
+Use manual wallet selection when the app needs to present wallet choices:
+
+```typescript
+const selection = await oms.wallet.completeEmailAuth({
+  code: '123456',
+  walletType: WalletType.Ethereum,
+  walletSelection: 'manual',
+})
+
+await selection.selectWallet({ walletId: selection.wallets[0].id })
+// or:
+await selection.createAndSelectWallet({ reference: 'main' })
+```
+
+The returned pending selection is bound to the verified auth flow and signer. Hold that object and complete selection through it instead of saving `{ wallets }` and later calling global wallet activation methods.
+
 ### OIDC Redirect Auth
 
 Google redirect auth is configured on the default environment. The redirect auth APIs are provider-neutral, so custom environments can add or replace providers.
@@ -148,6 +164,8 @@ const { walletAddress, wallet, wallets, credential } = await oms.wallet.complete
   cleanUrl: true,
 })
 ```
+
+OIDC redirect auth also supports manual wallet selection by passing `walletSelection: 'manual'` to `completeOidcRedirectAuth`.
 
 For simple browser apps, use the one-call convenience method from a sign-in action and from the callback page:
 
