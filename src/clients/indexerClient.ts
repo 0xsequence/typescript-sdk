@@ -3,6 +3,7 @@
 import {HttpClient} from "../httpClient.js";
 import {errorMessage, OmsRequestError, OmsResponseError} from "../errors.js";
 import type {Network} from "../networks.js";
+import {IndexerOperation} from "../operations.js";
 
 export interface TokenBalancesPage {
     page: number;
@@ -193,7 +194,7 @@ export class IndexerClient {
         const bodyString = JSON.stringify(request);
         const baseUrl = this.indexerUrl(params.network);
 
-        const response = await this.postJson<TokenBalancesPayloadRaw>("indexer.getTokenBalances", {
+        const response = await this.postJson<TokenBalancesPayloadRaw>(IndexerOperation.getTokenBalances, {
             baseUrl,
             path: "/GetTokenBalances",
             body: bodyString,
@@ -211,7 +212,7 @@ export class IndexerClient {
         network: Network
         walletAddress: string
     }): Promise<TokenBalance | undefined> {
-        const response = await this.postJson<NativeTokenBalancePayloadRaw>("indexer.getNativeTokenBalance", {
+        const response = await this.postJson<NativeTokenBalancePayloadRaw>(IndexerOperation.getNativeTokenBalance, {
             baseUrl: this.indexerUrl(params.network),
             path: "/GetNativeTokenBalance",
             body: JSON.stringify({ accountAddress: params.walletAddress }),
@@ -235,7 +236,7 @@ export class IndexerClient {
     }
 
     private async postJson<T>(
-        operation: string,
+        operation: IndexerOperation,
         args: Parameters<HttpClient["postJson"]>[0],
     ): Promise<{statusCode: number, payload: T}> {
         let response;
@@ -325,7 +326,7 @@ function mapTokenMetadata(raw: TokenMetadataRaw): TokenMetadata {
     };
 }
 
-function responseErrorMessage(payload: unknown, operation: string, status: number): string {
+function responseErrorMessage(payload: unknown, operation: IndexerOperation, status: number): string {
     if (payload && typeof payload === "object" && "message" in payload) {
         const message = (payload as {message?: unknown}).message;
         if (typeof message === "string" && message) {

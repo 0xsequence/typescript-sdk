@@ -74,7 +74,7 @@ pnpm dev:example
 ## Quick Start
 
 ```typescript
-import { Networks, OMSClient } from '@0xsequence/typescript-sdk'
+import { Networks, OMSClient, WalletType } from '@0xsequence/typescript-sdk'
 import { parseUnits } from 'viem'
 
 const oms = new OMSClient({
@@ -121,6 +121,22 @@ Email OTP is a two-step flow:
 1. **`startEmailAuth({ email })`** — clears any active session and sends a one-time code to the user's inbox.
 2. **`completeEmailAuth({ code })`** — verifies the code, then automatically loads an existing wallet or creates a new one if none exists. Returns `{ walletAddress, wallet, wallets, credential }`.
 
+Use manual wallet selection when the app needs to present wallet choices:
+
+```typescript
+const selection = await oms.wallet.completeEmailAuth({
+  code: '123456',
+  walletType: WalletType.Ethereum,
+  walletSelection: 'manual',
+})
+
+await selection.selectWallet({ walletId: selection.wallets[0].id })
+// or:
+await selection.createAndSelectWallet({ reference: 'main' })
+```
+
+The returned pending selection is bound to the verified auth flow and signer. Hold that object and complete selection through it instead of saving `{ wallets }` and later calling global wallet activation methods.
+
 ### OIDC Redirect Auth
 
 Google redirect auth is configured on the default environment. The redirect auth APIs are provider-neutral, so custom environments can add or replace providers.
@@ -149,6 +165,8 @@ const { walletAddress, wallet, wallets, credential } = await oms.wallet.complete
 })
 ```
 
+OIDC redirect auth also supports manual wallet selection by passing `walletSelection: 'manual'` to `completeOidcRedirectAuth`.
+
 For simple browser apps, use the one-call convenience method from a sign-in action and from the callback page:
 
 ```typescript
@@ -168,6 +186,8 @@ const walletAddress = oms.wallet.walletAddress
 const { expiresAt, loginType, sessionEmail } = oms.wallet.session
 ```
 
+Use `oms.wallet.getIdToken({ ttlSeconds, customClaims })` to request an ID token for the active wallet session.
+
 Pending email OTP and OIDC redirect state are not exposed through `session`; use the auth method results to drive pending UI.
 
 To end the session, call:
@@ -178,7 +198,7 @@ await oms.wallet.signOut()
 
 ## Networks
 
-The SDK exports `Networks`, `supportedNetworks`, `findNetworkById(id)`, and `findNetworkByName(name)` for the networks currently configured by OMS. Each network has `id`, `name`, `nativeTokenSymbol`, and `explorerUrl`.
+The SDK exports `Networks`, `supportedNetworks`, `findNetworkById(id)`, and `findNetworkByName(name)` for the networks currently configured by OMS. Each network has `id`, `name`, `nativeTokenSymbol`, `explorerUrl`, and `displayName`. `name` is the registry/routing slug, while `displayName` is the user-facing label.
 
 The `network` parameter on all transaction and signing methods accepts a `Network` from the SDK registry:
 
@@ -191,24 +211,24 @@ console.log(supportedNetworks)
 console.log(findNetworkById(80002)) // Networks.amoy
 ```
 
-| Key | id | name | native token | explorerUrl |
-|---|---:|---|---|---|
-| `Networks.mainnet` | 1 | `mainnet` | ETH | `https://etherscan.io` |
-| `Networks.sepolia` | 11155111 | `sepolia` | ETH | `https://sepolia.etherscan.io` |
-| `Networks.polygon` | 137 | `polygon` | POL | `https://polygonscan.com` |
-| `Networks.amoy` | 80002 | `amoy` | POL | `https://amoy.polygonscan.com` |
-| `Networks.arbitrum` | 42161 | `arbitrum` | ETH | `https://arbiscan.io` |
-| `Networks.arbitrumSepolia` | 421614 | `arbitrum-sepolia` | ETH | `https://sepolia.arbiscan.io` |
-| `Networks.optimism` | 10 | `optimism` | ETH | `https://optimistic.etherscan.io` |
-| `Networks.optimismSepolia` | 11155420 | `optimism-sepolia` | ETH | `https://sepolia-optimism.etherscan.io` |
-| `Networks.base` | 8453 | `base` | ETH | `https://basescan.org` |
-| `Networks.baseSepolia` | 84532 | `base-sepolia` | ETH | `https://sepolia.basescan.org` |
-| `Networks.bsc` | 56 | `bsc` | BNB | `https://bscscan.com` |
-| `Networks.bscTestnet` | 97 | `bsc-testnet` | BNB | `https://testnet.bscscan.com` |
-| `Networks.arbitrumNova` | 42170 | `arbitrum-nova` | ETH | `https://nova.arbiscan.io` |
-| `Networks.avalanche` | 43114 | `avalanche` | AVAX | `https://subnets.avax.network/c-chain` |
-| `Networks.avalancheTestnet` | 43113 | `avalanche-testnet` | AVAX | `https://subnets-test.avax.network/c-chain` |
-| `Networks.katana` | 747474 | `katana` | ETH | `https://katanascan.com` |
+| Key | id | name | display name | native token | explorerUrl |
+|---|---:|---|---|---|---|
+| `Networks.mainnet` | 1 | `mainnet` | Ethereum | ETH | `https://etherscan.io` |
+| `Networks.sepolia` | 11155111 | `sepolia` | Sepolia | ETH | `https://sepolia.etherscan.io` |
+| `Networks.polygon` | 137 | `polygon` | Polygon | POL | `https://polygonscan.com` |
+| `Networks.amoy` | 80002 | `amoy` | Polygon Amoy | POL | `https://amoy.polygonscan.com` |
+| `Networks.arbitrum` | 42161 | `arbitrum` | Arbitrum | ETH | `https://arbiscan.io` |
+| `Networks.arbitrumSepolia` | 421614 | `arbitrum-sepolia` | Arbitrum Sepolia | ETH | `https://sepolia.arbiscan.io` |
+| `Networks.optimism` | 10 | `optimism` | Optimism | ETH | `https://optimistic.etherscan.io` |
+| `Networks.optimismSepolia` | 11155420 | `optimism-sepolia` | Optimism Sepolia | ETH | `https://sepolia-optimism.etherscan.io` |
+| `Networks.base` | 8453 | `base` | Base | ETH | `https://basescan.org` |
+| `Networks.baseSepolia` | 84532 | `base-sepolia` | Base Sepolia | ETH | `https://sepolia.basescan.org` |
+| `Networks.bsc` | 56 | `bsc` | BSC | BNB | `https://bscscan.com` |
+| `Networks.bscTestnet` | 97 | `bsc-testnet` | BSC Testnet | BNB | `https://testnet.bscscan.com` |
+| `Networks.arbitrumNova` | 42170 | `arbitrum-nova` | Arbitrum Nova | ETH | `https://nova.arbiscan.io` |
+| `Networks.avalanche` | 43114 | `avalanche` | Avalanche | AVAX | `https://subnets.avax.network/c-chain` |
+| `Networks.avalancheTestnet` | 43113 | `avalanche-testnet` | Avalanche Testnet | AVAX | `https://subnets-test.avax.network/c-chain` |
+| `Networks.katana` | 747474 | `katana` | Katana | ETH | `https://katanascan.com` |
 
 ## Sending Transactions
 

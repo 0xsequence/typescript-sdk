@@ -33,13 +33,33 @@ describe("Networks", () => {
             name: "katana",
             nativeTokenSymbol: "ETH",
             explorerUrl: "https://katanascan.com",
+            displayName: "Katana",
         });
+        expect(supportedNetworks.map(network => network.displayName)).toEqual([
+            "Ethereum",
+            "Sepolia",
+            "Polygon",
+            "Polygon Amoy",
+            "Arbitrum",
+            "Arbitrum Sepolia",
+            "Optimism",
+            "Optimism Sepolia",
+            "Base",
+            "Base Sepolia",
+            "BSC",
+            "BSC Testnet",
+            "Arbitrum Nova",
+            "Avalanche",
+            "Avalanche Testnet",
+            "Katana",
+        ]);
     });
 
     it("looks up networks by id or name", () => {
         expect(findNetworkById(43113)).toBe(Networks.avalancheTestnet);
         expect(findNetworkById(421614)).toBe(Networks.arbitrumSepolia);
         expect(findNetworkByName("base-sepolia")).toBe(Networks.baseSepolia);
+        expect(findNetworkByName("Ethereum")).toBeUndefined();
     });
 
     it("is available from OMSClient", () => {

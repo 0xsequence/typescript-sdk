@@ -8,10 +8,13 @@ import {
   type FeeOptionWithBalance,
   type Network,
   type OMSClientSessionLoginType,
+  type OmsWallet,
+  type PendingWalletSelection,
+  type WalletActivationResult,
 } from '@0xsequence/typescript-sdk'
 import './styles.css'
 
-type Step = 'email' | 'code' | 'wallet'
+type Step = 'email' | 'code' | 'wallet-selection' | 'wallet'
 type FeeSelectionController = {
   resolve: (selection: FeeOptionSelection) => void
   reject: (error: Error) => void
@@ -21,6 +24,7 @@ const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
 const PUBLIC_API_KEY = requiredEnv('VITE_OMS_PUBLIC_API_KEY', import.meta.env.VITE_OMS_PUBLIC_API_KEY)
 const PROJECT_ID = requiredEnv('VITE_OMS_PROJECT_ID', import.meta.env.VITE_OMS_PROJECT_ID)
+const MANUAL_WALLET_SELECTION_KEY = 'oms-demo-manual-wallet-selection'
 
 function requiredEnv(name: string, value: string | undefined): string {
   if (!value) {
@@ -39,9 +43,12 @@ function App() {
   const [transactionValue, setTransactionValue] = useState('0')
   const [walletAddress, setWalletAddress] = useState('')
   const [lastSignature, setLastSignature] = useState('')
+  const [lastIdToken, setLastIdToken] = useState('')
   const [lastTransactionHash, setLastTransactionHash] = useState('')
   const [lastTransactionExplorerUrl, setLastTransactionExplorerUrl] = useState('')
   const [feeOptions, setFeeOptions] = useState<FeeOptionWithBalance[]>([])
+  const [useManualWalletSelection, setUseManualWalletSelection] = useState(readManualWalletSelectionPreference)
+  const [pendingWalletSelection, setPendingWalletSelection] = useState<PendingWalletSelection | null>(null)
   const [emailAuthStatus, setEmailAuthStatus] = useState('Enter an email to start.')
   const [redirectStatus, setRedirectStatus] = useState('')
   const [walletStatus, setWalletStatus] = useState('')
@@ -79,12 +86,17 @@ function App() {
     feeSelection.current = null
     setFeeOptions([])
     setLastSignature('')
+    setLastIdToken('')
     setLastTransactionHash('')
     setLastTransactionExplorerUrl('')
     if (step === 'wallet') {
       setWalletStatus('')
     }
   }, [selectedNetworkId, step])
+
+  useEffect(() => {
+    window.sessionStorage.setItem(MANUAL_WALLET_SELECTION_KEY, useManualWalletSelection ? 'true' : 'false')
+  }, [useManualWalletSelection])
 
   async function run(
     label: string,
@@ -105,6 +117,7 @@ function App() {
   async function startEmailAuth() {
     if (!email.trim()) return
     await run('Sending code...', setEmailAuthStatus, async () => {
+      setPendingWalletSelection(null)
       await oms.wallet.startEmailAuth({ email: email.trim() })
       setStep('code')
       setEmailAuthStatus('Code sent. Check your email.')
@@ -114,25 +127,83 @@ function App() {
   async function completeEmailAuth() {
     if (!code.trim()) return
     await run('Completing sign-in...', setEmailAuthStatus, async () => {
-      const result = await oms.wallet.completeEmailAuth({ code: code.trim() })
-      setWalletAddress(result.walletAddress)
-      setStep('wallet')
-      setWalletStatus('Wallet ready.')
+      const result = await oms.wallet.completeEmailAuth({
+        code: code.trim(),
+        walletSelection: useManualWalletSelection ? 'manual' : 'automatic',
+      })
+      handleAuthCompletion(result, 'Email login complete.')
     })
   }
 
   async function startOidcRedirect() {
     await run('Redirecting to provider...', setRedirectStatus, async () => {
+      window.sessionStorage.setItem(MANUAL_WALLET_SELECTION_KEY, useManualWalletSelection ? 'true' : 'false')
+      setPendingWalletSelection(null)
       await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
     })
   }
 
   async function completeOidcRedirect() {
     await run('Completing redirect sign-in...', setRedirectStatus, async () => {
-      const result = await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
-      setWalletAddress(result?.walletAddress ?? oms.wallet.walletAddress ?? '')
-      setStep('wallet')
-      setWalletStatus('Wallet ready.')
+      const result = await oms.wallet.signInWithOidcRedirect({
+        provider: 'google',
+        walletSelection: readManualWalletSelectionPreference() ? 'manual' : 'automatic',
+      })
+      if (result) {
+        handleAuthCompletion(result, 'Google login complete.')
+        return
+      }
+
+      const restoredAddress = oms.wallet.walletAddress ?? ''
+      setWalletAddress(restoredAddress)
+      setStep(restoredAddress ? 'wallet' : 'email')
+      setWalletStatus(restoredAddress ? 'Wallet ready.' : '')
+    })
+  }
+
+  function handleAuthCompletion(
+    result: PendingWalletSelection | WalletActivationResult,
+    status: string,
+  ) {
+    if (isPendingWalletSelection(result)) {
+      setPendingWalletSelection(result)
+      setStep('wallet-selection')
+      setEmailAuthStatus('')
+      setRedirectStatus('')
+      return
+    }
+
+    setPendingWalletSelection(null)
+    setLastIdToken('')
+    setWalletAddress(result.walletAddress)
+    setStep('wallet')
+    setWalletStatus(status)
+  }
+
+  async function selectPendingWallet(wallet: OmsWallet) {
+    if (!pendingWalletSelection) return
+    await run('Selecting wallet...', setEmailAuthStatus, async () => {
+      const result = await pendingWalletSelection.selectWallet({ walletId: wallet.id })
+      handleAuthCompletion(result, 'Wallet selected.')
+    })
+  }
+
+  async function createPendingWallet() {
+    if (!pendingWalletSelection) return
+    await run('Creating wallet...', setEmailAuthStatus, async () => {
+      const result = await pendingWalletSelection.createAndSelectWallet({ reference: 'main' })
+      handleAuthCompletion(result, 'Wallet created.')
+    })
+  }
+
+  async function cancelPendingWalletSelection() {
+    await run('Cancelling wallet selection...', setEmailAuthStatus, async () => {
+      await oms.wallet.signOut()
+      setPendingWalletSelection(null)
+      setWalletAddress('')
+      setCode('')
+      setStep('email')
+      setEmailAuthStatus('Enter an email to start.')
     })
   }
 
@@ -168,6 +239,14 @@ function App() {
     })
   }
 
+  async function getIdToken() {
+    await run('Getting ID token...', setWalletStatus, async () => {
+      const idToken = await oms.wallet.getIdToken()
+      setLastIdToken(idToken)
+      setWalletStatus('ID token issued.')
+    })
+  }
+
   function waitForFeeOptionSelection(options: FeeOptionWithBalance[]): Promise<FeeOptionSelection> {
     setFeeOptions(options)
     setWalletStatus('Choose a fee token to continue.')
@@ -193,8 +272,10 @@ function App() {
     await run('Signing out...', setWalletStatus, async () => {
       await oms.wallet.signOut()
       setCode('')
+      setPendingWalletSelection(null)
       setWalletAddress('')
       setLastSignature('')
+      setLastIdToken('')
       setLastTransactionHash('')
       setLastTransactionExplorerUrl('')
       setFeeOptions([])
@@ -211,6 +292,17 @@ function App() {
         <header>
           <p className="eyebrow">OMS Client Typescript SDK</p>
           <h1>Wallet Demo</h1>
+          {step === 'email' && (
+            <label className="checkbox-row header-option">
+              <input
+                type="checkbox"
+                checked={useManualWalletSelection}
+                onChange={(event) => setUseManualWalletSelection(event.target.checked)}
+                disabled={isBusy}
+              />
+              <span>Use manual wallet selection</span>
+            </label>
+          )}
         </header>
 
         {step === 'email' && (
@@ -218,6 +310,7 @@ function App() {
             event.preventDefault()
             void startEmailAuth()
           }}>
+            <h2 className="section-title">Login Options</h2>
             <div className="field-stack">
               <button
                 type="button"
@@ -280,6 +373,55 @@ function App() {
           </form>
         )}
 
+        {step === 'wallet-selection' && pendingWalletSelection && (
+          <div className="stack">
+            <section className="tool wallet-selection">
+              <div className="tool-header">
+                <h2>Choose wallet</h2>
+                <span className="metadata-pill">{formatWalletType(pendingWalletSelection.walletType)}</span>
+              </div>
+              <h3>Existing wallets</h3>
+              {pendingWalletSelection.wallets.length > 0 ? (
+                <div className="wallet-option-list">
+                  {pendingWalletSelection.wallets.map(wallet => (
+                    <button
+                      key={wallet.id}
+                      type="button"
+                      className="wallet-option"
+                      onClick={() => void selectPendingWallet(wallet)}
+                      disabled={isBusy}
+                    >
+                      <span>
+                        <strong>{wallet.reference ?? `${formatWalletType(wallet.type)} wallet`}</strong>
+                        <small>{wallet.id}</small>
+                      </span>
+                      <code>{wallet.address}</code>
+                      <span className="wallet-option-action">Use wallet</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="field-hint">No existing {formatWalletType(pendingWalletSelection.walletType)} wallets.</p>
+              )}
+
+              <h3>Create new wallet</h3>
+              <button type="button" onClick={() => void createPendingWallet()} disabled={isBusy}>
+                Create wallet
+              </button>
+
+              <button
+                type="button"
+                className="secondary subtle"
+                onClick={() => void cancelPendingWalletSelection()}
+                disabled={isBusy}
+              >
+                Cancel
+              </button>
+            </section>
+            {emailAuthStatus && <output>{emailAuthStatus}</output>}
+          </div>
+        )}
+
         {step === 'wallet' && (
           <div className="stack">
             <div className="wallet">
@@ -315,7 +457,7 @@ function App() {
               >
                 {supportedNetworks.map(network => (
                   <option key={network.id} value={network.id}>
-                    {networkLabel(network)}
+                    {network.displayName} ({network.id})
                   </option>
                 ))}
               </select>
@@ -396,6 +538,16 @@ function App() {
               )}
             </section>
 
+            <details className="tool collapsible-tool">
+              <summary>Other operations</summary>
+              <div className="collapsible-content">
+                <button type="button" onClick={getIdToken} disabled={isBusy}>
+                  Get ID token
+                </button>
+                {lastIdToken && <code className="result">{lastIdToken}</code>}
+              </div>
+            </details>
+
             <button type="button" className="secondary" onClick={signOut} disabled={isBusy}>
               Sign out
             </button>
@@ -418,14 +570,6 @@ function transactionExplorerUrl(network: Network, txnHash: string): string {
   return `${network.explorerUrl.replace(/\/+$/, '')}/tx/${txnHash}`
 }
 
-function networkLabel(network: Network): string {
-  const label = network.name
-    .split('-')
-    .map(part => part.toUpperCase() === 'BSC' ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1))
-    .join(' ')
-  return `${label} (${network.id})`
-}
-
 function formatLoginType(loginType: OMSClientSessionLoginType | undefined): string {
   switch (loginType) {
     case 'email':
@@ -444,4 +588,21 @@ function formatSessionExpiry(expiresAt: string | undefined): string {
 
   const date = new Date(expiresAt)
   return Number.isNaN(date.getTime()) ? expiresAt : date.toLocaleString()
+}
+
+function formatWalletType(walletType: string): string {
+  return walletType
+    .split(/[-_]/)
+    .map(part => part ? part[0].toUpperCase() + part.slice(1) : part)
+    .join(' ')
+}
+
+function isPendingWalletSelection(
+  result: PendingWalletSelection | WalletActivationResult,
+): result is PendingWalletSelection {
+  return 'selectWallet' in result
+}
+
+function readManualWalletSelectionPreference(): boolean {
+  return window.sessionStorage.getItem(MANUAL_WALLET_SELECTION_KEY) === 'true'
 }

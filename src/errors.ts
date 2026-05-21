@@ -1,9 +1,14 @@
+import type {OmsSdkOperation} from "./operations.js";
+
 export type OmsSdkErrorCode =
     | "OMS_HTTP_ERROR"
     | "OMS_INVALID_RESPONSE"
     | "OMS_REQUEST_FAILED"
     | "OMS_AUTH_COMMITMENT_CONSUMED"
     | "OMS_SESSION_MISSING"
+    | "OMS_WALLET_SELECTION_STALE"
+    | "OMS_WALLET_SELECTION_UNAVAILABLE"
+    | "OMS_WALLET_SELECTION_IN_FLIGHT"
     | "OMS_TRANSACTION_STATUS_LOOKUP_FAILED"
     | "OMS_VALIDATION_ERROR"
 
@@ -67,6 +72,18 @@ export class OmsTransactionError extends OmsSdkError {
     }
 }
 
+export class OmsWalletSelectionError extends OmsSdkError {
+    constructor(params: Omit<OmsSdkErrorParams, "code"> & {
+        code:
+            | "OMS_WALLET_SELECTION_STALE"
+            | "OMS_WALLET_SELECTION_UNAVAILABLE"
+            | "OMS_WALLET_SELECTION_IN_FLIGHT"
+    }) {
+        super(params)
+        this.name = "OmsWalletSelectionError"
+    }
+}
+
 export class OmsValidationError extends OmsSdkError {
     constructor(params: Omit<OmsSdkErrorParams, "code"> & { code?: OmsSdkErrorCode }) {
         super({code: params.code ?? "OMS_VALIDATION_ERROR", ...params})
@@ -78,7 +95,7 @@ export function isOmsSdkError(error: unknown): error is OmsSdkError {
     return error instanceof OmsSdkError
 }
 
-export function toOmsSdkError(error: unknown, operation: string): OmsSdkError {
+export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSdkError {
     if (isOmsSdkError(error)) {
         return error
     }

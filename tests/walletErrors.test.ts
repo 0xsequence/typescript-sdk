@@ -90,6 +90,7 @@ describe("WalletClient errors", () => {
             storage: new MemoryStorageManager(),
             credentialSigner: new MockSigner(),
         });
+        seedEmailAuthAttempt(wallet);
 
         await expect(wallet.completeEmailAuth({code: "123456"})).rejects.toMatchObject({
             code: "OMS_AUTH_COMMITMENT_CONSUMED",
@@ -97,8 +98,20 @@ describe("WalletClient errors", () => {
             status: 400,
             retryable: false,
         });
+        expect(activeEmailAuthAttempt(wallet)).toBeUndefined();
     });
 });
+
+function seedEmailAuthAttempt(wallet: WalletClient): void {
+    (wallet as any).activeEmailAuthAttempt = {
+        verifier: "verifier-1",
+        challenge: "challenge-1",
+    };
+}
+
+function activeEmailAuthAttempt(wallet: WalletClient): unknown {
+    return (wallet as any).activeEmailAuthAttempt;
+}
 
 function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {

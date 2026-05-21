@@ -6,6 +6,7 @@ import {
     findNetworkByName,
     supportedNetworks,
     type Network,
+    type GetIdTokenParams,
     type OMSClientSessionLoginType,
     type OMSClientSessionState,
     type TokenBalance,
@@ -50,8 +51,11 @@ if (false) {
     });
 
     void (async () => {
-        const manualAuth = await wallet.completeEmailAuth({code: "123456", autoActivate: false});
+        const manualAuth = await wallet.completeEmailAuth({code: "123456", walletSelection: "manual"});
+        void manualAuth.walletType;
         void manualAuth.wallets;
+        void manualAuth.selectWallet({walletId: manualAuth.wallets[0].id});
+        void manualAuth.createAndSelectWallet({reference: "main"});
         // @ts-expect-error manual auth does not activate a wallet.
         void manualAuth.walletAddress;
 
@@ -74,8 +78,11 @@ new OMSClient({projectAccessKey: "public-api-key", projectId: "project-id"});
 // @ts-expect-error old authorizationScope initializer name is not supported.
 new OMSClient({publicApiKey: "public-api-key", authorizationScope: "project-id"});
 const session: OMSClientSessionState = defaultClient.wallet.session;
+const idTokenParams: GetIdTokenParams = {ttlSeconds: 300, customClaims: {role: "admin"}};
+const idToken: Promise<string> = defaultClient.wallet.getIdToken(idTokenParams);
 const loginType: OMSClientSessionLoginType | undefined = defaultClient.wallet.session.loginType;
 const polygonNetwork: Network = Networks.polygon;
+const polygonDisplayName: string = Networks.polygon.displayName;
 const amoyNetwork: Network | undefined = findNetworkById(80002);
 const baseNetwork: Network | undefined = findNetworkByName("base");
 const allNetworks: readonly Network[] = supportedNetworks;

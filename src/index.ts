@@ -7,8 +7,6 @@ export {
     type OmsEnvironment,
 } from './omsEnvironment.js'
 export {
-    defaultGoogleClientId,
-    defaultRelayRedirectUri,
     googleOidcProvider,
     type GoogleOidcProviderParams,
 } from './oidc.js'
@@ -35,7 +33,6 @@ export {
 export {
     TransactionMode,
     TransactionStatus,
-    SigningAlgorithm,
     WalletType,
     type TransactionStatusResponse,
 } from './generated/waas.gen.js'
@@ -45,17 +42,17 @@ export {
     OmsSdkError,
     OmsSessionError,
     OmsTransactionError,
+    OmsWalletSelectionError,
     OmsValidationError,
     isOmsSdkError,
     type OmsSdkErrorCode,
-    type OmsSdkErrorParams,
 } from './errors.js'
 export type {
-    CompleteAuthWalletSelectionResult,
     CompleteEmailAuthParams,
     CompleteEmailAuthResult,
     CompleteOidcRedirectAuthParams,
     CompleteOidcRedirectAuthResult,
+    GetIdTokenParams,
     IsValidMessageSignatureParams,
     IsValidTypedDataSignatureParams,
     OMSClientSessionLoginType,
@@ -63,12 +60,14 @@ export type {
     OmsWallet,
     OidcProviderInput,
     OidcProviderName,
+    PendingWalletSelection,
     SignMessageParams,
     SignInWithOidcRedirectParams,
     SignTypedDataParams,
     StartOidcRedirectAuthParams,
     StartOidcRedirectAuthResult,
     WalletActivationResult,
+    WalletSelectionBehavior,
 } from './clients/walletClient.js'
 export type {
     TokenContractInfo,

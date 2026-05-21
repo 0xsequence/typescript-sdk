@@ -10,7 +10,11 @@ import {createDefaultStorage, SessionStorageManager, StorageManager} from "../st
 import {createSignedFetch} from "../signedFetch.js";
 import {Constants} from "../utils/constants.js";
 import {RequestUtils} from "../utils/requestUtils.js";
-import {CredentialSigner, WebCryptoP256CredentialSigner} from "../credentialSigner.js";
+import {
+    CredentialSigner,
+    type CredentialSigningAlgorithm,
+    WebCryptoP256CredentialSigner,
+} from "../credentialSigner.js";
 import {
     buildOidcAuthorizationUrl,
     cleanOidcCallbackUrl,
@@ -20,7 +24,7 @@ import {
     parseOidcCallbackUrl,
     redirectUriFromCurrentUrl,
 } from "../utils/oidcRedirect.js";
-import {OmsSessionError, OmsTransactionError, toOmsSdkError} from "../errors.js";
+import {OmsSessionError, OmsTransactionError, OmsWalletSelectionError, toOmsSdkError} from "../errors.js";
 
 import {
     Wallet as Walletclient,
@@ -40,6 +44,7 @@ import {
     RevokeAccessRequest,
     SignMessageRequest,
     SignTypedDataRequest,
+    GetIDTokenRequest,
     IsValidMessageSignatureRequest,
     IsValidTypedDataSignatureRequest,
     PrepareEthereumTransactionRequest,
@@ -71,6 +76,7 @@ import {
     WalletCredential,
 } from "../types/accessGrant.js";
 import {IndexerClient, TokenBalance} from "./indexerClient.js";
+import {WalletOperation} from "../operations.js";
 
 export type OidcProviderName<Env extends OmsEnvironment = OmsEnvironment> =
     keyof NonNullable<NonNullable<Env['auth']>['oidcProviders']> & string;
@@ -96,17 +102,21 @@ export interface CompleteOidcRedirectAuthParams {
     callbackUrl: string;
     cleanUrl?: boolean;
     replaceUrl?: (url: string) => void;
-    autoActivate?: boolean;
+    walletSelection?: WalletSelectionBehavior;
 }
 
 export interface CompleteEmailAuthParams {
     code: string;
     walletType?: WalletType;
-    autoActivate?: boolean;
+    walletSelection?: WalletSelectionBehavior;
 }
 
-type AutoActivateParams<T extends {autoActivate?: boolean}> = Omit<T, "autoActivate"> & {autoActivate?: true}
-type ManualActivateParams<T extends {autoActivate?: boolean}> = Omit<T, "autoActivate"> & {autoActivate: false}
+export type WalletSelectionBehavior = "automatic" | "manual";
+
+type AutomaticWalletSelectionParams<T extends {walletSelection?: WalletSelectionBehavior}> =
+    Omit<T, "walletSelection"> & {walletSelection?: "automatic"}
+type ManualWalletSelectionParams<T extends {walletSelection?: WalletSelectionBehavior}> =
+    Omit<T, "walletSelection"> & {walletSelection: "manual"}
 
 export interface OmsWallet {
     id: string;
@@ -134,9 +144,13 @@ export interface CompleteOidcRedirectAuthResult {
     credential: WalletCredential;
 }
 
-export interface CompleteAuthWalletSelectionResult {
+export interface PendingWalletSelection {
+    walletType: WalletType;
     wallets: Array<OmsWallet>;
     credential: WalletCredential;
+
+    selectWallet(params: {walletId: string}): Promise<WalletActivationResult>;
+    createAndSelectWallet(params?: {reference?: string}): Promise<WalletActivationResult>;
 }
 
 export type OMSClientSessionLoginType = 'email' | 'google-auth' | 'oidc';
@@ -156,6 +170,11 @@ export interface SignMessageParams {
 export interface SignTypedDataParams {
     network: Network
     typedData: any
+}
+
+export interface GetIdTokenParams {
+    ttlSeconds?: number
+    customClaims?: Record<string, unknown>
 }
 
 export interface IsValidMessageSignatureParams {
@@ -178,7 +197,7 @@ export interface SignInWithOidcRedirectParams<Env extends OmsEnvironment = OmsEn
     provider: OidcProviderInput<Env>;
     redirectUri?: string;
     walletType?: WalletType;
-    autoActivate?: boolean;
+    walletSelection?: WalletSelectionBehavior;
     relayRedirectUri?: string;
     authorizeParams?: Record<string, string>;
     cleanUrl?: boolean;
@@ -192,6 +211,8 @@ interface PendingOidcRedirectAuth {
     nonce: string;
     provider: string | null;
     walletType: WalletType;
+    signerCredentialId: string;
+    signerKeyType: CredentialSigningAlgorithm;
     redirectUri: string;
     issuer: string;
     projectId: string;
@@ -206,6 +227,87 @@ interface WalletSessionMetadata {
     expiresAt: string;
     loginType?: OMSClientSessionLoginType;
     sessionEmail?: string;
+}
+
+interface ActivePendingWalletSelection {
+    id: string;
+    signerCredentialId: string;
+    signerKeyType: CredentialSigningAlgorithm;
+    walletType: WalletType;
+    metadata: WalletSessionMetadata;
+}
+
+interface ActiveWalletActivationContext {
+    walletId: string;
+    metadata?: WalletSessionMetadata;
+}
+
+interface EmailAuthCompletionParams {
+    code: string;
+    walletType: WalletType;
+    walletSelection: WalletSelectionBehavior;
+}
+
+interface ActiveEmailAuthAttempt {
+    verifier: string;
+    challenge: string;
+    completion?: {
+        params: EmailAuthCompletionParams;
+        promise: Promise<CompleteEmailAuthResult | PendingWalletSelection>;
+    };
+}
+
+class PendingWalletSelectionImpl implements PendingWalletSelection {
+    private readonly availableWalletIds: Set<string>;
+    private inFlight = false;
+
+    constructor(
+        public readonly walletType: WalletType,
+        public readonly wallets: Array<OmsWallet>,
+        public readonly credential: WalletCredential,
+        private readonly selectWalletAction: (walletId: string) => Promise<WalletActivationResult>,
+        private readonly createAndSelectWalletAction: (reference?: string) => Promise<WalletActivationResult>,
+    ) {
+        this.availableWalletIds = new Set(wallets.map(wallet => wallet.id));
+    }
+
+    async selectWallet(params: {walletId: string}): Promise<WalletActivationResult> {
+        return this.runExclusive(WalletOperation.pendingWalletSelectionSelectWallet, async () => {
+            if (!this.availableWalletIds.has(params.walletId)) {
+                throw new OmsWalletSelectionError({
+                    code: "OMS_WALLET_SELECTION_UNAVAILABLE",
+                    operation: WalletOperation.pendingWalletSelectionSelectWallet,
+                    message: "Selected wallet is not one of the available options",
+                });
+            }
+            return this.selectWalletAction(params.walletId);
+        });
+    }
+
+    async createAndSelectWallet(params: {reference?: string} = {}): Promise<WalletActivationResult> {
+        return this.runExclusive(WalletOperation.pendingWalletSelectionCreateAndSelectWallet, () =>
+            this.createAndSelectWalletAction(params.reference),
+        );
+    }
+
+    private async runExclusive<T>(operation: WalletOperation, action: () => Promise<T>): Promise<T> {
+        if (this.inFlight) {
+            throw new OmsWalletSelectionError({
+                code: "OMS_WALLET_SELECTION_IN_FLIGHT",
+                operation,
+                message: "Pending wallet selection already has an action in flight",
+            });
+        }
+
+        this.inFlight = true;
+        try {
+            return await action();
+        } catch (error) {
+            throw toOmsSdkError(error, operation);
+        } finally {
+            this.inFlight = false;
+        }
+    }
 }
 
 export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
@@ -227,11 +329,11 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     private sessionExpiresAt: string | undefined
     private sessionLoginType: OMSClientSessionLoginType | undefined
     private sessionEmail: string | undefined
-    private pendingSessionMetadata: WalletSessionMetadata | undefined
+    private activePendingWalletSelection: ActivePendingWalletSelection | undefined
+    private activeEmailAuthAttempt: ActiveEmailAuthAttempt | undefined
+    private nextPendingWalletSelectionId = 1
 
     private walletId: string
-    private verifier = ''
-    private challenge = ''
 
     constructor(params: {
         publicApiKey: string,
@@ -303,7 +405,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     async startEmailAuth(params: {
         email: string
     }): Promise<void> {
-        return this.runOperation("wallet.startEmailAuth", async () => {
+        return this.runOperation(WalletOperation.startEmailAuth, async () => {
             await this.clearSession()
             const request: CommitVerifierRequest = {
                 identityType: IdentityType.Email,
@@ -312,8 +414,10 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 handle: params.email,
             }
             const response = await this.client.commitVerifier(request)
-            this.verifier  = response.verifier
-            this.challenge = response.challenge
+            this.activeEmailAuthAttempt = {
+                verifier: response.verifier,
+                challenge: response.challenge,
+            }
         })
     }
 
@@ -324,23 +428,42 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
      * existing wallet or creates a new one and returns the wallet address plus
      * the credential added by WaaS.
      */
-    async completeEmailAuth(params: ManualActivateParams<CompleteEmailAuthParams>): Promise<CompleteAuthWalletSelectionResult>
-    async completeEmailAuth(params: AutoActivateParams<CompleteEmailAuthParams>): Promise<CompleteEmailAuthResult>
-    async completeEmailAuth(params: CompleteEmailAuthParams): Promise<CompleteEmailAuthResult | CompleteAuthWalletSelectionResult>
-    async completeEmailAuth(params: CompleteEmailAuthParams): Promise<CompleteEmailAuthResult | CompleteAuthWalletSelectionResult> {
-        return this.runOperation("wallet.completeEmailAuth", async () => {
-            const walletType = params.walletType ?? WalletType.Ethereum;
-            const answer = await RequestUtils.hashEmailAuthAnswer(this.challenge, params.code);
-
-            const request: CompleteAuthRequest = {
-                identityType: IdentityType.Email,
-                authMode: AuthMode.OTP,
-                verifier: this.verifier,
-                answer,
-                lifetime: DEFAULT_SESSION_LIFETIME_SECONDS,
+    async completeEmailAuth(params: ManualWalletSelectionParams<CompleteEmailAuthParams>): Promise<PendingWalletSelection>
+    async completeEmailAuth(params: AutomaticWalletSelectionParams<CompleteEmailAuthParams>): Promise<CompleteEmailAuthResult>
+    async completeEmailAuth(params: CompleteEmailAuthParams): Promise<CompleteEmailAuthResult | PendingWalletSelection>
+    async completeEmailAuth(params: CompleteEmailAuthParams): Promise<CompleteEmailAuthResult | PendingWalletSelection> {
+        return this.runOperation(WalletOperation.completeEmailAuth, async () => {
+            const completionParams: EmailAuthCompletionParams = {
+                code: params.code,
+                walletType: params.walletType ?? WalletType.Ethereum,
+                walletSelection: params.walletSelection ?? "automatic",
             }
-            const response = await this.client.completeAuth(request)
-            return this.completeWalletAuth(response, walletType, params.autoActivate ?? true)
+            const attempt = this.currentEmailAuthAttempt(WalletOperation.completeEmailAuth)
+            const completion = attempt.completion
+            if (completion) {
+                if (!sameEmailAuthCompletionParams(completion.params, completionParams)) {
+                    throw new OmsSessionError({
+                        operation: WalletOperation.completeEmailAuth,
+                        message: "Email auth completion is already in flight",
+                    })
+                }
+                return completion.promise
+            }
+
+            let promise: Promise<CompleteEmailAuthResult | PendingWalletSelection>
+            promise = this.completeEmailAuthAttempt(attempt, completionParams).catch(error => {
+                const sdkError = toOmsSdkError(error, WalletOperation.completeEmailAuth)
+                if (this.activeEmailAuthAttempt === attempt && attempt.completion?.promise === promise) {
+                    if (sdkError.code === "OMS_AUTH_COMMITMENT_CONSUMED") {
+                        this.activeEmailAuthAttempt = undefined
+                    } else {
+                        attempt.completion = undefined
+                    }
+                }
+                throw sdkError
+            })
+            attempt.completion = {params: completionParams, promise}
+            return promise
         })
     }
 
@@ -353,7 +476,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     async startOidcRedirectAuth(
         params: StartOidcRedirectAuthParams<Env>,
     ): Promise<StartOidcRedirectAuthResult> {
-        return this.runOperation("wallet.startOidcRedirectAuth", async () => {
+        return this.runOperation(WalletOperation.startOidcRedirectAuth, async () => {
             await this.clearSession()
             const redirectAuthStorage = this.requireRedirectAuthStorage()
             const provider = this.resolveOidcProvider(params.provider)
@@ -369,6 +492,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 },
             }
             const response = await this.client.commitVerifier(request)
+            const signerCredentialId = await this.credentialSigner.credentialId()
             const nonce = generateOidcNonce()
             const state = encodeOidcState({
                 nonce,
@@ -381,6 +505,8 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 nonce,
                 provider: provider.name,
                 walletType: params.walletType ?? WalletType.Ethereum,
+                signerCredentialId,
+                signerKeyType: this.credentialSigner.signingAlgorithm,
                 redirectUri: params.redirectUri,
                 issuer: provider.config.issuer,
                 projectId: this.projectId,
@@ -416,18 +542,18 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
      * WaaS auth, and activates an existing wallet or creates a new one.
      */
     async completeOidcRedirectAuth(
-        params: ManualActivateParams<CompleteOidcRedirectAuthParams>,
-    ): Promise<CompleteAuthWalletSelectionResult>
+        params: ManualWalletSelectionParams<CompleteOidcRedirectAuthParams>,
+    ): Promise<PendingWalletSelection>
     async completeOidcRedirectAuth(
-        params: AutoActivateParams<CompleteOidcRedirectAuthParams>,
+        params: AutomaticWalletSelectionParams<CompleteOidcRedirectAuthParams>,
     ): Promise<CompleteOidcRedirectAuthResult>
     async completeOidcRedirectAuth(
         params: CompleteOidcRedirectAuthParams,
-    ): Promise<CompleteOidcRedirectAuthResult | CompleteAuthWalletSelectionResult>
+    ): Promise<CompleteOidcRedirectAuthResult | PendingWalletSelection>
     async completeOidcRedirectAuth(
         params: CompleteOidcRedirectAuthParams,
-    ): Promise<CompleteOidcRedirectAuthResult | CompleteAuthWalletSelectionResult> {
-        return this.runOperation("wallet.completeOidcRedirectAuth", async () => {
+    ): Promise<CompleteOidcRedirectAuthResult | PendingWalletSelection> {
+        return this.runOperation(WalletOperation.completeOidcRedirectAuth, async () => {
             const redirectAuthStorage = this.requireRedirectAuthStorage()
 
             try {
@@ -445,6 +571,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
 
                 const pending = this.loadPendingOidcRedirectAuth(redirectAuthStorage)
                 this.validateOidcState(callback.state, pending)
+                await this.validatePendingOidcRedirectSigner(pending, WalletOperation.completeOidcRedirectAuth)
 
                 const request: CompleteAuthRequest = {
                     identityType: IdentityType.OIDC,
@@ -454,9 +581,9 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                     lifetime: DEFAULT_SESSION_LIFETIME_SECONDS,
                 }
                 const response = await this.client.completeAuth(request)
-                const result = await this.completeWalletAuth(response, pending.walletType, params.autoActivate ?? true)
+                const result = await this.completeWalletAuth(response, pending.walletType, params.walletSelection ?? "automatic")
 
-                if ((params.autoActivate ?? true) && !this.walletAddress) {
+                if ((params.walletSelection ?? "automatic") === "automatic" && !this.walletAddress) {
                     throw new Error('OIDC auth completed without an active wallet')
                 }
 
@@ -473,11 +600,11 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
      * If the current URL contains an OIDC callback, it completes auth. Otherwise it
      * starts auth and redirects to the provider.
      */
-    async signInWithOidcRedirect(params: ManualActivateParams<SignInWithOidcRedirectParams<Env>>): Promise<CompleteAuthWalletSelectionResult | void>
-    async signInWithOidcRedirect(params: AutoActivateParams<SignInWithOidcRedirectParams<Env>>): Promise<CompleteOidcRedirectAuthResult | void>
-    async signInWithOidcRedirect(params: SignInWithOidcRedirectParams<Env>): Promise<CompleteOidcRedirectAuthResult | CompleteAuthWalletSelectionResult | void>
-    async signInWithOidcRedirect(params: SignInWithOidcRedirectParams<Env>): Promise<CompleteOidcRedirectAuthResult | CompleteAuthWalletSelectionResult | void> {
-        return this.runOperation("wallet.signInWithOidcRedirect", async () => {
+    async signInWithOidcRedirect(params: ManualWalletSelectionParams<SignInWithOidcRedirectParams<Env>>): Promise<PendingWalletSelection | void>
+    async signInWithOidcRedirect(params: AutomaticWalletSelectionParams<SignInWithOidcRedirectParams<Env>>): Promise<CompleteOidcRedirectAuthResult | void>
+    async signInWithOidcRedirect(params: SignInWithOidcRedirectParams<Env>): Promise<CompleteOidcRedirectAuthResult | PendingWalletSelection | void>
+    async signInWithOidcRedirect(params: SignInWithOidcRedirectParams<Env>): Promise<CompleteOidcRedirectAuthResult | PendingWalletSelection | void> {
+        return this.runOperation(WalletOperation.signInWithOidcRedirect, async () => {
             const currentUrl = params.currentUrl ?? this.browserCurrentUrl()
             const callback = parseOidcCallbackUrl(currentUrl)
             if (callback.code || callback.state || callback.error) {
@@ -485,7 +612,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                     callbackUrl: currentUrl,
                     cleanUrl: params.cleanUrl ?? true,
                     replaceUrl: params.replaceUrl,
-                    autoActivate: params.autoActivate,
+                    walletSelection: params.walletSelection,
                 })
             }
 
@@ -503,27 +630,45 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     }
 
     async signOut(): Promise<void> {
-        return this.runOperation("wallet.signOut", () => this.clearSession())
+        return this.runOperation(WalletOperation.signOut, () => this.clearSession())
     }
 
     async listWallets(): Promise<Array<OmsWallet>> {
-        return this.runOperation("wallet.listWallets", () => this.listAllWallets())
+        return this.runOperation(WalletOperation.listWallets, async () => {
+            await this.requireWalletSelectionOrActiveSession(WalletOperation.listWallets)
+            return this.listAllWallets()
+        })
     }
 
     async useWallet(params: {walletId: string}): Promise<WalletActivationResult> {
-        return this.runOperation("wallet.useWallet", () =>
-            this.useWalletUnchecked(params.walletId, this.sessionMetadataForActivation()),
-        )
+        return this.runOperation(WalletOperation.useWallet, async () => {
+            const context = await this.activeWalletActivationContext(WalletOperation.useWallet)
+            const wallet = await this.requestUseWallet(params.walletId)
+            await this.requireActiveWalletActivationContextStillActive(context, WalletOperation.useWallet)
+            return this.activateWallet(wallet, context.metadata)
+        })
     }
 
     async createWallet(params: {type?: WalletType; reference?: string} = {}): Promise<WalletActivationResult> {
-        return this.runOperation("wallet.createWallet", () =>
-            this.createWalletUnchecked(
-                params.type ?? WalletType.Ethereum,
-                this.sessionMetadataForActivation(),
-                params.reference,
-            ),
-        )
+        return this.runOperation(WalletOperation.createWallet, async () => {
+            const context = await this.activeWalletActivationContext(WalletOperation.createWallet)
+            const wallet = await this.requestCreateWallet(params.type ?? WalletType.Ethereum, params.reference)
+            await this.requireActiveWalletActivationContextStillActive(context, WalletOperation.createWallet)
+            return this.activateWallet(wallet, context.metadata)
+        })
+    }
+
+    async getIdToken(params: GetIdTokenParams = {}): Promise<string> {
+        return this.runOperation(WalletOperation.getIdToken, async () => {
+            await this.requireActiveSession(WalletOperation.getIdToken)
+            const request: GetIDTokenRequest = {
+                walletId: this.walletId,
+                ttlSeconds: params.ttlSeconds,
+                customClaims: params.customClaims,
+            }
+            const response = await this.client.getIDToken(request)
+            return response.idToken
+        })
     }
 
     private async clearSession(): Promise<void> {
@@ -537,16 +682,15 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         this.sessionExpiresAt = undefined
         this.sessionLoginType = undefined
         this.sessionEmail = undefined
-        this.pendingSessionMetadata = undefined
-        this.verifier = ''
-        this.challenge = ''
+        this.activePendingWalletSelection = undefined
+        this.activeEmailAuthAttempt = undefined
         this.redirectAuthStorage?.delete(Constants.redirectAuthStorageKey)
         await this.credentialSigner.clear?.()
     }
 
     async signMessage(params: SignMessageParams): Promise<string> {
-        return this.runOperation("wallet.signMessage", async () => {
-            await this.requireActiveSession("wallet.signMessage")
+        return this.runOperation(WalletOperation.signMessage, async () => {
+            await this.requireActiveSession(WalletOperation.signMessage)
             const request: SignMessageRequest = {
                 network: params.network.id.toString(),
                 walletId: this.walletId,
@@ -558,8 +702,8 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     }
 
     async signTypedData(params: SignTypedDataParams): Promise<string> {
-        return this.runOperation("wallet.signTypedData", async () => {
-            await this.requireActiveSession("wallet.signTypedData")
+        return this.runOperation(WalletOperation.signTypedData, async () => {
+            await this.requireActiveSession(WalletOperation.signTypedData)
             const request: SignTypedDataRequest = {
                 network: params.network.id.toString(),
                 walletId: this.walletId,
@@ -571,7 +715,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     }
 
     async isValidMessageSignature(params: IsValidMessageSignatureParams): Promise<boolean> {
-        return this.runOperation("wallet.isValidMessageSignature", async () => {
+        return this.runOperation(WalletOperation.isValidMessageSignature, async () => {
             const request: IsValidMessageSignatureRequest = {
                 network: params.network?.id.toString(),
                 walletAddress: params.walletAddress,
@@ -585,7 +729,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     }
 
     async isValidTypedDataSignature(params: IsValidTypedDataSignatureParams): Promise<boolean> {
-        return this.runOperation("wallet.isValidTypedDataSignature", async () => {
+        return this.runOperation(WalletOperation.isValidTypedDataSignature, async () => {
             const request: IsValidTypedDataSignatureRequest = {
                 network: params.network?.id.toString(),
                 walletAddress: params.walletAddress,
@@ -605,8 +749,8 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         functionName extends ContractFunctionName<abi> | undefined = ContractFunctionName<abi>,
     >(params: SendContractTransactionParams<abi, functionName>): Promise<SendTransactionResponse>
     async sendTransaction(params: SendTransactionParams): Promise<SendTransactionResponse> {
-        return this.runOperation("wallet.sendTransaction", async () => {
-            await this.requireActiveSession("wallet.sendTransaction")
+        return this.runOperation(WalletOperation.sendTransaction, async () => {
+            await this.requireActiveSession(WalletOperation.sendTransaction)
             const data =
                 'abi' in params
                     ? encodeFunctionData(params as EncodeFunctionDataParameters)
@@ -642,8 +786,8 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         waitForStatus?: boolean
         statusPolling?: TransactionStatusPollingOptions
     }): Promise<SendTransactionResponse> {
-        return this.runOperation("wallet.callContract", async () => {
-            await this.requireActiveSession("wallet.callContract")
+        return this.runOperation(WalletOperation.callContract, async () => {
+            await this.requireActiveSession(WalletOperation.callContract)
             const request: PrepareEthereumContractCallRequest = {
                 network: params.network.id.toString(),
                 walletId: this.walletId,
@@ -667,15 +811,15 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     async getTransactionStatus(params: {
         txnId: string
     }): Promise<TransactionStatusResponse> {
-        return this.runOperation("wallet.getTransactionStatus", () =>
+        return this.runOperation(WalletOperation.getTransactionStatus, () =>
             this.client.transactionStatus({txnId: params.txnId} as TransactionStatusRequest),
         )
     }
 
     async listAccess(params: ListAccessParams = {}): Promise<AccessGrant[]> {
-        return this.runOperation("wallet.listAccess", async () => {
+        return this.runOperation(WalletOperation.listAccess, async () => {
             const grants: AccessGrant[] = []
-            for await (const page of this.listAccessPagesUnchecked(params, "wallet.listAccess")) {
+            for await (const page of this.listAccessPagesUnchecked(params, WalletOperation.listAccess)) {
                 grants.push(...page.grants)
             }
             return grants
@@ -684,17 +828,17 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
 
     async *listAccessPages(params: ListAccessParams = {}): AsyncIterable<AccessGrantPage> {
         try {
-            yield* this.listAccessPagesUnchecked(params, "wallet.listAccessPages")
+            yield* this.listAccessPagesUnchecked(params, WalletOperation.listAccessPages)
         } catch (error) {
-            throw toOmsSdkError(error, "wallet.listAccessPages")
+            throw toOmsSdkError(error, WalletOperation.listAccessPages)
         }
     }
 
     async revokeAccess(params: {
         targetCredentialId: string
     }): Promise<void> {
-        return this.runOperation("wallet.revokeAccess", async () => {
-            await this.requireActiveSession("wallet.revokeAccess")
+        return this.runOperation(WalletOperation.revokeAccess, async () => {
+            await this.requireActiveSession(WalletOperation.revokeAccess)
             const request: RevokeAccessRequest = {
                 targetCredentialId: params.targetCredentialId,
                 walletId: this.walletId
@@ -710,17 +854,13 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
      * The wallet ID and address are persisted to storage so the session can be
      * restored when the configured credential signer is also available.
      */
-    private async createWalletUnchecked(
+    private async requestCreateWallet(
         type: WalletType,
-        metadata?: WalletSessionMetadata,
         reference?: string,
-    ): Promise<WalletActivationResult> {
+    ): Promise<OmsWallet> {
         const params: CreateWalletRequest = { type, reference }
         const response = await this.client.createWallet(params)
-        this.persistSession(response.wallet.id, response.wallet.address, metadata)
-        this.pendingSessionMetadata = undefined
-        const wallet = this.toOmsWallet(response.wallet)
-        return {walletAddress: wallet.address, wallet}
+        return this.toOmsWallet(response.wallet)
     }
 
     /**
@@ -728,33 +868,57 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
      *
      * The wallet ID and address are persisted to storage.
      */
-    private async useWalletUnchecked(walletId: string, metadata?: WalletSessionMetadata): Promise<WalletActivationResult> {
+    private async requestUseWallet(walletId: string): Promise<OmsWallet> {
         const params: UseWalletRequest = { walletId }
         const response = await this.client.useWallet(params)
-        this.persistSession(response.wallet.id, response.wallet.address, metadata)
-        this.pendingSessionMetadata = undefined
-        const wallet = this.toOmsWallet(response.wallet)
+        return this.toOmsWallet(response.wallet)
+    }
+
+    private activateWallet(wallet: OmsWallet, metadata?: WalletSessionMetadata): WalletActivationResult {
+        this.persistSession(wallet.id, wallet.address, metadata)
+        this.activePendingWalletSelection = undefined
         return {walletAddress: wallet.address, wallet}
     }
 
     private async completeWalletAuth(
         response: CompleteAuthResponse,
         walletType: WalletType,
-        autoActivate: boolean,
-    ): Promise<CompleteEmailAuthResult | CompleteAuthWalletSelectionResult> {
+        walletSelection: WalletSelectionBehavior,
+        emailAuthAttempt?: ActiveEmailAuthAttempt,
+    ): Promise<CompleteEmailAuthResult | PendingWalletSelection> {
+        this.activePendingWalletSelection = undefined
+
         const metadata = this.sessionMetadataFromAuthResponse(response)
         const wallets = await this.listAllWalletsFromAuthResponse(response)
         const credential = this.toWalletCredential(response.credential)
-
-        if (!autoActivate) {
-            this.pendingSessionMetadata = metadata
-            return {wallets, credential}
+        const candidateWallets = wallets.filter(wallet => wallet.type === walletType)
+        const operation = WalletOperation.completeEmailAuth
+        const requireCurrentEmailAuth = () => {
+            if (emailAuthAttempt) {
+                this.requireActiveEmailAuthAttempt(emailAuthAttempt, operation)
+            }
         }
 
-        const wallet = wallets.find(candidate => candidate.type === walletType)
-        const activated = wallet
-            ? await this.useWalletUnchecked(wallet.id, metadata)
-            : await this.createWalletUnchecked(walletType, metadata)
+        requireCurrentEmailAuth()
+
+        if (walletSelection === "manual") {
+            const selection = await this.createPendingWalletSelection({
+                walletType,
+                wallets: candidateWallets,
+                credential,
+                metadata,
+            }, requireCurrentEmailAuth)
+            this.clearEmailAuthAttempt(emailAuthAttempt)
+            return selection
+        }
+
+        const wallet = candidateWallets[0]
+        const selectedWallet = wallet
+            ? await this.requestUseWallet(wallet.id)
+            : await this.requestCreateWallet(walletType)
+        requireCurrentEmailAuth()
+        const activated = this.activateWallet(selectedWallet, metadata)
+        this.clearEmailAuthAttempt(emailAuthAttempt)
         const resultWallets = wallet ? wallets : [...wallets, activated.wallet]
 
         return {
@@ -765,9 +929,29 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         }
     }
 
+    private async completeEmailAuthAttempt(
+        attempt: ActiveEmailAuthAttempt,
+        params: EmailAuthCompletionParams,
+    ): Promise<CompleteEmailAuthResult | PendingWalletSelection> {
+        this.requireActiveEmailAuthAttempt(attempt, WalletOperation.completeEmailAuth)
+        const answer = await RequestUtils.hashEmailAuthAnswer(attempt.challenge, params.code)
+        this.requireActiveEmailAuthAttempt(attempt, WalletOperation.completeEmailAuth)
+
+        const request: CompleteAuthRequest = {
+            identityType: IdentityType.Email,
+            authMode: AuthMode.OTP,
+            verifier: attempt.verifier,
+            answer,
+            lifetime: DEFAULT_SESSION_LIFETIME_SECONDS,
+        }
+        const response = await this.client.completeAuth(request)
+        this.requireActiveEmailAuthAttempt(attempt, WalletOperation.completeEmailAuth)
+        return this.completeWalletAuth(response, params.walletType, params.walletSelection, attempt)
+    }
+
     private async *listAccessPagesUnchecked(
         params: ListAccessParams,
-        operation: string,
+        operation: WalletOperation,
     ): AsyncIterable<AccessGrantPage> {
         await this.requireActiveSession(operation)
 
@@ -854,17 +1038,153 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         this.setOptionalStorageValue(Constants.sessionEmailStorageKey, this.sessionEmail)
     }
 
-    private sessionMetadataForActivation(): WalletSessionMetadata | undefined {
-        if (this.pendingSessionMetadata) {
-            return this.pendingSessionMetadata
-        }
-        if (!this.sessionExpiresAt) {
-            return undefined
-        }
+    private currentSessionMetadata(): WalletSessionMetadata | undefined {
+        if (!this.sessionExpiresAt) return undefined
         return {
             expiresAt: this.sessionExpiresAt,
             loginType: this.sessionLoginType,
             sessionEmail: this.sessionEmail,
+        }
+    }
+
+    private async activeWalletActivationContext(operation: WalletOperation): Promise<ActiveWalletActivationContext> {
+        await this.requireActiveSession(operation)
+        return {
+            walletId: this.walletId,
+            metadata: this.currentSessionMetadata(),
+        }
+    }
+
+    private async requireActiveWalletActivationContextStillActive(
+        context: ActiveWalletActivationContext,
+        operation: WalletOperation,
+    ): Promise<void> {
+        await this.requireActiveSession(operation)
+        if (this.walletId !== context.walletId) {
+            throw new OmsSessionError({
+                operation,
+                message: "Active wallet session changed",
+            })
+        }
+    }
+
+    private async requireWalletSelectionOrActiveSession(operation: WalletOperation): Promise<void> {
+        if (this.activePendingWalletSelection) {
+            await this.requireActivePendingWalletSelection(this.activePendingWalletSelection, operation)
+            return
+        }
+
+        if (this.walletId) {
+            await this.requireActiveSession(operation)
+            return
+        }
+
+        throw new OmsSessionError({
+            operation,
+            message: 'No authenticated wallet session',
+        })
+    }
+
+    private currentEmailAuthAttempt(operation: WalletOperation): ActiveEmailAuthAttempt {
+        if (!this.activeEmailAuthAttempt) {
+            throw new OmsSessionError({
+                operation,
+                message: "No pending email auth attempt",
+            })
+        }
+
+        return this.activeEmailAuthAttempt
+    }
+
+    private requireActiveEmailAuthAttempt(
+        attempt: ActiveEmailAuthAttempt,
+        operation: WalletOperation,
+    ): void {
+        if (this.activeEmailAuthAttempt !== attempt) {
+            throw new OmsSessionError({
+                operation,
+                message: "Email auth attempt is no longer active",
+            })
+        }
+    }
+
+    private clearEmailAuthAttempt(attempt: ActiveEmailAuthAttempt | undefined): void {
+        if (attempt && this.activeEmailAuthAttempt === attempt) {
+            this.activeEmailAuthAttempt = undefined
+        }
+    }
+
+    private async createPendingWalletSelection(params: {
+        walletType: WalletType;
+        wallets: Array<OmsWallet>;
+        credential: WalletCredential;
+        metadata: WalletSessionMetadata;
+    }, beforeCommit?: () => void): Promise<PendingWalletSelection> {
+        const signerCredentialId = await this.credentialSigner.credentialId()
+        beforeCommit?.()
+        const selectionSession: ActivePendingWalletSelection = {
+            id: `pending-${this.nextPendingWalletSelectionId++}`,
+            signerCredentialId,
+            signerKeyType: this.credentialSigner.signingAlgorithm,
+            walletType: params.walletType,
+            metadata: params.metadata,
+        }
+        this.activePendingWalletSelection = selectionSession
+
+        const wallets = params.wallets.map(wallet => ({...wallet}))
+        const credential = {...params.credential}
+
+        return new PendingWalletSelectionImpl(
+            params.walletType,
+            wallets,
+            credential,
+            async walletId => {
+                const operation = WalletOperation.pendingWalletSelectionSelectWallet
+                await this.requireActivePendingWalletSelection(selectionSession, operation)
+                const wallet = await this.requestUseWallet(walletId)
+                await this.requireActivePendingWalletSelection(selectionSession, operation)
+                return this.activateWallet(wallet, selectionSession.metadata)
+            },
+            async reference => {
+                const operation = WalletOperation.pendingWalletSelectionCreateAndSelectWallet
+                await this.requireActivePendingWalletSelection(selectionSession, operation)
+                const wallet = await this.requestCreateWallet(selectionSession.walletType, reference)
+                await this.requireActivePendingWalletSelection(selectionSession, operation)
+                return this.activateWallet(wallet, selectionSession.metadata)
+            },
+        )
+    }
+
+    private async requireActivePendingWalletSelection(
+        selectionSession: ActivePendingWalletSelection,
+        operation: WalletOperation,
+    ): Promise<void> {
+        if (this.activePendingWalletSelection?.id !== selectionSession.id) {
+            throw new OmsWalletSelectionError({
+                code: "OMS_WALLET_SELECTION_STALE",
+                operation,
+                message: "Pending wallet selection is no longer active",
+            })
+        }
+
+        if (this.credentialSigner.hasCredential && !(await this.credentialSigner.hasCredential())) {
+            this.activePendingWalletSelection = undefined
+            throw new OmsSessionError({
+                operation,
+                message: 'No active credential',
+            })
+        }
+
+        const signerCredentialId = await this.credentialSigner.credentialId()
+        if (
+            normalizeCredentialId(signerCredentialId) !== normalizeCredentialId(selectionSession.signerCredentialId) ||
+            this.credentialSigner.signingAlgorithm !== selectionSession.signerKeyType
+        ) {
+            throw new OmsWalletSelectionError({
+                code: "OMS_WALLET_SELECTION_STALE",
+                operation,
+                message: "Pending wallet selection is no longer active",
+            })
         }
     }
 
@@ -937,6 +1257,8 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             if (
                 typeof parsed.verifier !== 'string' ||
                 typeof parsed.nonce !== 'string' ||
+                typeof parsed.signerCredentialId !== 'string' ||
+                typeof parsed.signerKeyType !== 'string' ||
                 typeof parsed.redirectUri !== 'string' ||
                 typeof parsed.issuer !== 'string' ||
                 typeof parsed.projectId !== 'string'
@@ -949,6 +1271,8 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 nonce: parsed.nonce,
                 provider: typeof parsed.provider === 'string' ? parsed.provider : null,
                 walletType: isWalletType(parsed.walletType) ? parsed.walletType : WalletType.Ethereum,
+                signerCredentialId: parsed.signerCredentialId,
+                signerKeyType: parsed.signerKeyType as CredentialSigningAlgorithm,
                 redirectUri: parsed.redirectUri,
                 issuer: parsed.issuer,
                 projectId: parsed.projectId,
@@ -968,6 +1292,29 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         }
         if (state.redirect_uri !== undefined && state.redirect_uri !== pending.redirectUri) {
             throw new Error('OIDC state redirect_uri mismatch')
+        }
+    }
+
+    private async validatePendingOidcRedirectSigner(
+        pending: PendingOidcRedirectAuth,
+        operation: WalletOperation,
+    ): Promise<void> {
+        if (this.credentialSigner.hasCredential && !(await this.credentialSigner.hasCredential())) {
+            throw new OmsSessionError({
+                operation,
+                message: 'No active credential',
+            })
+        }
+
+        const signerCredentialId = await this.credentialSigner.credentialId()
+        if (
+            normalizeCredentialId(signerCredentialId) !== normalizeCredentialId(pending.signerCredentialId) ||
+            this.credentialSigner.signingAlgorithm !== pending.signerKeyType
+        ) {
+            throw new OmsSessionError({
+                operation,
+                message: 'OIDC redirect auth signer mismatch',
+            })
         }
     }
 
@@ -1034,7 +1381,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             )
         } catch (error) {
             throw new OmsTransactionError({
-                operation: "wallet.transactionStatus",
+                operation: WalletOperation.transactionStatus,
                 txnId: params.prepared.txnId,
                 retryable: true,
                 cause: error,
@@ -1188,7 +1535,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             : options.intervalMs ?? this.transactionStatusPollIntervalMs
     }
 
-    private async requireActiveSession(operation: string): Promise<void> {
+    private async requireActiveSession(operation: WalletOperation): Promise<void> {
         if (!this.walletId) {
             throw new OmsSessionError({
                 operation,
@@ -1242,7 +1589,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         return new Promise(resolve => setTimeout(resolve, ms))
     }
 
-    private async runOperation<T>(operation: string, action: () => Promise<T>): Promise<T> {
+    private async runOperation<T>(operation: WalletOperation, action: () => Promise<T>): Promise<T> {
         try {
             return await action()
         } catch (error) {
@@ -1271,6 +1618,19 @@ function createAccessKeyFetch(publicApiKey: string): Fetch {
 
 function isWalletType(value: unknown): value is WalletType {
     return typeof value === 'string' && Object.values(WalletType).includes(value as WalletType)
+}
+
+function sameEmailAuthCompletionParams(
+    left: EmailAuthCompletionParams,
+    right: EmailAuthCompletionParams,
+): boolean {
+    return left.code === right.code &&
+        left.walletType === right.walletType &&
+        left.walletSelection === right.walletSelection
+}
+
+function normalizeCredentialId(value: string): string {
+    return value.trim().toLowerCase()
 }
 
 function parseSessionLoginType(value: string | null): OMSClientSessionLoginType | undefined {
