@@ -1079,6 +1079,58 @@ describe("WalletClient session storage", () => {
         });
     });
 
+    it("can switch to an existing wallet from an active session", async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = JSON.parse(init?.body as string);
+
+            if (url.endsWith("/UseWallet")) {
+                expect(body).toEqual({walletId: "wallet-2"});
+                return jsonResponse({wallet: testWallet("wallet-2", WalletType.Ethereum, "22")});
+            }
+
+            if (url.endsWith("/SignMessage")) {
+                expect(body).toEqual({
+                    network: Networks.polygon.id.toString(),
+                    walletId: "wallet-2",
+                    message: "hello",
+                });
+                return jsonResponse({signature: "0xsigned"});
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const storage = new MemoryStorageManager();
+        const wallet = new WalletClient({
+            publicApiKey: "public-api-key",
+            projectId: "project-id",
+            environment: testEnvironment(),
+            storage,
+            credentialSigner: new MockSigner(),
+        });
+        (wallet as any).persistSession("wallet-1", "0x1111111111111111111111111111111111111111", {
+            expiresAt: "2026-01-01T00:00:00Z",
+            loginType: "email",
+            sessionEmail: "user@example.com",
+        });
+
+        const result = await wallet.useWallet({walletId: "wallet-2"});
+
+        expect(result).toEqual({
+            walletAddress: "0x2222222222222222222222222222222222222222",
+            wallet: testWallet("wallet-2", WalletType.Ethereum, "22"),
+        });
+        expect(wallet.walletAddress).toBe("0x2222222222222222222222222222222222222222");
+        expect(storage.get(Constants.walletIdStorageKey)).toBe("wallet-2");
+        expect(storage.get(Constants.walletAddressStorageKey)).toBe("0x2222222222222222222222222222222222222222");
+        expect(requestCount(fetchMock, "/UseWallet")).toBe(1);
+
+        await expect(wallet.signMessage({network: Networks.polygon, message: "hello"})).resolves.toBe("0xsigned");
+        expect(requestCount(fetchMock, "/SignMessage")).toBe(1);
+    });
+
     it("can explicitly create and activate a new wallet from an active session", async () => {
         const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
             const url = input.toString();
