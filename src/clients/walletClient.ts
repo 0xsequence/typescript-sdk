@@ -44,6 +44,7 @@ import {
     RevokeAccessRequest,
     SignMessageRequest,
     SignTypedDataRequest,
+    GetIDTokenRequest,
     IsValidMessageSignatureRequest,
     IsValidTypedDataSignatureRequest,
     PrepareEthereumTransactionRequest,
@@ -169,6 +170,11 @@ export interface SignMessageParams {
 export interface SignTypedDataParams {
     network: Network
     typedData: any
+}
+
+export interface GetIdTokenParams {
+    ttlSeconds?: number
+    customClaims?: Record<string, unknown>
 }
 
 export interface IsValidMessageSignatureParams {
@@ -649,6 +655,19 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             const wallet = await this.requestCreateWallet(params.type ?? WalletType.Ethereum, params.reference)
             await this.requireActiveWalletActivationContextStillActive(context, WalletOperation.createWallet)
             return this.activateWallet(wallet, context.metadata)
+        })
+    }
+
+    async getIdToken(params: GetIdTokenParams = {}): Promise<string> {
+        return this.runOperation(WalletOperation.getIdToken, async () => {
+            await this.requireActiveSession(WalletOperation.getIdToken)
+            const request: GetIDTokenRequest = {
+                walletId: this.walletId,
+                ttlSeconds: params.ttlSeconds,
+                customClaims: params.customClaims,
+            }
+            const response = await this.client.getIDToken(request)
+            return response.idToken
         })
     }
 

@@ -43,6 +43,7 @@ function App() {
   const [transactionValue, setTransactionValue] = useState('0')
   const [walletAddress, setWalletAddress] = useState('')
   const [lastSignature, setLastSignature] = useState('')
+  const [lastIdToken, setLastIdToken] = useState('')
   const [lastTransactionHash, setLastTransactionHash] = useState('')
   const [lastTransactionExplorerUrl, setLastTransactionExplorerUrl] = useState('')
   const [feeOptions, setFeeOptions] = useState<FeeOptionWithBalance[]>([])
@@ -85,6 +86,7 @@ function App() {
     feeSelection.current = null
     setFeeOptions([])
     setLastSignature('')
+    setLastIdToken('')
     setLastTransactionHash('')
     setLastTransactionExplorerUrl('')
     if (step === 'wallet') {
@@ -172,6 +174,7 @@ function App() {
     }
 
     setPendingWalletSelection(null)
+    setLastIdToken('')
     setWalletAddress(result.walletAddress)
     setStep('wallet')
     setWalletStatus(status)
@@ -236,6 +239,17 @@ function App() {
     })
   }
 
+  async function getIdToken() {
+    await run('Getting ID token...', setWalletStatus, async () => {
+      const idToken = await oms.wallet.getIdToken({
+        ttlSeconds: 300,
+        customClaims: { demo: true },
+      })
+      setLastIdToken(idToken)
+      setWalletStatus('ID token issued.')
+    })
+  }
+
   function waitForFeeOptionSelection(options: FeeOptionWithBalance[]): Promise<FeeOptionSelection> {
     setFeeOptions(options)
     setWalletStatus('Choose a fee token to continue.')
@@ -264,6 +278,7 @@ function App() {
       setPendingWalletSelection(null)
       setWalletAddress('')
       setLastSignature('')
+      setLastIdToken('')
       setLastTransactionHash('')
       setLastTransactionExplorerUrl('')
       setFeeOptions([])
@@ -525,6 +540,16 @@ function App() {
                 </div>
               )}
             </section>
+
+            <details className="tool collapsible-tool">
+              <summary>Other operations</summary>
+              <div className="collapsible-content">
+                <button type="button" onClick={getIdToken} disabled={isBusy}>
+                  Get ID token
+                </button>
+                {lastIdToken && <code className="result">{lastIdToken}</code>}
+              </div>
+            </details>
 
             <button type="button" className="secondary" onClick={signOut} disabled={isBusy}>
               Sign out

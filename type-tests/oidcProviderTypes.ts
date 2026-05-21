@@ -6,6 +6,7 @@ import {
     findNetworkByName,
     supportedNetworks,
     type Network,
+    type GetIdTokenParams,
     type OMSClientSessionLoginType,
     type OMSClientSessionState,
     type TokenBalance,
@@ -77,6 +78,8 @@ new OMSClient({projectAccessKey: "public-api-key", projectId: "project-id"});
 // @ts-expect-error old authorizationScope initializer name is not supported.
 new OMSClient({publicApiKey: "public-api-key", authorizationScope: "project-id"});
 const session: OMSClientSessionState = defaultClient.wallet.session;
+const idTokenParams: GetIdTokenParams = {ttlSeconds: 300, customClaims: {role: "admin"}};
+const idToken: Promise<string> = defaultClient.wallet.getIdToken(idTokenParams);
 const loginType: OMSClientSessionLoginType | undefined = defaultClient.wallet.session.loginType;
 const polygonNetwork: Network = Networks.polygon;
 const amoyNetwork: Network | undefined = findNetworkById(80002);

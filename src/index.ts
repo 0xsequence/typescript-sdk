@@ -52,6 +52,7 @@ export type {
     CompleteEmailAuthResult,
     CompleteOidcRedirectAuthParams,
     CompleteOidcRedirectAuthResult,
+    GetIdTokenParams,
     IsValidMessageSignatureParams,
     IsValidTypedDataSignatureParams,
     OMSClientSessionLoginType,

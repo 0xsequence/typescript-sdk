@@ -186,6 +186,8 @@ const walletAddress = oms.wallet.walletAddress
 const { expiresAt, loginType, sessionEmail } = oms.wallet.session
 ```
 
+Use `oms.wallet.getIdToken({ ttlSeconds, customClaims })` to request an ID token for the active wallet session.
+
 Pending email OTP and OIDC redirect state are not exposed through `session`; use the auth method results to drive pending UI.
 
 To end the session, call:

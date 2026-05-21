@@ -204,6 +204,32 @@ button:disabled {
   line-height: 1.25;
 }
 
+.collapsible-tool {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.collapsible-tool summary {
+  min-height: 52px;
+  padding: 16px;
+  color: #1f2937;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.collapsible-tool summary::marker {
+  color: #667085;
+}
+
+.collapsible-content {
+  display: grid;
+  gap: 12px;
+  padding: 0 16px 16px;
+}
+
 .network-tool {
   gap: 8px;
 }

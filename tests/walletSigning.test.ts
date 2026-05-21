@@ -31,6 +31,37 @@ afterEach(() => {
 });
 
 describe("WalletClient signing", () => {
+    it("gets an ID token for the active wallet session", async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = JSON.parse(init?.body as string);
+            const headers = init?.headers as Record<string, string>;
+
+            expect(headers["X-Access-Key"]).toBe("public-api-key");
+            expect(headers["OMS-Wallet-Signature"]).toContain('alg="ecdsa-p256-sha256"');
+            expect(headers.Authorization).toBeUndefined();
+
+            if (url.endsWith("/GetIDToken")) {
+                expect(body).toEqual({
+                    walletId: "wallet-id",
+                    ttlSeconds: 300,
+                    customClaims: {role: "admin"},
+                });
+                return jsonResponse({idToken: "jwt-token"});
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = createWalletWithSession("0x1111111111111111111111111111111111111111");
+
+        await expect(wallet.getIdToken({
+            ttlSeconds: 300,
+            customClaims: {role: "admin"},
+        })).resolves.toBe("jwt-token");
+    });
+
     it("signs typed data through the generated wallet client", async () => {
         const typedData = {
             domain: {name: "Test", chainId: 137n},

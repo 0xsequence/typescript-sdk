@@ -17,6 +17,7 @@
   - [listWallets](#listwallets)
   - [useWallet](#usewallet)
   - [createWallet](#createwallet)
+  - [getIdToken](#getidtoken)
   - [signMessage](#signmessage)
   - [signTypedData](#signtypeddata)
   - [isValidMessageSignature](#isvalidmessagesignature)
@@ -356,6 +357,28 @@ createWallet(params?: { type?: WalletType; reference?: string }): Promise<{ wall
 ```
 
 Creates a new wallet, activates it, and persists it as the current wallet session. Requires an active wallet session. `type` defaults to `WalletType.Ethereum`. Pending manual auth flows must use [`PendingWalletSelection.createAndSelectWallet`](#pendingwalletselection), which uses the auth-requested wallet type automatically.
+
+---
+
+### getIdToken
+
+```typescript
+getIdToken(params?: {
+  ttlSeconds?: number
+  customClaims?: Record<string, unknown>
+}): Promise<string>
+```
+
+Requests an ID token for the active wallet session. The SDK uses the active wallet id automatically.
+
+**Parameters**
+
+| Name | Type | Description |
+|---|---|---|
+| `ttlSeconds` | `number` | Optional token lifetime in seconds. |
+| `customClaims` | `Record<string, unknown>` | Optional custom claims to include in the token. |
+
+**Returns** `Promise<string>` — the issued ID token.
 
 ---
 

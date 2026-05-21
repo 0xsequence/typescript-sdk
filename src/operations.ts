@@ -10,6 +10,7 @@ export const WalletOperation = {
     listWallets: "wallet.listWallets",
     useWallet: "wallet.useWallet",
     createWallet: "wallet.createWallet",
+    getIdToken: "wallet.getIdToken",
     signMessage: "wallet.signMessage",
     signTypedData: "wallet.signTypedData",
     isValidMessageSignature: "wallet.isValidMessageSignature",
