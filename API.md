@@ -345,7 +345,7 @@ Returns all wallets available to an authenticated active or pending wallet-selec
 useWallet(params: { walletId: string }): Promise<{ walletAddress: Address; wallet: OmsWallet }>
 ```
 
-Activates an existing wallet by server-side wallet id and persists it as the current wallet session. Manual auth flows should prefer [`PendingWalletSelection.selectWallet`](#pendingwalletselection).
+Activates an existing wallet by server-side wallet id and persists it as the current wallet session. Requires an active wallet session; pending manual auth flows must use [`PendingWalletSelection.selectWallet`](#pendingwalletselection).
 
 ---
 
@@ -355,7 +355,7 @@ Activates an existing wallet by server-side wallet id and persists it as the cur
 createWallet(params?: { type?: WalletType; reference?: string }): Promise<{ walletAddress: Address; wallet: OmsWallet }>
 ```
 
-Creates a new wallet, activates it, and persists it as the current wallet session. `type` defaults to `WalletType.Ethereum`. Manual auth flows should prefer [`PendingWalletSelection.createAndSelectWallet`](#pendingwalletselection), which uses the auth-requested wallet type automatically.
+Creates a new wallet, activates it, and persists it as the current wallet session. Requires an active wallet session. `type` defaults to `WalletType.Ethereum`. Pending manual auth flows must use [`PendingWalletSelection.createAndSelectWallet`](#pendingwalletselection), which uses the auth-requested wallet type automatically.
 
 ---
 

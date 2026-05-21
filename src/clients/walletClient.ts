@@ -231,9 +231,10 @@ interface ActivePendingWalletSelection {
     metadata: WalletSessionMetadata;
 }
 
-type WalletActivationContext =
-    | {kind: "pending"; session: ActivePendingWalletSelection; metadata: WalletSessionMetadata}
-    | {kind: "active"; metadata?: WalletSessionMetadata}
+interface ActiveWalletActivationContext {
+    walletId: string;
+    metadata?: WalletSessionMetadata;
+}
 
 interface EmailAuthCompletionParams {
     code: string;
@@ -635,18 +636,18 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
 
     async useWallet(params: {walletId: string}): Promise<WalletActivationResult> {
         return this.runOperation(WalletOperation.useWallet, async () => {
-            const context = await this.walletActivationContext(WalletOperation.useWallet)
+            const context = await this.activeWalletActivationContext(WalletOperation.useWallet)
             const wallet = await this.requestUseWallet(params.walletId)
-            await this.requireWalletActivationContextStillActive(context, WalletOperation.useWallet)
+            await this.requireActiveWalletActivationContextStillActive(context, WalletOperation.useWallet)
             return this.activateWallet(wallet, context.metadata)
         })
     }
 
     async createWallet(params: {type?: WalletType; reference?: string} = {}): Promise<WalletActivationResult> {
         return this.runOperation(WalletOperation.createWallet, async () => {
-            const context = await this.walletActivationContext(WalletOperation.createWallet)
+            const context = await this.activeWalletActivationContext(WalletOperation.createWallet)
             const wallet = await this.requestCreateWallet(params.type ?? WalletType.Ethereum, params.reference)
-            await this.requireWalletActivationContextStillActive(context, WalletOperation.createWallet)
+            await this.requireActiveWalletActivationContextStillActive(context, WalletOperation.createWallet)
             return this.activateWallet(wallet, context.metadata)
         })
     }
@@ -1027,34 +1028,24 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         }
     }
 
-    private async walletActivationContext(operation: WalletOperation): Promise<WalletActivationContext> {
-        const pendingSelection = this.activePendingWalletSelection
-        if (pendingSelection) {
-            await this.requireActivePendingWalletSelection(pendingSelection, operation)
-            return {
-                kind: "pending",
-                session: pendingSelection,
-                metadata: pendingSelection.metadata,
-            }
-        }
-
-        if (!this.walletId) {
-            throw new OmsSessionError({
-                operation,
-                message: 'No authenticated wallet session',
-            })
-        }
-
+    private async activeWalletActivationContext(operation: WalletOperation): Promise<ActiveWalletActivationContext> {
         await this.requireActiveSession(operation)
-        return {kind: "active", metadata: this.currentSessionMetadata()}
+        return {
+            walletId: this.walletId,
+            metadata: this.currentSessionMetadata(),
+        }
     }
 
-    private async requireWalletActivationContextStillActive(
-        context: WalletActivationContext,
+    private async requireActiveWalletActivationContextStillActive(
+        context: ActiveWalletActivationContext,
         operation: WalletOperation,
     ): Promise<void> {
-        if (context.kind === "pending") {
-            await this.requireActivePendingWalletSelection(context.session, operation)
+        await this.requireActiveSession(operation)
+        if (this.walletId !== context.walletId) {
+            throw new OmsSessionError({
+                operation,
+                message: "Active wallet session changed",
+            })
         }
     }
 
