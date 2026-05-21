@@ -241,10 +241,7 @@ function App() {
 
   async function getIdToken() {
     await run('Getting ID token...', setWalletStatus, async () => {
-      const idToken = await oms.wallet.getIdToken({
-        ttlSeconds: 300,
-        customClaims: { demo: true },
-      })
+      const idToken = await oms.wallet.getIdToken()
       setLastIdToken(idToken)
       setWalletStatus('ID token issued.')
     })
