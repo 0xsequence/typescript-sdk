@@ -1,4 +1,4 @@
-# OMS SDK
+# OMS Client TypeScript SDK
 
 A TypeScript SDK for the OMS (Open Money Stack) platform. Provides email and OIDC redirect wallet authentication, on-chain transaction submission, message signing, and token balance queries — with automatic session persistence.
 
