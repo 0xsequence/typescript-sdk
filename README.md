@@ -198,7 +198,7 @@ await oms.wallet.signOut()
 
 ## Networks
 
-The SDK exports `Networks`, `supportedNetworks`, `findNetworkById(id)`, and `findNetworkByName(name)` for the networks currently configured by OMS. Each network has `id`, `name`, `nativeTokenSymbol`, and `explorerUrl`.
+The SDK exports `Networks`, `supportedNetworks`, `findNetworkById(id)`, and `findNetworkByName(name)` for the networks currently configured by OMS. Each network has `id`, `name`, `nativeTokenSymbol`, `explorerUrl`, and `displayName`. `name` is the registry/routing slug, while `displayName` is the user-facing label.
 
 The `network` parameter on all transaction and signing methods accepts a `Network` from the SDK registry:
 
@@ -211,24 +211,24 @@ console.log(supportedNetworks)
 console.log(findNetworkById(80002)) // Networks.amoy
 ```
 
-| Key | id | name | native token | explorerUrl |
-|---|---:|---|---|---|
-| `Networks.mainnet` | 1 | `mainnet` | ETH | `https://etherscan.io` |
-| `Networks.sepolia` | 11155111 | `sepolia` | ETH | `https://sepolia.etherscan.io` |
-| `Networks.polygon` | 137 | `polygon` | POL | `https://polygonscan.com` |
-| `Networks.amoy` | 80002 | `amoy` | POL | `https://amoy.polygonscan.com` |
-| `Networks.arbitrum` | 42161 | `arbitrum` | ETH | `https://arbiscan.io` |
-| `Networks.arbitrumSepolia` | 421614 | `arbitrum-sepolia` | ETH | `https://sepolia.arbiscan.io` |
-| `Networks.optimism` | 10 | `optimism` | ETH | `https://optimistic.etherscan.io` |
-| `Networks.optimismSepolia` | 11155420 | `optimism-sepolia` | ETH | `https://sepolia-optimism.etherscan.io` |
-| `Networks.base` | 8453 | `base` | ETH | `https://basescan.org` |
-| `Networks.baseSepolia` | 84532 | `base-sepolia` | ETH | `https://sepolia.basescan.org` |
-| `Networks.bsc` | 56 | `bsc` | BNB | `https://bscscan.com` |
-| `Networks.bscTestnet` | 97 | `bsc-testnet` | BNB | `https://testnet.bscscan.com` |
-| `Networks.arbitrumNova` | 42170 | `arbitrum-nova` | ETH | `https://nova.arbiscan.io` |
-| `Networks.avalanche` | 43114 | `avalanche` | AVAX | `https://subnets.avax.network/c-chain` |
-| `Networks.avalancheTestnet` | 43113 | `avalanche-testnet` | AVAX | `https://subnets-test.avax.network/c-chain` |
-| `Networks.katana` | 747474 | `katana` | ETH | `https://katanascan.com` |
+| Key | id | name | display name | native token | explorerUrl |
+|---|---:|---|---|---|---|
+| `Networks.mainnet` | 1 | `mainnet` | Ethereum | ETH | `https://etherscan.io` |
+| `Networks.sepolia` | 11155111 | `sepolia` | Sepolia | ETH | `https://sepolia.etherscan.io` |
+| `Networks.polygon` | 137 | `polygon` | Polygon | POL | `https://polygonscan.com` |
+| `Networks.amoy` | 80002 | `amoy` | Polygon Amoy | POL | `https://amoy.polygonscan.com` |
+| `Networks.arbitrum` | 42161 | `arbitrum` | Arbitrum | ETH | `https://arbiscan.io` |
+| `Networks.arbitrumSepolia` | 421614 | `arbitrum-sepolia` | Arbitrum Sepolia | ETH | `https://sepolia.arbiscan.io` |
+| `Networks.optimism` | 10 | `optimism` | Optimism | ETH | `https://optimistic.etherscan.io` |
+| `Networks.optimismSepolia` | 11155420 | `optimism-sepolia` | Optimism Sepolia | ETH | `https://sepolia-optimism.etherscan.io` |
+| `Networks.base` | 8453 | `base` | Base | ETH | `https://basescan.org` |
+| `Networks.baseSepolia` | 84532 | `base-sepolia` | Base Sepolia | ETH | `https://sepolia.basescan.org` |
+| `Networks.bsc` | 56 | `bsc` | BSC | BNB | `https://bscscan.com` |
+| `Networks.bscTestnet` | 97 | `bsc-testnet` | BSC Testnet | BNB | `https://testnet.bscscan.com` |
+| `Networks.arbitrumNova` | 42170 | `arbitrum-nova` | Arbitrum Nova | ETH | `https://nova.arbiscan.io` |
+| `Networks.avalanche` | 43114 | `avalanche` | Avalanche | AVAX | `https://subnets.avax.network/c-chain` |
+| `Networks.avalancheTestnet` | 43113 | `avalanche-testnet` | Avalanche Testnet | AVAX | `https://subnets-test.avax.network/c-chain` |
+| `Networks.katana` | 747474 | `katana` | Katana | ETH | `https://katanascan.com` |
 
 ## Sending Transactions
 

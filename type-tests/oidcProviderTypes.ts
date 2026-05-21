@@ -82,6 +82,7 @@ const idTokenParams: GetIdTokenParams = {ttlSeconds: 300, customClaims: {role: "
 const idToken: Promise<string> = defaultClient.wallet.getIdToken(idTokenParams);
 const loginType: OMSClientSessionLoginType | undefined = defaultClient.wallet.session.loginType;
 const polygonNetwork: Network = Networks.polygon;
+const polygonDisplayName: string = Networks.polygon.displayName;
 const amoyNetwork: Network | undefined = findNetworkById(80002);
 const baseNetwork: Network | undefined = findNetworkByName("base");
 const allNetworks: readonly Network[] = supportedNetworks;

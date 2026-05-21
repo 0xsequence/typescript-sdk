@@ -457,7 +457,7 @@ function App() {
               >
                 {supportedNetworks.map(network => (
                   <option key={network.id} value={network.id}>
-                    {networkLabel(network)}
+                    {network.displayName} ({network.id})
                   </option>
                 ))}
               </select>
@@ -568,14 +568,6 @@ createRoot(document.getElementById('root')!).render(
 
 function transactionExplorerUrl(network: Network, txnHash: string): string {
   return `${network.explorerUrl.replace(/\/+$/, '')}/tx/${txnHash}`
-}
-
-function networkLabel(network: Network): string {
-  const label = network.name
-    .split('-')
-    .map(part => part.toUpperCase() === 'BSC' ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1))
-    .join(' ')
-  return `${label} (${network.id})`
 }
 
 function formatLoginType(loginType: OMSClientSessionLoginType | undefined): string {
