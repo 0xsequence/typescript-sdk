@@ -194,7 +194,7 @@ export function WalletKitDollarExample() {
       {lastHash && (
         <div className="result-block">
           <p className="result labeled-result">
-            <span className="result-label">Transaction hash</span>
+            <span className="result-label">{lastExplorerUrl ? 'Transaction hash' : 'Transaction ID'}</span>
             <code className="result-value">{lastHash}</code>
           </p>
           {lastExplorerUrl && (

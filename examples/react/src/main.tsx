@@ -523,7 +523,9 @@ function App() {
               {lastTransactionHash && (
                 <div className="result-block">
                   <p className="result labeled-result">
-                    <span className="result-label">Transaction hash</span>
+                    <span className="result-label">
+                      {lastTransactionExplorerUrl ? 'Transaction hash' : 'Transaction ID'}
+                    </span>
                     <code className="result-value">{lastTransactionHash}</code>
                   </p>
                   {lastTransactionExplorerUrl && (
