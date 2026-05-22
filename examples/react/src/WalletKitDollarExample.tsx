@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Networks, OMSClient } from '@0xsequence/typescript-sdk'
+import { Networks } from '@0xsequence/typescript-sdk'
 import { createPublicClient, formatUnits, http, isAddress, parseUnits } from 'viem'
 import type { Address } from 'viem'
-import { PUBLIC_API_KEY, PROJECT_ID } from './config'
+import { oms } from './omsClient'
 import { walletKitDollarAbi } from './walletKitDollarContract'
 
 const AMOY_RPC_URL = 'https://rpc-amoy.polygon.technology'
@@ -26,10 +26,6 @@ export function WalletKitDollarExample() {
   const [status, setStatus] = useState('')
   const [isBusy, setIsBusy] = useState(false)
 
-  const oms = useMemo(() => new OMSClient({
-    publicApiKey: PUBLIC_API_KEY,
-    projectId: PROJECT_ID,
-  }), [])
   const publicClient = useMemo(() => createPublicClient({
     transport: http(AMOY_RPC_URL),
   }), [])
@@ -40,7 +36,7 @@ export function WalletKitDollarExample() {
     if (isAddress(restoredAddress)) {
       void refreshBalance(restoredAddress)
     }
-  }, [oms])
+  }, [])
 
   useEffect(() => {
     if (sendToBurn) {

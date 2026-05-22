@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   Networks,
-  OMSClient,
   supportedNetworks,
   type FeeOptionSelection,
   type FeeOptionWithBalance,
@@ -13,7 +12,7 @@ import {
   type WalletActivationResult,
 } from '@0xsequence/typescript-sdk'
 import './styles.css'
-import { PROJECT_ID, PUBLIC_API_KEY } from './config'
+import { oms } from './omsClient'
 import { WalletKitDollarExample } from './WalletKitDollarExample'
 
 type Step = 'email' | 'code' | 'wallet-selection' | 'wallet'
@@ -49,12 +48,6 @@ function App() {
   const oidcCallbackStarted = useRef(false)
   const feeSelection = useRef<FeeSelectionController | null>(null)
 
-  const oms = useMemo(() => {
-    return new OMSClient({
-      publicApiKey: PUBLIC_API_KEY,
-      projectId: PROJECT_ID,
-    })
-  }, [])
   const selectedNetwork = supportedNetworks.find(network => network.id === selectedNetworkId) ?? Networks.amoy
   const session = oms.wallet.session
 
