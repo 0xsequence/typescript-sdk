@@ -45,10 +45,6 @@ function seedEmailAuthAttempt(
     (wallet as any).activeEmailAuthAttempt = {verifier, challenge};
 }
 
-function activeEmailAuthAttempt(wallet: WalletClient): unknown {
-    return (wallet as any).activeEmailAuthAttempt;
-}
-
 describe("WalletClient session storage", () => {
     it("falls back to memory storage when localStorage is unavailable", () => {
         vi.stubGlobal("localStorage", undefined);
@@ -114,7 +110,11 @@ describe("WalletClient session storage", () => {
         await wallet.signOut();
 
         expect(wallet.walletAddress).toBeUndefined();
-        expect(activeEmailAuthAttempt(wallet)).toBeUndefined();
+        await expect(wallet.completeEmailAuth({code: "123456"})).rejects.toMatchObject({
+            code: "OMS_SESSION_MISSING",
+            operation: "wallet.completeEmailAuth",
+            message: "No pending email auth attempt",
+        });
         expect(wallet.session).toEqual({
             walletAddress: undefined,
             expiresAt: undefined,
@@ -323,10 +323,19 @@ describe("WalletClient session storage", () => {
 
     it("does not persist stale automatic email auth after a newer email auth starts", async () => {
         const completeAuth = deferred<Response>();
-        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
             const url = input.toString();
+            const body = init?.body ? JSON.parse(init.body as string) : undefined;
 
             if (url.endsWith("/CompleteAuth")) {
+                if (body?.verifier === "verifier-2") {
+                    return jsonResponse({
+                        identity: {type: "email", sub: "user-2"},
+                        email: "new@example.com",
+                        wallets: [testWallet("wallet-new", WalletType.Ethereum, "22")],
+                        credential: testCredential(),
+                    });
+                }
                 return completeAuth.promise;
             }
 
@@ -338,6 +347,9 @@ describe("WalletClient session storage", () => {
             }
 
             if (url.endsWith("/UseWallet")) {
+                if (body?.walletId === "wallet-new") {
+                    return jsonResponse({wallet: testWallet("wallet-new", WalletType.Ethereum, "22")});
+                }
                 throw new Error("UseWallet should not be called for stale auth");
             }
 
@@ -371,11 +383,12 @@ describe("WalletClient session storage", () => {
             message: "Email auth attempt is no longer active",
         });
         expect(wallet.walletAddress).toBeUndefined();
-        expect(activeEmailAuthAttempt(wallet)).toMatchObject({
-            verifier: "verifier-2",
-            challenge: "challenge-2",
-        });
         expect(requestCount(fetchMock, "/UseWallet")).toBe(0);
+        await expect(wallet.completeEmailAuth({code: "222222"})).resolves.toMatchObject({
+            wallet: {id: "wallet-new"},
+        });
+        expect(wallet.walletAddress).toBe("0x2222222222222222222222222222222222222222");
+        expect(requestCount(fetchMock, "/UseWallet")).toBe(1);
     });
 
     it("allows email auth completion retry after a failed completion request", async () => {

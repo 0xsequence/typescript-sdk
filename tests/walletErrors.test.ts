@@ -69,7 +69,7 @@ describe("WalletClient errors", () => {
     });
 
     it("maps consumed auth commitments to a specific SDK error code", async () => {
-        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
             const url = input.toString();
             if (url.endsWith("/CompleteAuth")) {
                 return jsonResponse({
@@ -81,7 +81,8 @@ describe("WalletClient errors", () => {
             }
 
             throw new Error(`Unexpected request: ${url}`);
-        }));
+        });
+        vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
             publicApiKey: "public-api-key",
@@ -98,7 +99,12 @@ describe("WalletClient errors", () => {
             status: 400,
             retryable: false,
         });
-        expect(activeEmailAuthAttempt(wallet)).toBeUndefined();
+        await expect(wallet.completeEmailAuth({code: "123456"})).rejects.toMatchObject({
+            code: "OMS_SESSION_MISSING",
+            operation: "wallet.completeEmailAuth",
+            message: "No pending email auth attempt",
+        });
+        expect(fetchMock).toHaveBeenCalledOnce();
     });
 });
 
@@ -107,10 +113,6 @@ function seedEmailAuthAttempt(wallet: WalletClient): void {
         verifier: "verifier-1",
         challenge: "challenge-1",
     };
-}
-
-function activeEmailAuthAttempt(wallet: WalletClient): unknown {
-    return (wallet as any).activeEmailAuthAttempt;
 }
 
 function jsonResponse(body: unknown, status = 200): Response {
