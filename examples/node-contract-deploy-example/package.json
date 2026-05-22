@@ -1,0 +1,21 @@
+{
+  "name": "node-contract-deploy-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx deployErc20.ts",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@0xsequence/typescript-sdk": "workspace:*",
+    "dotenv": "^17.4.2",
+    "solc": "^0.8.35",
+    "viem": "^2.48.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.19",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
