@@ -13,6 +13,8 @@ import {
   type WalletActivationResult,
 } from '@0xsequence/typescript-sdk'
 import './styles.css'
+import { PROJECT_ID, PUBLIC_API_KEY } from './config'
+import { WalletKitDollarExample } from './WalletKitDollarExample'
 
 type Step = 'email' | 'code' | 'wallet-selection' | 'wallet'
 type FeeSelectionController = {
@@ -22,16 +24,7 @@ type FeeSelectionController = {
 
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
-const PUBLIC_API_KEY = requiredEnv('VITE_OMS_PUBLIC_API_KEY', import.meta.env.VITE_OMS_PUBLIC_API_KEY)
-const PROJECT_ID = requiredEnv('VITE_OMS_PROJECT_ID', import.meta.env.VITE_OMS_PROJECT_ID)
 const MANUAL_WALLET_SELECTION_KEY = 'oms-demo-manual-wallet-selection'
-
-function requiredEnv(name: string, value: string | undefined): string {
-  if (!value) {
-    throw new Error(`Missing ${name}. Copy examples/react/.env.example to examples/react/.env.local and set it.`)
-  }
-  return value
-}
 
 function App() {
   const [step, setStep] = useState<Step>('email')
@@ -475,7 +468,12 @@ function App() {
               <button type="button" onClick={signMessage} disabled={isBusy || !message.trim()}>
                 Sign message
               </button>
-              {lastSignature && <code className="result">{lastSignature}</code>}
+              {lastSignature && (
+                <p className="result labeled-result">
+                  <span className="result-label">Signature</span>
+                  <code className="result-value">{lastSignature}</code>
+                </p>
+              )}
             </section>
 
             <section className="tool">
@@ -524,7 +522,10 @@ function App() {
               )}
               {lastTransactionHash && (
                 <div className="result-block">
-                  <code className="result">{lastTransactionHash}</code>
+                  <p className="result labeled-result">
+                    <span className="result-label">Transaction hash</span>
+                    <code className="result-value">{lastTransactionHash}</code>
+                  </p>
                   {lastTransactionExplorerUrl && (
                     <a
                       href={lastTransactionExplorerUrl}
@@ -547,6 +548,15 @@ function App() {
                 {lastIdToken && <code className="result">{lastIdToken}</code>}
               </div>
             </details>
+
+            {selectedNetwork.id === Networks.amoy.id && (
+              <details className="tool collapsible-tool">
+                <summary>ERC20 example</summary>
+                <div className="collapsible-content">
+                  <WalletKitDollarExample />
+                </div>
+              </details>
+            )}
 
             <button type="button" className="secondary" onClick={signOut} disabled={isBusy}>
               Sign out

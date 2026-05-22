@@ -74,6 +74,9 @@ importers:
       react-dom:
         specifier: ^19.2.5
         version: 19.2.5(react@19.2.5)
+      viem:
+        specifier: ^2.48.4
+        version: 2.48.4(typescript@5.9.3)
     devDependencies:
       '@types/react':
         specifier: ^19.2.14

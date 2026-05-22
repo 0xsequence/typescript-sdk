@@ -158,6 +158,74 @@ button:disabled {
   background: #a7b1c2;
 }
 
+.burn-button {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  background: #1d4ed8;
+  transition:
+    background-color 420ms ease,
+    box-shadow 420ms ease;
+}
+
+.burn-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 18% 50%, rgb(255 218 121 / 34%), transparent 24%),
+    linear-gradient(110deg, #7f1d1d 0%, #dc2626 38%, #f97316 72%, #facc15 100%);
+  transform: translateX(-108%) skewX(-10deg);
+  transform-origin: left center;
+  transition: transform 520ms cubic-bezier(0.2, 0.85, 0.22, 1);
+}
+
+.burn-button::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(105deg, transparent 0 38%, rgb(255 255 255 / 24%) 48%, transparent 60% 100%);
+  opacity: 0;
+  transform: translateX(-120%);
+  transition:
+    opacity 220ms ease,
+    transform 620ms cubic-bezier(0.2, 0.85, 0.22, 1);
+}
+
+.burn-button .button-label {
+  position: relative;
+  z-index: 1;
+}
+
+.burn-button-active::before {
+  transform: translateX(0);
+}
+
+.burn-button-active::after {
+  opacity: 1;
+  transform: translateX(120%);
+  transition-delay: 120ms;
+}
+
+.burn-button-active {
+  box-shadow: 0 8px 18px rgb(180 35 24 / 22%);
+}
+
+.burn-button:disabled {
+  box-shadow: none;
+}
+
+.burn-button:disabled::before,
+.burn-button:disabled::after {
+  opacity: 0;
+}
+
+.burn-button:disabled::before {
+  transform: translateX(-102%);
+}
+
 .actions {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -228,6 +296,33 @@ button:disabled {
   display: grid;
   gap: 12px;
   padding: 0 16px 16px;
+}
+
+.example-block {
+  display: grid;
+  gap: 12px;
+}
+
+.balance-panel {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e1e6ee;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.balance-panel span {
+  color: #5f6c7b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.balance-panel strong {
+  color: #1f2937;
+  font-size: 18px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .network-tool {
@@ -409,14 +504,27 @@ output {
 }
 
 .result {
+  display: grid;
+  gap: 4px;
   min-width: 0;
   max-height: 120px;
   overflow: auto;
   overflow-wrap: anywhere;
+  margin: 0;
   padding: 10px 12px;
   border-radius: 6px;
   background: #101828;
   color: #dbeafe;
+}
+
+.result-label {
+  color: #98a2b3;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.result-value {
+  color: #7dd3fc;
 }
 
 .result-block {

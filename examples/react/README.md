@@ -12,7 +12,7 @@ Run it from the repository root:
 pnpm install
 pnpm build
 cp examples/react/.env.example examples/react/.env.local
-# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID in examples/react/.env.local
+# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID
 pnpm dev:example
 ```
 
@@ -24,8 +24,11 @@ The example requires a public API key and project ID. Configure them locally bef
 
 ```bash
 cp examples/react/.env.example examples/react/.env.local
-# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID in examples/react/.env.local
+# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID
 ```
+
+The Amoy-only "ERC20 example" panel includes a WalletKit Dollar example using
+the demo WKUSD contract deployed on Polygon Amoy.
 
 Google/OIDC redirect sign-in uses the SDK default Google client id.
 
