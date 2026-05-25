@@ -46,6 +46,13 @@ type FeeSelectionController = {
 
 const MANUAL_WALLET_SELECTION_KEY = 'oms-trails-actions-manual-wallet-selection'
 const NO_EARN_POSITIONS_STATUS = 'No deposited earn positions.'
+const POST_SEND_REFRESH_ATTEMPTS = 8
+const POST_SEND_REFRESH_DELAY_MS = 2500
+
+type SignedInDataRefresh = {
+  balances: BalanceState | null
+  positions: EarnPosition[] | null
+}
 
 function App() {
   const [session, setSession] = useState<OMSClientSessionState>(oms.wallet.session)
@@ -116,10 +123,12 @@ function App() {
       try {
         const nextBalances = await getPolygonBalances(address)
         setBalances(nextBalances)
+        return nextBalances
       } catch (error) {
         const message = `Balance status: ${describeError(error)}`
         setBalances((current) => ({ ...current, status: message }))
         appendLog(`! ${message}`)
+        return null
       }
     },
     [appendLog],
@@ -137,19 +146,34 @@ function App() {
         } else {
           setEarnPositionsStatus(result.positions.length > 0 ? 'Earn positions updated.' : NO_EARN_POSITIONS_STATUS)
         }
+        return result.positions
       } catch (error) {
         const message = `Earn positions status: ${describeError(error)}`
         setEarnPositionsStatus(message)
         appendLog(`! ${message}`)
+        return null
       }
     },
     [appendLog],
   )
 
-  const refreshSignedInData = useCallback(() => {
-    if (!walletAddress) return
-    void refreshBalances(walletAddress, 'Refreshing Polygon balances...')
-    void refreshEarnPositions(walletAddress, 'Refreshing Polygon earn positions...')
+  const refreshSignedInData = useCallback(async (): Promise<SignedInDataRefresh> => {
+    if (!walletAddress) {
+      return {
+        balances: null,
+        positions: null,
+      }
+    }
+
+    const [nextBalances, nextPositions] = await Promise.all([
+      refreshBalances(walletAddress, 'Refreshing Polygon balances...'),
+      refreshEarnPositions(walletAddress, 'Refreshing Polygon earn positions...'),
+    ])
+
+    return {
+      balances: nextBalances,
+      positions: nextPositions,
+    }
   }, [refreshBalances, refreshEarnPositions, walletAddress])
 
   useEffect(() => {
@@ -464,6 +488,7 @@ function App() {
       'Send swap',
       async () => {
         const prepared = requirePreparedTransaction(preparedSwap)
+        const initialBalances = balances
         feeSelection.current = null
         setFeeOptions([])
         try {
@@ -478,7 +503,15 @@ function App() {
           const result = transactionResult(tx)
           setLastSwapTransaction(result)
           setSwapStatus(`Swap status: sent ${shortHash(result.value)}. Refreshing balances...`)
-          refreshSignedInData()
+          await waitForPostSendRefresh({
+            initialBalances,
+            initialEarnPositions: earnPositions,
+            includeEarnPositions: false,
+            setStatus: setSwapStatus,
+            pendingStatus: `Swap status: sent ${shortHash(result.value)}. Refreshing balances`,
+            successStatus: `Swap status: sent ${shortHash(result.value)}. Balances updated.`,
+            staleStatus: `Swap status: sent ${shortHash(result.value)}. Balance refresh is still catching up.`,
+          })
         } finally {
           feeSelection.current = null
           setFeeOptions([])
@@ -496,6 +529,8 @@ function App() {
       async () => {
         const prepared = requirePreparedYieldTransactions(preparedDeposit)
         let lastResult: TransactionResult | null = null
+        const initialBalances = balances
+        const initialEarnPositions = earnPositions
         feeSelection.current = null
         setFeeOptions([])
 
@@ -517,7 +552,15 @@ function App() {
 
           if (!lastResult) throw new Error('Deposit did not send a transaction.')
           setDepositStatus(`Deposit status: sent ${shortHash(lastResult.value)}. Refreshing balances and earn positions...`)
-          refreshSignedInData()
+          await waitForPostSendRefresh({
+            initialBalances,
+            initialEarnPositions,
+            includeEarnPositions: true,
+            setStatus: setDepositStatus,
+            pendingStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Refreshing balances and earn positions`,
+            successStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Balances and earn positions updated.`,
+            staleStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Balance refresh is still catching up.`,
+          })
         } finally {
           feeSelection.current = null
           setFeeOptions([])
@@ -534,6 +577,8 @@ function App() {
       'Send swap and deposit',
       async () => {
         const prepared = requirePreparedTransaction(preparedEarn)
+        const initialBalances = balances
+        const initialEarnPositions = earnPositions
         feeSelection.current = null
         setFeeOptions([])
         try {
@@ -548,7 +593,15 @@ function App() {
           const result = transactionResult(tx)
           setLastEarnTransaction(result)
           setEarnStatus(`Swap and Deposit status: sent ${shortHash(result.value)}. Refreshing balances and earn positions...`)
-          refreshSignedInData()
+          await waitForPostSendRefresh({
+            initialBalances,
+            initialEarnPositions,
+            includeEarnPositions: true,
+            setStatus: setEarnStatus,
+            pendingStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Refreshing balances and earn positions`,
+            successStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Balances and earn positions updated.`,
+            staleStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Balance refresh is still catching up.`,
+          })
         } finally {
           feeSelection.current = null
           setFeeOptions([])
@@ -594,6 +647,46 @@ function App() {
     setSwapStatus('Swap status: waiting to prepare.')
     setDepositStatus('Deposit status: waiting to prepare.')
     setEarnStatus('Swap and Deposit status: waiting to prepare.')
+  }
+
+  async function waitForPostSendRefresh({
+    initialBalances,
+    initialEarnPositions,
+    includeEarnPositions,
+    setStatus,
+    pendingStatus,
+    successStatus,
+    staleStatus,
+  }: {
+    initialBalances: BalanceState
+    initialEarnPositions: EarnPosition[]
+    includeEarnPositions: boolean
+    setStatus: (status: string) => void
+    pendingStatus: string
+    successStatus: string
+    staleStatus: string
+  }) {
+    for (let attempt = 1; attempt <= POST_SEND_REFRESH_ATTEMPTS; attempt += 1) {
+      const suffix = attempt === 1 ? '...' : ` (${attempt}/${POST_SEND_REFRESH_ATTEMPTS})...`
+      setStatus(`${pendingStatus}${suffix}`)
+      const refreshed = await refreshSignedInData()
+
+      if (hasPostSendDataUpdate({
+        initialBalances,
+        initialEarnPositions,
+        includeEarnPositions,
+        refreshed,
+      })) {
+        setStatus(successStatus)
+        return
+      }
+
+      if (attempt < POST_SEND_REFRESH_ATTEMPTS) {
+        await sleep(POST_SEND_REFRESH_DELAY_MS)
+      }
+    }
+
+    setStatus(`${staleStatus} Use Refresh to check again.`)
   }
 
   return (
@@ -1072,6 +1165,39 @@ function isPendingWalletSelection(
   result: PendingWalletSelection | WalletActivationResult,
 ): result is PendingWalletSelection {
   return 'selectWallet' in result
+}
+
+function hasPostSendDataUpdate({
+  initialBalances,
+  initialEarnPositions,
+  includeEarnPositions,
+  refreshed,
+}: {
+  initialBalances: BalanceState
+  initialEarnPositions: EarnPosition[]
+  includeEarnPositions: boolean
+  refreshed: SignedInDataRefresh
+}): boolean {
+  if (refreshed.balances && balancesChanged(initialBalances, refreshed.balances)) {
+    return true
+  }
+
+  return includeEarnPositions && refreshed.positions !== null && earnPositionsChanged(initialEarnPositions, refreshed.positions)
+}
+
+function balancesChanged(previous: BalanceState, next: BalanceState): boolean {
+  return previous.polRaw !== next.polRaw || previous.usdcRaw !== next.usdcRaw
+}
+
+function earnPositionsChanged(previous: EarnPosition[], next: EarnPosition[]): boolean {
+  if (previous.length !== next.length) return true
+
+  const previousById = new Map(previous.map((position) => [position.id, position.amountRaw]))
+  return next.some((position) => previousById.get(position.id) !== position.amountRaw)
+}
+
+function sleep(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 }
 
 function readManualWalletSelectionPreference(): boolean {
