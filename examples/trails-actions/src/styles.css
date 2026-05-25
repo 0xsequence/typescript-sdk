@@ -315,9 +315,23 @@ button:disabled {
   text-align: center;
 }
 
+.fee-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(16 24 40 / 52%);
+}
+
 .fee-options {
+  width: min(100%, 420px);
+  max-height: min(640px, calc(100vh - 40px));
   display: grid;
   gap: 10px;
+  overflow: auto;
+  box-shadow: 0 22px 70px rgb(20 28 38 / 28%);
 }
 
 .fee-option-list {
@@ -525,7 +539,8 @@ output {
 
 .prepared-summary div {
   display: grid;
-  grid-template-columns: 132px minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: 10px;
 }
 
@@ -533,6 +548,7 @@ output {
   color: #5f6c7b;
   font-size: 12px;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .prepared-summary dd {
@@ -541,7 +557,13 @@ output {
   color: #1f2937;
   font-size: 13px;
   font-weight: 700;
-  overflow-wrap: anywhere;
+}
+
+.prepared-summary code {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 
 .position-list {
@@ -615,7 +637,6 @@ output {
   }
 
   .prepared-summary div {
-    grid-template-columns: 1fr;
-    gap: 2px;
+    gap: 8px;
   }
 }

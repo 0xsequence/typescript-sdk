@@ -640,6 +640,7 @@ function App() {
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="user@example.com"
                   aria-describedby="email-status"
+                  disabled={isBusy}
                 />
               </label>
               <p id="email-status" className="field-hint">{authStatus}</p>
@@ -662,6 +663,7 @@ function App() {
                   onChange={(event) => setCode(event.target.value)}
                   placeholder="123456"
                   aria-describedby="code-status"
+                  disabled={isBusy}
                 />
               </label>
               <p id="code-status" className="field-hint">{authStatus}</p>
@@ -773,6 +775,7 @@ function App() {
                 onSend={sendSwap}
                 prepared={preparedSwap}
                 result={lastSwapTransaction}
+                disabled={isBusy}
                 sendDisabled={!preparedSwap}
                 status={swapStatus}
                 title="Swap POL to USDC"
@@ -786,6 +789,7 @@ function App() {
                 onSend={sendDeposit}
                 preparedYield={preparedDeposit}
                 result={lastDepositTransaction}
+                disabled={isBusy}
                 sendDisabled={!preparedDeposit}
                 status={depositStatus}
                 title="Deposit USDC using Earn"
@@ -799,6 +803,7 @@ function App() {
                 onSend={sendEarn}
                 prepared={preparedEarn}
                 result={lastEarnTransaction}
+                disabled={isBusy}
                 sendDisabled={!preparedEarn}
                 status={earnStatus}
                 title="Swap POL to USDC, then deposit"
@@ -872,6 +877,7 @@ function TrailsActionCard({
   prepared,
   preparedYield,
   result,
+  disabled,
   sendDisabled,
   status,
   title,
@@ -884,6 +890,7 @@ function TrailsActionCard({
   prepared?: PreparedTrailsTransaction | null
   preparedYield?: PreparedYieldTransactions | null
   result: TransactionResult | null
+  disabled: boolean
   sendDisabled: boolean
   status: string
   title: string
@@ -893,13 +900,18 @@ function TrailsActionCard({
       <h2>{title}</h2>
       <label>
         {amountLabel}
-        <input inputMode="decimal" value={amountValue} onChange={(event) => onAmountChange(event.target.value)} />
+        <input
+          inputMode="decimal"
+          value={amountValue}
+          onChange={(event) => onAmountChange(event.target.value)}
+          disabled={disabled}
+        />
       </label>
       <div className="actions">
-        <button type="button" onClick={onPrepare}>
+        <button type="button" onClick={onPrepare} disabled={disabled}>
           Prepare
         </button>
-        <button type="button" className="secondary" onClick={onSend} disabled={sendDisabled}>
+        <button type="button" className="secondary" onClick={onSend} disabled={disabled || sendDisabled}>
           Send
         </button>
       </div>
@@ -921,28 +933,30 @@ function FeeOptionsPanel({
   onChoose: (option: FeeOptionWithBalance) => void
 }) {
   return (
-    <section className="tool fee-options" aria-live="polite">
-      <h2>Fee option</h2>
-      <div className="fee-option-list">
-        {feeOptions.map((option) => (
-          <button
-            key={`${option.feeOption.token.symbol}-${option.feeOption.value}`}
-            type="button"
-            className="fee-option"
-            onClick={() => onChoose(option)}
-          >
-            <span>
-              <strong>{option.feeOption.token.symbol}</strong>
-              <small>{option.feeOption.displayValue || option.feeOption.value}</small>
-            </span>
-            <span>{option.available ?? 'Balance unavailable'}</span>
-          </button>
-        ))}
-      </div>
-      <button type="button" className="secondary" onClick={onCancel}>
-        Cancel transaction
-      </button>
-    </section>
+    <div className="fee-modal-backdrop">
+      <section className="tool fee-options" role="dialog" aria-modal="true" aria-labelledby="fee-options-title">
+        <h2 id="fee-options-title">Fee option</h2>
+        <div className="fee-option-list">
+          {feeOptions.map((option) => (
+            <button
+              key={`${option.feeOption.token.symbol}-${option.feeOption.value}`}
+              type="button"
+              className="fee-option"
+              onClick={() => onChoose(option)}
+            >
+              <span>
+                <strong>{option.feeOption.token.symbol}</strong>
+                <small>{option.feeOption.displayValue || option.feeOption.value}</small>
+              </span>
+              <span>{option.available ?? 'Balance unavailable'}</span>
+            </button>
+          ))}
+        </div>
+        <button type="button" className="secondary" onClick={onCancel}>
+          Cancel transaction
+        </button>
+      </section>
+    </div>
   )
 }
 
@@ -988,7 +1002,7 @@ function PreparedYieldSummary({ prepared }: { prepared: PreparedYieldTransaction
       {prepared.marketName ? (
         <div>
           <dt>Earn market</dt>
-        <dd>{prepared.marketName}</dd>
+          <dd>{prepared.marketName}</dd>
         </div>
       ) : null}
       <div>
