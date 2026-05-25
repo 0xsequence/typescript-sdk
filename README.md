@@ -97,6 +97,17 @@ const tx = await oms.wallet.sendTransaction({
   network: Networks.polygon,
   to: '0xRecipient',
   value: parseUnits('1', 18), // 1 POL
+  selectFeeOption: (feeOptions) => {
+    // If this Polygon mainnet transaction is not sponsored, choose a fee token the wallet can pay.
+    const selectedFeeOption = feeOptions.find(({ feeOption, availableRaw }) =>
+      availableRaw !== undefined && BigInt(availableRaw) >= BigInt(feeOption.value)
+    )
+    if (!selectedFeeOption) {
+      throw new Error('No fee option has enough balance')
+    }
+
+    return { token: selectedFeeOption.feeOption.token.symbol }
+  },
 })
 console.log(tx.txnHash ?? tx.txnId)
 ```
