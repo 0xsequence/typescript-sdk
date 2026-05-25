@@ -99,6 +99,7 @@ const POLYGON_USDC = '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359'
 const POLYGON_WPOL = '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'
 const POL_TO_USDC_SWAP_FEE = '0.05'
 const MAX_SWAP_SLIPPAGE_BPS = 100
+const MAX_REASONABLE_USDC_APY_RATE = 0.5
 const WRAPPED_NATIVE_DEPOSIT_ABI = [
   {
     type: 'function',
@@ -524,10 +525,17 @@ function formatUsdAmount(amountUsd: string | undefined): string | null {
 }
 
 function formatApy(rewardRate?: { total?: number }): string {
-  const total = rewardRate?.total
-  if (!Number.isFinite(total)) return '-'
-  const percent = (total as number) * 100
+  const total = getReasonableApyRate(rewardRate)
+  if (total === null) return '-'
+  const percent = total * 100
   return `${percent.toFixed(percent >= 10 ? 1 : 2)}%`
+}
+
+function getReasonableApyRate(rewardRate?: { total?: number }): number | null {
+  const total = rewardRate?.total
+  if (typeof total !== 'number' || !Number.isFinite(total) || total < 0) return null
+
+  return total > MAX_REASONABLE_USDC_APY_RATE ? null : total
 }
 
 function getMarketInputToken(market: EarnMarket) {
@@ -556,9 +564,10 @@ async function findPolygonUsdcEarnMarket(trailsClient: TrailsApi): Promise<EarnM
   const candidates = markets.items
     .filter((market) => market.status?.enter !== false)
     .filter(isUsdcMarket)
+    .filter((market) => getReasonableApyRate(market.rewardRate) !== null)
     .sort((left, right) => {
-      const leftRate = left.rewardRate?.total ?? 0
-      const rightRate = right.rewardRate?.total ?? 0
+      const leftRate = getReasonableApyRate(left.rewardRate) ?? 0
+      const rightRate = getReasonableApyRate(right.rewardRate) ?? 0
       return rightRate - leftRate
     })
 
