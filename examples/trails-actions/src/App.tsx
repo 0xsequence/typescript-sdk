@@ -88,6 +88,7 @@ function App() {
   const [walletCopyLabel, setWalletCopyLabel] = useState<'Copy' | 'Copied'>('Copy')
   const oidcCallbackStarted = useRef(false)
   const feeSelection = useRef<FeeSelectionController | null>(null)
+  const selectedFeeOption = useRef<FeeOptionWithBalance | null>(null)
   const walletCopyReset = useRef<number | null>(null)
 
   const walletAddress = session.walletAddress
@@ -500,6 +501,7 @@ function App() {
         const prepared = requirePreparedTransaction(preparedSwap)
         const initialBalances = balances
         feeSelection.current = null
+        selectedFeeOption.current = null
         setFeeOptions([])
         try {
           setSwapStatus('Swap status: sending...')
@@ -517,6 +519,7 @@ function App() {
             initialBalances,
             initialEarnPositions: earnPositions,
             expectation: prepared.postSendExpectation,
+            selectedFeeOption: selectedFeeOption.current,
             setStatus: setSwapStatus,
             pendingStatus: `Swap status: sent ${shortHash(result.value)}. Waiting for expected USDC balance`,
             successStatus: `Swap status: sent ${shortHash(result.value)}. USDC balance updated.`,
@@ -524,6 +527,7 @@ function App() {
           })
         } finally {
           feeSelection.current = null
+          selectedFeeOption.current = null
           setFeeOptions([])
         }
       },
@@ -542,6 +546,7 @@ function App() {
         const initialBalances = balances
         const initialEarnPositions = earnPositions
         feeSelection.current = null
+        selectedFeeOption.current = null
         setFeeOptions([])
 
         try {
@@ -573,6 +578,7 @@ function App() {
           })
         } finally {
           feeSelection.current = null
+          selectedFeeOption.current = null
           setFeeOptions([])
         }
       },
@@ -590,6 +596,7 @@ function App() {
         const initialBalances = balances
         const initialEarnPositions = earnPositions
         feeSelection.current = null
+        selectedFeeOption.current = null
         setFeeOptions([])
         try {
           setEarnStatus('Swap and Deposit status: sending...')
@@ -614,6 +621,7 @@ function App() {
           })
         } finally {
           feeSelection.current = null
+          selectedFeeOption.current = null
           setFeeOptions([])
         }
       },
@@ -632,6 +640,7 @@ function App() {
         const initialEarnPositions = earnPositions
         let lastResult: TransactionResult | null = null
         feeSelection.current = null
+        selectedFeeOption.current = null
         setFeeOptions([])
         setWithdrawStatuses((current) => ({
           ...current,
@@ -695,6 +704,7 @@ function App() {
           })
         } finally {
           feeSelection.current = null
+          selectedFeeOption.current = null
           setFeeOptions([])
         }
       },
@@ -717,6 +727,12 @@ function App() {
   }
 
   function chooseFeeOption(option: FeeOptionWithBalance) {
+    if (!canAffordFeeOption(option)) {
+      appendLog(`! Insufficient ${option.feeOption.token.symbol} balance for fee.`)
+      return
+    }
+
+    selectedFeeOption.current = option
     feeSelection.current?.resolve({ token: option.feeOption.token.symbol })
     feeSelection.current = null
     setFeeOptions([])
@@ -726,12 +742,14 @@ function App() {
   function cancelFeeSelection() {
     feeSelection.current?.reject(new Error('Fee option selection cancelled'))
     feeSelection.current = null
+    selectedFeeOption.current = null
     setFeeOptions([])
   }
 
   function clearPreparedState() {
     feeSelection.current?.reject(new Error('Transaction state cleared'))
     feeSelection.current = null
+    selectedFeeOption.current = null
     setFeeOptions([])
     setPreparedSwap(null)
     setPreparedDeposit(null)
@@ -750,6 +768,7 @@ function App() {
     initialBalances,
     initialEarnPositions,
     expectation,
+    selectedFeeOption,
     setStatus,
     pendingStatus,
     successStatus,
@@ -758,6 +777,7 @@ function App() {
     initialBalances: BalanceState
     initialEarnPositions: EarnPosition[]
     expectation: PostSendExpectation
+    selectedFeeOption?: FeeOptionWithBalance | null
     setStatus: (status: string) => void
     pendingStatus: string
     successStatus: string
@@ -772,6 +792,7 @@ function App() {
         initialBalances,
         initialEarnPositions,
         expectation,
+        selectedFeeOption,
         refreshed,
       })) {
         setStatus(successStatus)
@@ -1142,20 +1163,25 @@ function FeeOptionsPanel({
       <section className="tool fee-options" role="dialog" aria-modal="true" aria-labelledby="fee-options-title">
         <h2 id="fee-options-title">Fee option</h2>
         <div className="fee-option-list">
-          {feeOptions.map((option) => (
-            <button
-              key={`${option.feeOption.token.symbol}-${option.feeOption.value}`}
-              type="button"
-              className="fee-option"
-              onClick={() => onChoose(option)}
-            >
-              <span>
-                <strong>{option.feeOption.token.symbol}</strong>
-                <small>{option.feeOption.displayValue || option.feeOption.value}</small>
-              </span>
-              <span>{option.available ?? 'Balance unavailable'}</span>
-            </button>
-          ))}
+          {feeOptions.map((option) => {
+            const canAfford = canAffordFeeOption(option)
+
+            return (
+              <button
+                key={`${option.feeOption.token.symbol}-${option.feeOption.value}`}
+                type="button"
+                className="fee-option"
+                onClick={() => onChoose(option)}
+                disabled={!canAfford}
+              >
+                <span>
+                  <strong>{option.feeOption.token.symbol}</strong>
+                  <small>{option.feeOption.displayValue || option.feeOption.value}</small>
+                </span>
+                <span>{canAfford ? option.available ?? 'Balance unavailable' : 'Insufficient balance'}</span>
+              </button>
+            )
+          })}
         </div>
         <button type="button" className="secondary" onClick={onCancel}>
           Cancel transaction
@@ -1283,17 +1309,20 @@ function hasPostSendDataUpdate({
   initialBalances,
   initialEarnPositions,
   expectation,
+  selectedFeeOption,
   refreshed,
 }: {
   initialBalances: BalanceState
   initialEarnPositions: EarnPosition[]
   expectation: PostSendExpectation
+  selectedFeeOption?: FeeOptionWithBalance | null
   refreshed: SignedInDataRefresh
 }): boolean {
   if (expectation.type === 'usdcIncrease') {
     return hasUsdcIncrease({
       initialBalances,
       minIncreaseRaw: expectation.minIncreaseRaw,
+      selectedFeeOption,
       refreshedBalances: refreshed.balances,
     })
   }
@@ -1316,10 +1345,12 @@ function hasPostSendDataUpdate({
 function hasUsdcIncrease({
   initialBalances,
   minIncreaseRaw,
+  selectedFeeOption,
   refreshedBalances,
 }: {
   initialBalances: BalanceState
   minIncreaseRaw: string
+  selectedFeeOption?: FeeOptionWithBalance | null
   refreshedBalances: BalanceState | null
 }): boolean {
   if (!refreshedBalances) return false
@@ -1327,9 +1358,30 @@ function hasUsdcIncrease({
   try {
     const initialUsdc = BigInt(initialBalances.usdcRaw)
     const nextUsdc = BigInt(refreshedBalances.usdcRaw)
-    return nextUsdc >= initialUsdc + BigInt(minIncreaseRaw)
+    const expectedIncrease = BigInt(minIncreaseRaw) - getSelectedUsdcFeeRaw(selectedFeeOption)
+    return expectedIncrease > 0n ? nextUsdc >= initialUsdc + expectedIncrease : nextUsdc !== initialUsdc
   } catch {
     return false
+  }
+}
+
+function canAffordFeeOption(option: FeeOptionWithBalance): boolean {
+  if (option.availableRaw === undefined) return false
+
+  try {
+    return BigInt(option.availableRaw) >= BigInt(option.feeOption.value)
+  } catch {
+    return false
+  }
+}
+
+function getSelectedUsdcFeeRaw(option?: FeeOptionWithBalance | null): bigint {
+  if (option?.feeOption.token.symbol.toUpperCase() !== 'USDC') return 0n
+
+  try {
+    return BigInt(option.feeOption.value)
+  } catch {
+    return 0n
   }
 }
 
