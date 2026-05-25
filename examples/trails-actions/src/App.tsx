@@ -29,6 +29,7 @@ import {
   shortHash,
   type BalanceState,
   type EarnPosition,
+  type PostSendExpectation,
   type PreparedTrailsTransaction,
   type PreparedYieldTransactions,
 } from './trailsActions'
@@ -46,7 +47,7 @@ type FeeSelectionController = {
 
 const MANUAL_WALLET_SELECTION_KEY = 'oms-trails-actions-manual-wallet-selection'
 const NO_EARN_POSITIONS_STATUS = 'No deposited earn positions.'
-const POST_SEND_REFRESH_ATTEMPTS = 8
+const POST_SEND_REFRESH_ATTEMPTS = 24
 const POST_SEND_REFRESH_DELAY_MS = 2500
 
 type SignedInDataRefresh = {
@@ -506,11 +507,11 @@ function App() {
           await waitForPostSendRefresh({
             initialBalances,
             initialEarnPositions: earnPositions,
-            includeEarnPositions: false,
+            expectation: prepared.postSendExpectation,
             setStatus: setSwapStatus,
-            pendingStatus: `Swap status: sent ${shortHash(result.value)}. Refreshing balances`,
-            successStatus: `Swap status: sent ${shortHash(result.value)}. Balances updated.`,
-            staleStatus: `Swap status: sent ${shortHash(result.value)}. Balance refresh is still catching up.`,
+            pendingStatus: `Swap status: sent ${shortHash(result.value)}. Waiting for expected USDC balance`,
+            successStatus: `Swap status: sent ${shortHash(result.value)}. USDC balance updated.`,
+            staleStatus: `Swap status: sent ${shortHash(result.value)}. USDC balance has not reached the expected swap output yet.`,
           })
         } finally {
           feeSelection.current = null
@@ -555,11 +556,11 @@ function App() {
           await waitForPostSendRefresh({
             initialBalances,
             initialEarnPositions,
-            includeEarnPositions: true,
+            expectation: prepared.postSendExpectation,
             setStatus: setDepositStatus,
-            pendingStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Refreshing balances and earn positions`,
-            successStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Balances and earn positions updated.`,
-            staleStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Balance refresh is still catching up.`,
+            pendingStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Waiting for earn position update`,
+            successStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Earn position updated.`,
+            staleStatus: `Deposit status: sent ${shortHash(lastResult.value)}. Earn position has not updated yet.`,
           })
         } finally {
           feeSelection.current = null
@@ -596,11 +597,11 @@ function App() {
           await waitForPostSendRefresh({
             initialBalances,
             initialEarnPositions,
-            includeEarnPositions: true,
+            expectation: prepared.postSendExpectation,
             setStatus: setEarnStatus,
-            pendingStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Refreshing balances and earn positions`,
-            successStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Balances and earn positions updated.`,
-            staleStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Balance refresh is still catching up.`,
+            pendingStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Waiting for earn position update`,
+            successStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Earn position updated.`,
+            staleStatus: `Swap and Deposit status: sent ${shortHash(result.value)}. Earn position has not updated yet.`,
           })
         } finally {
           feeSelection.current = null
@@ -652,7 +653,7 @@ function App() {
   async function waitForPostSendRefresh({
     initialBalances,
     initialEarnPositions,
-    includeEarnPositions,
+    expectation,
     setStatus,
     pendingStatus,
     successStatus,
@@ -660,7 +661,7 @@ function App() {
   }: {
     initialBalances: BalanceState
     initialEarnPositions: EarnPosition[]
-    includeEarnPositions: boolean
+    expectation: PostSendExpectation
     setStatus: (status: string) => void
     pendingStatus: string
     successStatus: string
@@ -674,7 +675,7 @@ function App() {
       if (hasPostSendDataUpdate({
         initialBalances,
         initialEarnPositions,
-        includeEarnPositions,
+        expectation,
         refreshed,
       })) {
         setStatus(successStatus)
@@ -1170,30 +1171,74 @@ function isPendingWalletSelection(
 function hasPostSendDataUpdate({
   initialBalances,
   initialEarnPositions,
-  includeEarnPositions,
+  expectation,
   refreshed,
 }: {
   initialBalances: BalanceState
   initialEarnPositions: EarnPosition[]
-  includeEarnPositions: boolean
+  expectation: PostSendExpectation
   refreshed: SignedInDataRefresh
 }): boolean {
-  if (refreshed.balances && balancesChanged(initialBalances, refreshed.balances)) {
-    return true
+  if (expectation.type === 'usdcIncrease') {
+    return hasUsdcIncrease({
+      initialBalances,
+      minIncreaseRaw: expectation.minIncreaseRaw,
+      refreshedBalances: refreshed.balances,
+    })
   }
 
-  return includeEarnPositions && refreshed.positions !== null && earnPositionsChanged(initialEarnPositions, refreshed.positions)
+  return hasEarnMarketIncrease({
+    initialEarnPositions,
+    marketId: expectation.marketId,
+    refreshedPositions: refreshed.positions,
+  })
 }
 
-function balancesChanged(previous: BalanceState, next: BalanceState): boolean {
-  return previous.polRaw !== next.polRaw || previous.usdcRaw !== next.usdcRaw
+function hasUsdcIncrease({
+  initialBalances,
+  minIncreaseRaw,
+  refreshedBalances,
+}: {
+  initialBalances: BalanceState
+  minIncreaseRaw: string
+  refreshedBalances: BalanceState | null
+}): boolean {
+  if (!refreshedBalances) return false
+
+  try {
+    const initialUsdc = BigInt(initialBalances.usdcRaw)
+    const nextUsdc = BigInt(refreshedBalances.usdcRaw)
+    return nextUsdc >= initialUsdc + BigInt(minIncreaseRaw)
+  } catch {
+    return false
+  }
 }
 
-function earnPositionsChanged(previous: EarnPosition[], next: EarnPosition[]): boolean {
-  if (previous.length !== next.length) return true
+function hasEarnMarketIncrease({
+  initialEarnPositions,
+  marketId,
+  refreshedPositions,
+}: {
+  initialEarnPositions: EarnPosition[]
+  marketId: string
+  refreshedPositions: EarnPosition[] | null
+}): boolean {
+  if (!refreshedPositions) return false
 
-  const previousById = new Map(previous.map((position) => [position.id, position.amountRaw]))
-  return next.some((position) => previousById.get(position.id) !== position.amountRaw)
+  const previousPosition = findEarnPosition(initialEarnPositions, marketId)
+  const nextPosition = findEarnPosition(refreshedPositions, marketId)
+  if (!nextPosition) return false
+
+  try {
+    const previousAmount = previousPosition ? BigInt(previousPosition.amountRaw) : 0n
+    return BigInt(nextPosition.amountRaw) > previousAmount
+  } catch {
+    return nextPosition.amount !== previousPosition?.amount
+  }
+}
+
+function findEarnPosition(positions: EarnPosition[], marketId: string): EarnPosition | undefined {
+  return positions.find((position) => position.marketId === marketId || position.id === marketId)
 }
 
 function sleep(milliseconds: number): Promise<void> {

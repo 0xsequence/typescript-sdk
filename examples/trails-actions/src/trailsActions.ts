@@ -35,6 +35,7 @@ export type PreparedTrailsTransaction = {
   data: Hex
   value: string
   callCount: number
+  postSendExpectation: PostSendExpectation
   marketName?: string
   marketId?: string
 }
@@ -42,9 +43,20 @@ export type PreparedTrailsTransaction = {
 export type PreparedYieldTransactions = {
   title: string
   transactions: ParsedYieldTransaction[]
+  postSendExpectation: PostSendExpectation
   marketName?: string
   marketId?: string
 }
+
+export type PostSendExpectation =
+  | {
+      type: 'usdcIncrease'
+      minIncreaseRaw: string
+    }
+  | {
+      type: 'earnMarketIncrease'
+      marketId: string
+    }
 
 export type ParsedYieldTransaction = {
   to: Address
@@ -277,6 +289,10 @@ export async function prepareSwapPolToUsdc({
     calls,
     walletAddress,
     value: amountRaw,
+    postSendExpectation: {
+      type: 'usdcIncrease',
+      minIncreaseRaw: minAmountOutRaw.toString(),
+    },
   })
 }
 
@@ -310,6 +326,10 @@ export async function prepareDepositUsdc({
   return {
     title: 'Deposit USDC using Earn',
     transactions,
+    postSendExpectation: {
+      type: 'earnMarketIncrease',
+      marketId: market.id,
+    },
     marketName: getMarketName(market),
     marketId: market.id,
   }
@@ -355,6 +375,10 @@ export async function prepareSwapAndEarnUsdc({
     walletAddress,
     value: amountRaw,
     market,
+    postSendExpectation: {
+      type: 'earnMarketIncrease',
+      marketId: market.id,
+    },
   })
 }
 
@@ -514,12 +538,14 @@ function encodePreparedTransaction({
   calls,
   walletAddress,
   value,
+  postSendExpectation,
   market,
 }: {
   title: string
   calls: Awaited<ReturnType<typeof resolveActionsToCalls>>
   walletAddress: Address
   value: bigint
+  postSendExpectation: PostSendExpectation
   market?: EarnMarket
 }): PreparedTrailsTransaction {
   const encoded = encodeDestinationCalls({
@@ -534,6 +560,7 @@ function encodePreparedTransaction({
     data: encoded.destinationCalldata,
     value: value.toString(),
     callCount: calls.length,
+    postSendExpectation,
     marketName: market ? getMarketName(market) : undefined,
     marketId: market?.id,
   }
