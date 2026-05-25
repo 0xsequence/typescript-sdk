@@ -23,6 +23,7 @@ import {
   prepareDepositUsdc,
   prepareSwapAndEarnUsdc,
   prepareSwapPolToUsdc,
+  prepareWithdrawEarnPosition,
   requirePreparedTransaction,
   requirePreparedYieldTransactions,
   requireWalletAddress,
@@ -79,6 +80,8 @@ function App() {
   const [lastSwapTransaction, setLastSwapTransaction] = useState<TransactionResult | null>(null)
   const [lastDepositTransaction, setLastDepositTransaction] = useState<TransactionResult | null>(null)
   const [lastEarnTransaction, setLastEarnTransaction] = useState<TransactionResult | null>(null)
+  const [withdrawStatuses, setWithdrawStatuses] = useState<Record<string, string>>({})
+  const [lastWithdrawTransactions, setLastWithdrawTransactions] = useState<Record<string, TransactionResult>>({})
   const [feeOptions, setFeeOptions] = useState<FeeOptionWithBalance[]>([])
   const [logLines, setLogLines] = useState(['Ready.'])
   const [loadingAction, setLoadingAction] = useState<string | null>(null)
@@ -90,7 +93,9 @@ function App() {
   const walletAddress = session.walletAddress
   const isSignedIn = walletAddress != null
   const isBusy = loadingAction != null
-  const showEarnPositionsStatus = earnPositions.length > 0 || earnPositionsStatus !== NO_EARN_POSITIONS_STATUS
+  const hasVisibleWithdrawStatus = earnPositions.some((position) => withdrawStatuses[position.id])
+  const showEarnPositionsStatus = !hasVisibleWithdrawStatus
+    && (earnPositions.length > 0 || earnPositionsStatus !== NO_EARN_POSITIONS_STATUS)
 
   const appendLog = useCallback((line: string) => {
     setLogLines((current) => [...current, line].slice(-80))
@@ -210,6 +215,8 @@ function App() {
       setBalances(SIGNED_OUT_BALANCES)
       setEarnPositions([])
       setEarnPositionsStatus('Sign in to load earn positions.')
+      setWithdrawStatuses({})
+      setLastWithdrawTransactions({})
       return
     }
 
@@ -379,6 +386,8 @@ function App() {
       setBalances(SIGNED_OUT_BALANCES)
       setEarnPositions([])
       setEarnPositionsStatus('Sign in to load earn positions.')
+      setWithdrawStatuses({})
+      setLastWithdrawTransactions({})
     })
   }
 
@@ -614,6 +623,91 @@ function App() {
     )
   }
 
+  function withdrawEarnPosition(position: EarnPosition) {
+    void runAction(
+      `Withdraw ${position.marketName}`,
+      async () => {
+        const address = requireWalletAddress(walletAddress)
+        const initialBalances = balances
+        const initialEarnPositions = earnPositions
+        let lastResult: TransactionResult | null = null
+        feeSelection.current = null
+        setFeeOptions([])
+        setWithdrawStatuses((current) => ({
+          ...current,
+          [position.id]: `Withdraw status: preparing ${position.marketName}...`,
+        }))
+        setEarnPositionsStatus(`Withdraw status: preparing ${position.marketName}...`)
+        setLastWithdrawTransactions((current) => {
+          const next = { ...current }
+          delete next[position.id]
+          return next
+        })
+
+        try {
+          const prepared = await prepareWithdrawEarnPosition({
+            walletAddress: address,
+            position,
+          })
+
+          for (const [index, transaction] of prepared.transactions.entries()) {
+            const label = prepared.transactions.length === 1
+              ? 'transaction'
+              : `transaction ${index + 1}/${prepared.transactions.length}`
+            setWithdrawStatuses((current) => ({
+              ...current,
+              [position.id]: `Withdraw status: sending ${label}...`,
+            }))
+            setEarnPositionsStatus(`Withdraw status: sending ${label}...`)
+            const tx = await oms.wallet.sendTransaction({
+              network: POLYGON_NETWORK,
+              to: transaction.to,
+              value: transaction.value,
+              data: transaction.data,
+              selectFeeOption: waitForFeeOptionSelection,
+            })
+            const result = transactionResult(tx)
+            lastResult = result
+            setLastWithdrawTransactions((current) => ({
+              ...current,
+              [position.id]: result,
+            }))
+            setWithdrawStatuses((current) => ({
+              ...current,
+              [position.id]: `Withdraw status: sent ${label} ${shortHash(result.value)}.`,
+            }))
+            setEarnPositionsStatus(`Withdraw status: sent ${label} ${shortHash(result.value)}.`)
+          }
+
+          if (!lastResult) throw new Error('Withdraw did not send a transaction.')
+          const sentResult = lastResult
+          await waitForPostSendRefresh({
+            initialBalances,
+            initialEarnPositions,
+            expectation: prepared.postSendExpectation,
+            setStatus: (status) => {
+              setWithdrawStatuses((current) => ({ ...current, [position.id]: status }))
+              setEarnPositionsStatus(status)
+            },
+            pendingStatus: `Withdraw status: sent ${shortHash(sentResult.value)}. Waiting for earn position update`,
+            successStatus: `Withdraw status: sent ${shortHash(sentResult.value)}. Earn position updated.`,
+            staleStatus: `Withdraw status: sent ${shortHash(sentResult.value)}. Earn position has not updated yet.`,
+          })
+        } finally {
+          feeSelection.current = null
+          setFeeOptions([])
+        }
+      },
+      (error) => {
+        setWithdrawStatuses((current) => ({
+          ...current,
+          [position.id]: `Withdraw status: ${describeError(error)}`,
+        }))
+        setEarnPositionsStatus(`Withdraw status: ${describeError(error)}`)
+      },
+    )
+  }
+
   function waitForFeeOptionSelection(options: FeeOptionWithBalance[]): Promise<FeeOptionSelection> {
     setFeeOptions(options)
     appendLog('Choose a fee token to continue.')
@@ -645,6 +739,8 @@ function App() {
     setLastSwapTransaction(null)
     setLastDepositTransaction(null)
     setLastEarnTransaction(null)
+    setLastWithdrawTransactions({})
+    setWithdrawStatuses({})
     setSwapStatus('Swap status: waiting to prepare.')
     setDepositStatus('Deposit status: waiting to prepare.')
     setEarnStatus('Swap and Deposit status: waiting to prepare.')
@@ -935,6 +1031,21 @@ function App() {
                         <strong>{position.apy}</strong>
                         <small>APY</small>
                       </div>
+                      <div className="position-action">
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => withdrawEarnPosition(position)}
+                          disabled={isBusy || !position.canWithdraw}
+                        >
+                          Withdraw
+                        </button>
+                        <small>{position.canWithdraw ? 'All' : 'Unavailable'}</small>
+                      </div>
+                      {withdrawStatuses[position.id] ? (
+                        <p className="position-status field-hint compact-hint">{withdrawStatuses[position.id]}</p>
+                      ) : null}
+                      <TransactionOutput result={lastWithdrawTransactions[position.id] ?? null} />
                     </div>
                   ))}
                 </div>
@@ -1187,7 +1298,15 @@ function hasPostSendDataUpdate({
     })
   }
 
-  return hasEarnMarketIncrease({
+  if (expectation.type === 'earnMarketIncrease') {
+    return hasEarnMarketIncrease({
+      initialEarnPositions,
+      marketId: expectation.marketId,
+      refreshedPositions: refreshed.positions,
+    })
+  }
+
+  return hasEarnMarketDecrease({
     initialEarnPositions,
     marketId: expectation.marketId,
     refreshedPositions: refreshed.positions,
@@ -1234,6 +1353,30 @@ function hasEarnMarketIncrease({
     return BigInt(nextPosition.amountRaw) > previousAmount
   } catch {
     return nextPosition.amount !== previousPosition?.amount
+  }
+}
+
+function hasEarnMarketDecrease({
+  initialEarnPositions,
+  marketId,
+  refreshedPositions,
+}: {
+  initialEarnPositions: EarnPosition[]
+  marketId: string
+  refreshedPositions: EarnPosition[] | null
+}): boolean {
+  if (!refreshedPositions) return false
+
+  const previousPosition = findEarnPosition(initialEarnPositions, marketId)
+  if (!previousPosition) return false
+
+  const nextPosition = findEarnPosition(refreshedPositions, marketId)
+  if (!nextPosition) return true
+
+  try {
+    return BigInt(nextPosition.amountRaw) < BigInt(previousPosition.amountRaw)
+  } catch {
+    return nextPosition.amount !== previousPosition.amount
   }
 }
 

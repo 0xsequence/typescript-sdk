@@ -573,7 +573,8 @@ output {
 
 .position-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(70px, 0.4fr);
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(64px, 0.4fr) auto;
+  align-items: center;
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid #e1e6ee;
@@ -598,6 +599,20 @@ output {
   font-size: 12px;
 }
 
+.position-action {
+  justify-items: end;
+}
+
+.position-action button {
+  min-height: 36px;
+  padding: 8px 12px;
+}
+
+.position-status,
+.position-row .result-block {
+  grid-column: 1 / -1;
+}
+
 .log-output {
   max-height: 240px;
   min-height: 120px;
@@ -616,6 +631,10 @@ output {
   .session-info,
   .position-row {
     grid-template-columns: 1fr;
+  }
+
+  .position-action {
+    justify-items: stretch;
   }
 
   .trails-action-grid .trails-action-card:last-child {

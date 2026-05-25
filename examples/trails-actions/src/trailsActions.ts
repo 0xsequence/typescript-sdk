@@ -57,6 +57,10 @@ export type PostSendExpectation =
       type: 'earnMarketIncrease'
       marketId: string
     }
+  | {
+      type: 'earnMarketDecrease'
+      marketId: string
+    }
 
 export type ParsedYieldTransaction = {
   to: Address
@@ -76,6 +80,9 @@ export type EarnPosition = {
   amountUsd: string | null
   apy: string
   tokenSymbol: string
+  outputToken: string
+  outputTokenNetwork: string
+  canWithdraw: boolean
 }
 
 export type BalanceState = {
@@ -241,6 +248,9 @@ export async function getPolygonEarnPositions(
         amountUsd: formatUsdAmount(balance.amountUsd),
         apy: formatApy(balances.rewardRate ?? market?.rewardRate),
         tokenSymbol: balance.token.symbol,
+        outputToken: balance.token.address ?? balance.token.symbol,
+        outputTokenNetwork: balance.token.network ?? market?.network ?? 'polygon',
+        canWithdraw: market?.status?.exit !== false,
       }
       return [position]
     })
@@ -332,6 +342,45 @@ export async function prepareDepositUsdc({
     },
     marketName: getMarketName(market),
     marketId: market.id,
+  }
+}
+
+export async function prepareWithdrawEarnPosition({
+  walletAddress,
+  position,
+}: {
+  walletAddress: Address
+  position: EarnPosition
+}): Promise<PreparedYieldTransactions> {
+  if (!position.canWithdraw) {
+    throw new Error('This earn position is not currently withdrawable.')
+  }
+
+  const trailsClient = createTrailsClient()
+  const response = await trailsClient.yieldCreateExitAction({
+    earnMarketId: position.marketId,
+    userWalletAddress: walletAddress,
+    args: {
+      amount: position.amount,
+      outputToken: position.outputToken,
+      outputTokenNetwork: position.outputTokenNetwork,
+    },
+  })
+  const transactions = response.action.transactions
+    .filter((transaction) => !transaction.isMessage)
+    .map((transaction) => parseUnsignedYieldTransaction(transaction.unsignedTransaction))
+
+  assertPolygonTransactions(transactions, 'Withdraw')
+
+  return {
+    title: `Withdraw ${position.marketName}`,
+    transactions,
+    postSendExpectation: {
+      type: 'earnMarketDecrease',
+      marketId: position.marketId,
+    },
+    marketName: position.marketName,
+    marketId: position.marketId,
   }
 }
 
