@@ -71,6 +71,20 @@ cp examples/react/.env.example examples/react/.env.local
 pnpm dev:example
 ```
 
+## Trails Actions React Example
+
+The Trails Actions example prepares and sends Polygon swap, deposit, and swap plus deposit flows with `0xtrails/actions`.
+
+The deployed Trails Actions example is available at [https://0xsequence.github.io/typescript-sdk/trails-actions-example/](https://0xsequence.github.io/typescript-sdk/trails-actions-example/).
+
+To run it locally from the repository root:
+
+```bash
+cp examples/trails-actions/.env.example examples/trails-actions/.env.local
+# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID in examples/trails-actions/.env.local
+pnpm dev:trails-actions-example
+```
+
 ## Quick Start
 
 ```typescript
