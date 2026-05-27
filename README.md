@@ -7,14 +7,14 @@ A TypeScript SDK for the OMS (Open Money Stack) platform. Provides email and OID
 Install the published SDK package in your application:
 
 ```bash
-pnpm add @0xsequence/typescript-sdk@alpha
+pnpm add @0xsequence/typescript-sdk
 ```
 
 For npm or yarn projects:
 
 ```bash
-npm install @0xsequence/typescript-sdk@alpha
-yarn add @0xsequence/typescript-sdk@alpha
+npm install @0xsequence/typescript-sdk
+yarn add @0xsequence/typescript-sdk
 ```
 
 Then initialize the client with your OMS project credentials:
