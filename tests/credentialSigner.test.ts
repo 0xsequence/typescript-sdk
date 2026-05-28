@@ -33,7 +33,7 @@ describe("wallet request signing", () => {
         const fetchMock = vi.fn(async () => new Response("{}", {status: 200}));
         vi.stubGlobal("fetch", fetchMock);
 
-        const signedFetch = createSignedFetch("public-api-key", signer, "project-id");
+        const signedFetch = createSignedFetch("publishable-key", signer, "project-id");
         await signedFetch("https://wallet.example/rpc/Wallet/CommitVerifier", {
             method: "POST",
             body,
@@ -48,7 +48,7 @@ describe("wallet request signing", () => {
 
         const headers = fetchMock.mock.calls[0][1]?.headers as Record<string, string>;
         expect(headers).toMatchObject({
-            "X-Access-Key": "public-api-key",
+            "X-Access-Key": "publishable-key",
             "OMS-Wallet-Signature": `alg="ecdsa-p256-sha256", scope="project-id", cred="0x04${"11".repeat(64)}", nonce=42, sig="0x${"22".repeat(64)}"`,
         });
     });

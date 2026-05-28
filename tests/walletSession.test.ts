@@ -50,7 +50,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("localStorage", undefined);
 
         const client = new OMSClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             credentialSigner: new MockSigner(),
@@ -68,7 +68,7 @@ describe("WalletClient session storage", () => {
         storage.set(Constants.sessionEmailStorageKey, "user@example.com");
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage,
@@ -93,7 +93,7 @@ describe("WalletClient session storage", () => {
         const redirectAuthStorage = new MemoryStorageManager();
         redirectAuthStorage.set(Constants.redirectAuthStorageKey, JSON.stringify({verifier: "old-verifier"}));
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage,
@@ -153,7 +153,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage,
@@ -182,7 +182,7 @@ describe("WalletClient session storage", () => {
         storage.set(Constants.sessionEmailStorageKey, "user@example.com");
 
         const client = new OMSClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage,
@@ -238,7 +238,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage,
@@ -291,7 +291,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -358,7 +358,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -419,7 +419,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -474,7 +474,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -533,7 +533,7 @@ describe("WalletClient session storage", () => {
 
         const storage = new MemoryStorageManager();
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage,
@@ -601,7 +601,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -643,7 +643,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -698,7 +698,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -750,7 +750,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -795,7 +795,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -846,7 +846,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -897,7 +897,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -948,7 +948,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -979,7 +979,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -1020,7 +1020,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage,
@@ -1072,7 +1072,7 @@ describe("WalletClient session storage", () => {
 
         const storage = new MemoryStorageManager();
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage,
@@ -1117,7 +1117,7 @@ describe("WalletClient session storage", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),

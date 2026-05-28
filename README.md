@@ -23,7 +23,7 @@ Then initialize the client with your OMS project credentials:
 import { OMSClient } from '@0xsequence/typescript-sdk'
 
 const oms = new OMSClient({
-  publicApiKey: 'your-public-api-key',
+  publishableKey: 'your-publishable-key',
   projectId: 'your-project-id',
 })
 ```
@@ -39,7 +39,7 @@ function requiredEnv(name: string, value: string | undefined): string {
 }
 
 const oms = new OMSClient({
-  publicApiKey: requiredEnv('VITE_OMS_PUBLIC_API_KEY', import.meta.env.VITE_OMS_PUBLIC_API_KEY),
+  publishableKey: requiredEnv('VITE_OMS_PUBLISHABLE_KEY', import.meta.env.VITE_OMS_PUBLISHABLE_KEY),
   projectId: requiredEnv('VITE_OMS_PROJECT_ID', import.meta.env.VITE_OMS_PROJECT_ID),
 })
 ```
@@ -67,7 +67,7 @@ To run it locally from the repository root:
 
 ```bash
 cp examples/react/.env.example examples/react/.env.local
-# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID in examples/react/.env.local
+# Fill VITE_OMS_PUBLISHABLE_KEY and VITE_OMS_PROJECT_ID in examples/react/.env.local
 pnpm dev:example
 ```
 
@@ -81,7 +81,7 @@ To run it locally from the repository root:
 
 ```bash
 cp examples/trails-actions/.env.example examples/trails-actions/.env.local
-# Fill VITE_OMS_PUBLIC_API_KEY and VITE_OMS_PROJECT_ID in examples/trails-actions/.env.local
+# Fill VITE_OMS_PUBLISHABLE_KEY and VITE_OMS_PROJECT_ID in examples/trails-actions/.env.local
 pnpm dev:trails-actions-example
 ```
 
@@ -92,7 +92,7 @@ import { Networks, OMSClient, WalletType } from '@0xsequence/typescript-sdk'
 import { parseUnits } from 'viem'
 
 const oms = new OMSClient({
-  publicApiKey: 'your-public-api-key',
+  publishableKey: 'your-publishable-key',
   projectId: 'your-project-id',
 })
 
@@ -168,7 +168,7 @@ Google redirect auth is configured on the default environment. The redirect auth
 
 ```typescript
 const oms = new OMSClient({
-  publicApiKey: 'your-public-api-key',
+  publishableKey: 'your-publishable-key',
   projectId: 'your-project-id',
 })
 ```
@@ -367,7 +367,7 @@ const tx = await oms.wallet.sendTransaction({
 
 ```typescript
 const oms = new OMSClient({
-  publicApiKey: 'your-public-api-key',
+  publishableKey: 'your-publishable-key',
   projectId: 'your-project-id',
   environment: {
     walletApiUrl: 'https://staging-wallet.example.com',
@@ -386,7 +386,7 @@ The default storage backend is browser `localStorage` when available, otherwise 
 import { MemoryStorageManager, OMSClient } from '@0xsequence/typescript-sdk'
 
 const oms = new OMSClient({
-  publicApiKey: 'your-public-api-key',
+  publishableKey: 'your-publishable-key',
   projectId: 'your-project-id',
   storage: new MemoryStorageManager(),
 })

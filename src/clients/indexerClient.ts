@@ -155,15 +155,15 @@ export interface OmsEnvironment {
 }
 
 export class IndexerClient {
-    private readonly publicApiKey: string;
+    private readonly publishableKey: string;
     private readonly environment: OmsEnvironment;
     private readonly client: HttpClient;
 
     constructor(params: {
-        publicApiKey: string,
+        publishableKey: string,
         environment: OmsEnvironment
     }) {
-        this.publicApiKey = params.publicApiKey;
+        this.publishableKey = params.publishableKey;
         this.environment = params.environment;
         this.client = new HttpClient();
     }
@@ -284,7 +284,7 @@ export class IndexerClient {
 
     private defaultHeaders(): Record<string, string> {
         return {
-            "X-Access-Key": this.publicApiKey,
+            "X-Access-Key": this.publishableKey,
             Accept: "application/json",
         };
     }

@@ -13,7 +13,7 @@ const exampleDir = dirname(fileURLToPath(import.meta.url));
 loadDotenv({path: join(exampleDir, ".env.local"), quiet: true});
 loadDotenv({path: join(exampleDir, ".env"), quiet: true});
 
-const publicApiKey = requiredEnv("OMS_PUBLIC_API_KEY", process.env.OMS_PUBLIC_API_KEY);
+const publishableKey = requiredEnv("OMS_PUBLISHABLE_KEY", process.env.OMS_PUBLISHABLE_KEY);
 const projectId = requiredEnv("OMS_PROJECT_ID", process.env.OMS_PROJECT_ID);
 const defaultDeployerAddress = "0xce0042B868300000d44A59004Da54A005ffdcf9f" as const satisfies Address;
 const deployerAddress = optionalAddress("DEPLOYER_ADDRESS", process.env.DEPLOYER_ADDRESS) ?? defaultDeployerAddress;
@@ -39,12 +39,12 @@ async function main() {
     console.log(" OMS wallet ERC-20 deploy example");
     console.log("------------------------------------------------------------");
     console.log("network          :", `${Networks.amoy.displayName} (${Networks.amoy.id})`);
-    console.log("public API key   :", mask(publicApiKey));
+    console.log("publishable key   :", mask(publishableKey));
     console.log("deployer address :", deployerAddress);
     console.log();
 
     const client = new OMSClient({
-        publicApiKey,
+        publishableKey,
         projectId,
         storage: new MemoryStorageManager(),
     });

@@ -11,7 +11,7 @@ Run it from the repository root:
 ```bash
 pnpm install
 pnpm build
-OMS_PUBLIC_API_KEY=your-public-api-key OMS_PROJECT_ID=your-project-id pnpm dev:node-example
+OMS_PUBLISHABLE_KEY=your-publishable-key OMS_PROJECT_ID=your-project-id pnpm dev:node-example
 ```
 
 The example prompts for an email address, sends an OTP code, then prompts for the code.

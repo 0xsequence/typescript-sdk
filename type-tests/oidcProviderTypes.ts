@@ -66,17 +66,19 @@ if (false) {
 }
 
 const defaultClient = new OMSClient({
-    publicApiKey: "public-api-key",
+    publishableKey: "publishable-key",
     projectId: "project-id",
 });
-// @ts-expect-error publicApiKey is required.
+// @ts-expect-error publishableKey is required.
 new OMSClient({projectId: "project-id"});
 // @ts-expect-error projectId is required.
-new OMSClient({publicApiKey: "public-api-key"});
+new OMSClient({publishableKey: "publishable-key"});
 // @ts-expect-error old projectAccessKey initializer name is not supported.
-new OMSClient({projectAccessKey: "public-api-key", projectId: "project-id"});
+new OMSClient({projectAccessKey: "publishable-key", projectId: "project-id"});
+// @ts-expect-error old publicApiKey initializer name is not supported.
+new OMSClient({publicApiKey: "publishable-key", projectId: "project-id"});
 // @ts-expect-error old authorizationScope initializer name is not supported.
-new OMSClient({publicApiKey: "public-api-key", authorizationScope: "project-id"});
+new OMSClient({publishableKey: "publishable-key", authorizationScope: "project-id"});
 const session: OMSClientSessionState = defaultClient.wallet.session;
 const idTokenParams: GetIdTokenParams = {ttlSeconds: 300, customClaims: {role: "admin"}};
 const idToken: Promise<string> = defaultClient.wallet.getIdToken(idTokenParams);
@@ -164,7 +166,7 @@ const customEnvironmentWithoutProviders = defineOmsEnvironment({
     indexerUrlTemplate: "https://indexer.example/{value}",
 });
 const customClient = new OMSClient({
-    publicApiKey: "public-api-key",
+    publishableKey: "publishable-key",
     projectId: "project-id",
     environment: customEnvironmentWithoutProviders,
 });
@@ -178,7 +180,7 @@ void customClient.wallet.startOidcRedirectAuth({
 });
 
 function createClient(params: {
-    publicApiKey: string;
+    publishableKey: string;
     projectId: string;
     environment?: OmsEnvironment;
 }) {
@@ -186,11 +188,11 @@ function createClient(params: {
 }
 
 void createClient({
-    publicApiKey: "public-api-key",
+    publishableKey: "publishable-key",
     projectId: "project-id",
 });
 void createClient({
-    publicApiKey: "public-api-key",
+    publishableKey: "publishable-key",
     projectId: "project-id",
     environment: customEnvironmentWithoutProviders,
 });

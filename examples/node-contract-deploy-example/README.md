@@ -32,7 +32,7 @@ From the repository root:
 pnpm install
 pnpm build
 cp examples/node-contract-deploy-example/.env.example examples/node-contract-deploy-example/.env.local
-# Fill OMS_PUBLIC_API_KEY and OMS_PROJECT_ID in .env.local
+# Fill OMS_PUBLISHABLE_KEY and OMS_PROJECT_ID in .env.local
 pnpm dev:node-contract-deploy-example
 ```
 

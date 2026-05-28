@@ -336,7 +336,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     private walletId: string
 
     constructor(params: {
-        publicApiKey: string,
+        publishableKey: string,
         projectId: string,
         environment: Env,
         storage?: StorageManager
@@ -366,14 +366,14 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             this.sessionEmail = undefined
         }
 
-        const signedFetch = createSignedFetch(params.publicApiKey, this.credentialSigner, this.projectId)
+        const signedFetch = createSignedFetch(params.publishableKey, this.credentialSigner, this.projectId)
         this.client = new Walletclient(params.environment.walletApiUrl, signedFetch)
         this.publicClient = new WalletPublicclient(
             params.environment.walletApiUrl,
-            createAccessKeyFetch(params.publicApiKey),
+            createAccessKeyFetch(params.publishableKey),
         )
         this.indexerClient = new IndexerClient({
-            publicApiKey: params.publicApiKey,
+            publishableKey: params.publishableKey,
             environment: params.environment,
         })
     }
@@ -1604,12 +1604,12 @@ function defaultRedirectAuthStorage(): StorageManager | undefined {
         : undefined
 }
 
-function createAccessKeyFetch(publicApiKey: string): Fetch {
+function createAccessKeyFetch(publishableKey: string): Fetch {
     return async (input: RequestInfo, init?: RequestInit): Promise<Response> => {
         const existingHeaders = (init?.headers ?? {}) as Record<string, string>
         const headers: Record<string, string> = {
             ...existingHeaders,
-            'X-Access-Key': publicApiKey,
+            'X-Access-Key': publishableKey,
         }
 
         return globalThis.fetch(input, {...init, headers})
