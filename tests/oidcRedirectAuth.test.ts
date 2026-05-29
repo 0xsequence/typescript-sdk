@@ -651,7 +651,7 @@ function createWalletClient<Env extends OmsEnvironment = ReturnType<typeof testE
 } = {}): WalletClient<Env> {
     const environment = params.environment ?? testEnvironment() as Env;
     return new WalletClient<Env>({
-        publicApiKey: "public-api-key",
+        publishableKey: "publishable-key",
         projectId: params.projectId ?? "project-id",
         environment,
         storage: new MemoryStorageManager(),

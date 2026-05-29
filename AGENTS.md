@@ -78,9 +78,9 @@ This repository is a pnpm workspace for the OMS TypeScript SDK. The root package
 ## Security and Configuration
 
 - Do not commit real secrets. `.env.local` and `.env.*.local` files are ignored for local overrides.
-- The React example uses `examples/react/.env.example` for `VITE_OMS_PUBLIC_API_KEY` and `VITE_OMS_PROJECT_ID`; keep local overrides in `examples/react/.env.local`.
+- The React example uses `examples/react/.env.example` for `VITE_OMS_PUBLISHABLE_KEY` and `VITE_OMS_PROJECT_ID`; keep local overrides in `examples/react/.env.local`.
 - Treat credential signing, nonce handling, OIDC redirect state cleanup, session persistence, transaction execution/status polling, and access revocation as high-risk paths. Prefer focused regression tests for changes in these areas.
-- GitHub Pages may provide `OMS_PUBLIC_API_KEY` and `OMS_PROJECT_ID` secrets for the deployed React example. Do not require those secrets for ordinary local unit tests unless the test explicitly needs an external boundary.
+- GitHub Pages currently reads the existing `OMS_PUBLIC_API_KEY` secret and exposes it as `VITE_OMS_PUBLISHABLE_KEY` for deployed examples. Do not require those secrets for ordinary local unit tests unless the test explicitly needs an external boundary.
 
 ## Agent Workflow Rules
 

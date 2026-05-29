@@ -218,7 +218,7 @@ describe("WalletClient transactions", () => {
         vi.stubGlobal("fetch", fetchMock);
 
         const wallet = new WalletClient({
-            publicApiKey: "public-api-key",
+            publishableKey: "publishable-key",
             projectId: "project-id",
             environment: testEnvironment(),
             storage: new MemoryStorageManager(),
@@ -277,7 +277,7 @@ describe("WalletClient transactions", () => {
 
 function createWalletWithSession(storage: MemoryStorageManager, walletAddress: string): WalletClient {
     const wallet = new WalletClient({
-        publicApiKey: "public-api-key",
+        publishableKey: "publishable-key",
         projectId: "project-id",
         environment: testEnvironment(),
         storage,

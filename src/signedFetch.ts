@@ -16,7 +16,7 @@ async function buildWalletSignatureHeader(
 }
 
 export function createSignedFetch(
-    publicApiKey: string,
+    publishableKey: string,
     signer: CredentialSigner,
     projectId: string,
 ): Fetch {
@@ -32,7 +32,7 @@ export function createSignedFetch(
         const existingHeaders = (init?.headers ?? {}) as Record<string, string>
         const headers: Record<string, string> = {
             ...existingHeaders,
-            'X-Access-Key': publicApiKey,
+            'X-Access-Key': publishableKey,
             'OMS-Wallet-Signature': signatureHeader,
         }
 

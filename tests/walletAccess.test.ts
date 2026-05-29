@@ -93,7 +93,7 @@ describe("WalletClient access management", () => {
 
 function createWalletWithSession(): WalletClient {
     const wallet = new WalletClient({
-        publicApiKey: "public-api-key",
+        publishableKey: "publishable-key",
         projectId: "project-id",
         environment: testEnvironment(),
         storage: new MemoryStorageManager(),

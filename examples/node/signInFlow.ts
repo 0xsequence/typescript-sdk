@@ -1,14 +1,14 @@
 import readline from "node:readline/promises";
 import {MemoryStorageManager, Networks, OMSClient} from "@0xsequence/typescript-sdk";
 
-const publicApiKey = requiredEnv("OMS_PUBLIC_API_KEY", process.env.OMS_PUBLIC_API_KEY);
+const publishableKey = requiredEnv("OMS_PUBLISHABLE_KEY", process.env.OMS_PUBLISHABLE_KEY);
 const projectId = requiredEnv("OMS_PROJECT_ID", process.env.OMS_PROJECT_ID);
 
 async function main() {
     console.log("------------------------------------------------------------");
     console.log(" OmsWallet sign-in flow");
     console.log("------------------------------------------------------------");
-    console.log("public API key :", mask(publicApiKey));
+    console.log("publishable key :", mask(publishableKey));
     console.log();
 
     const email = await prompt("Enter your email: ");
@@ -17,7 +17,7 @@ async function main() {
     console.log("[setup] creating OmsWallet…");
 
     const client = new OMSClient({
-        publicApiKey,
+        publishableKey,
         projectId,
         storage: new MemoryStorageManager(),
     });

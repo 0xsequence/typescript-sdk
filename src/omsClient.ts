@@ -6,7 +6,7 @@ import type {CredentialSigner} from "./credentialSigner.js";
 import {supportedNetworks} from "./networks.js";
 
 interface OMSClientBaseParams {
-    publicApiKey: string;
+    publishableKey: string;
     projectId: string;
     storage?: StorageManager;
     redirectAuthStorage?: StorageManager;
@@ -28,7 +28,7 @@ class OMSClientImpl<Env extends OmsEnvironment = OmsEnvironment> {
         const storage = params.storage ?? createDefaultStorage()
 
         this.wallet = new WalletClient({
-            publicApiKey: params.publicApiKey,
+            publishableKey: params.publishableKey,
             projectId: params.projectId,
             environment,
             storage,
@@ -37,7 +37,7 @@ class OMSClientImpl<Env extends OmsEnvironment = OmsEnvironment> {
         });
 
         this.indexer = new IndexerClient({
-            publicApiKey: params.publicApiKey,
+            publishableKey: params.publishableKey,
             environment
         });
     }
