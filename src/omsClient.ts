@@ -33,7 +33,7 @@ class OMSClientImpl<Env extends OmsEnvironment = OmsEnvironment> {
             environment,
             storage,
             redirectAuthStorage: params.redirectAuthStorage,
-            credentialSigner: params.credentialSigner
+            credentialSigner: params.credentialSigner,
         });
 
         this.indexer = new IndexerClient({

@@ -77,7 +77,7 @@ describe("WalletClient transactions", () => {
                         },
                     ],
                     sponsored: false,
-                    expiresAt: "2026-01-01T00:00:00Z",
+                    expiresAt: "2099-01-01T00:00:00Z",
                 });
             }
 
@@ -166,7 +166,7 @@ describe("WalletClient transactions", () => {
                     status: "quoted",
                     feeOptions: [],
                     sponsored: false,
-                    expiresAt: "2026-01-01T00:00:00Z",
+                    expiresAt: "2099-01-01T00:00:00Z",
                 });
             }
 
@@ -241,7 +241,7 @@ describe("WalletClient transactions", () => {
                     status: "quoted",
                     feeOptions: [],
                     sponsored: false,
-                    expiresAt: "2026-01-01T00:00:00Z",
+                    expiresAt: "2099-01-01T00:00:00Z",
                 });
             }
 

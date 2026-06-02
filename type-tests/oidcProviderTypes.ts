@@ -8,6 +8,7 @@ import {
     type Network,
     type GetIdTokenParams,
     type OMSClientSessionLoginType,
+    type OMSClientSessionExpiredListener,
     type OMSClientSessionState,
     type TokenBalance,
     type TokenBalancesPage,
@@ -79,7 +80,16 @@ new OMSClient({projectAccessKey: "publishable-key", projectId: "project-id"});
 new OMSClient({publicApiKey: "publishable-key", projectId: "project-id"});
 // @ts-expect-error old authorizationScope initializer name is not supported.
 new OMSClient({publishableKey: "publishable-key", authorizationScope: "project-id"});
+// @ts-expect-error session expiry is subscribed through wallet.onSessionExpired, not constructor params.
+new OMSClient({publishableKey: "publishable-key", projectId: "project-id", onSessionExpired: () => {}});
 const session: OMSClientSessionState = defaultClient.wallet.session;
+const unsubscribeSessionExpired: () => void = defaultClient.wallet.onSessionExpired(({session}) => {
+    void session.sessionEmail;
+});
+const sessionExpiredListener: OMSClientSessionExpiredListener = ({expiredAt}) => {
+    void expiredAt;
+};
+void defaultClient.wallet.onSessionExpired(sessionExpiredListener);
 const idTokenParams: GetIdTokenParams = {ttlSeconds: 300, customClaims: {role: "admin"}};
 const idToken: Promise<string> = defaultClient.wallet.getIdToken(idTokenParams);
 const loginType: OMSClientSessionLoginType | undefined = defaultClient.wallet.session.loginType;
@@ -100,6 +110,7 @@ const tokenBalance: TokenBalance = {
 const tokenBalancesPage: TokenBalancesPage = {page: 0, pageSize: 40, more: false};
 const tokenBalancesResult: TokenBalancesResult = {status: 200, page: tokenBalancesPage, balances: [tokenBalance]};
 void session;
+void unsubscribeSessionExpired;
 void loginType;
 void polygonNetwork;
 void amoyNetwork;

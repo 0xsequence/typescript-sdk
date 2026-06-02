@@ -113,7 +113,7 @@ function jsonResponse(body: unknown): Response {
 function testCredential(seed = "11", isCaller = true) {
     return {
         credentialId: "0x" + seed.repeat(32),
-        expiresAt: "2026-01-01T00:00:00Z",
+        expiresAt: "2099-01-01T00:00:00Z",
         isCaller,
     };
 }

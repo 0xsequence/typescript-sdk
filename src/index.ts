@@ -55,6 +55,8 @@ export type {
     GetIdTokenParams,
     IsValidMessageSignatureParams,
     IsValidTypedDataSignatureParams,
+    OMSClientSessionExpiredEvent,
+    OMSClientSessionExpiredListener,
     OMSClientSessionLoginType,
     OMSClientSessionState,
     OmsWallet,
