@@ -257,6 +257,33 @@ describe("WalletClient session storage", () => {
         });
     });
 
+    it("cancels expired stored session replay when session storage changes before notification", async () => {
+        const storage = new MemoryStorageManager();
+        const signer = new MockSigner();
+        const onSessionExpired = vi.fn();
+        storage.set(Constants.walletIdStorageKey, "wallet-id");
+        storage.set(Constants.walletAddressStorageKey, "0x1111111111111111111111111111111111111111");
+        storage.set(Constants.sessionExpiresAtStorageKey, "2000-01-01T00:00:00Z");
+        storage.set(Constants.sessionLoginTypeStorageKey, "email");
+        storage.set(Constants.sessionEmailStorageKey, "user@example.com");
+
+        const client = new OMSClient({
+            publishableKey: "publishable-key",
+            projectId: "project-id",
+            environment: testEnvironment(),
+            storage,
+            credentialSigner: signer,
+        });
+        client.wallet.onSessionExpired(onSessionExpired);
+
+        await client.wallet.signOut();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(signer.clear).toHaveBeenCalledOnce();
+        expect(onSessionExpired).not.toHaveBeenCalled();
+    });
+
     it("replays expired stored sessions when signer cleanup fails", async () => {
         const storage = new MemoryStorageManager();
         const signer = new MockSigner();

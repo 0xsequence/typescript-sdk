@@ -241,6 +241,11 @@ interface WalletSessionMetadata {
     sessionEmail?: string;
 }
 
+interface StoredSessionSnapshot {
+    walletId: string;
+    session: OMSClientSessionState;
+}
+
 interface ActivePendingWalletSelection {
     id: string;
     signerCredentialId: string;
@@ -382,7 +387,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 this.sessionExpiresAt = undefined
                 this.sessionLoginType = undefined
                 this.sessionEmail = undefined
-                this.scheduleStoredSessionExpiryNotification(restoredSession)
+                this.scheduleStoredSessionExpiryNotification({walletId: storedId, session: restoredSession})
             } else {
                 this.walletId      = storedId
                 this.walletAddress = restoredSession.walletAddress
@@ -1750,18 +1755,33 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             this.activePendingWalletSelection.metadata.expiresAt === session.expiresAt
     }
 
-    private scheduleStoredSessionExpiryNotification(session: OMSClientSessionState): void {
+    private scheduleStoredSessionExpiryNotification(snapshot: StoredSessionSnapshot): void {
+        const session = snapshot.session
         const expiredAt = session.expiresAt
         void Promise.resolve().then(async () => {
+            if (!this.matchesStoredSessionSnapshot(snapshot)) return
+
             try {
                 await this.credentialSigner.clear?.()
             } catch {
                 // Expiry replay should still happen if credential cleanup fails.
             }
+
+            if (!this.matchesStoredSessionSnapshot(snapshot)) return
+
             if (expiredAt) {
                 this.notifySessionExpired({session, expiredAt})
             }
         }).catch(() => {})
+    }
+
+    private matchesStoredSessionSnapshot(snapshot: StoredSessionSnapshot): boolean {
+        const session = snapshot.session
+        return this.storage.get(Constants.walletIdStorageKey) === snapshot.walletId &&
+            this.storage.get(Constants.walletAddressStorageKey) === (session.walletAddress ?? null) &&
+            this.storage.get(Constants.sessionExpiresAtStorageKey) === (session.expiresAt ?? null) &&
+            this.storage.get(Constants.sessionLoginTypeStorageKey) === (session.loginType ?? null) &&
+            this.storage.get(Constants.sessionEmailStorageKey) === (session.sessionEmail ?? null)
     }
 
     private notifySessionExpired(event: OMSClientSessionExpiredEvent): void {
