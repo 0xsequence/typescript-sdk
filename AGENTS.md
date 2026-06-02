@@ -1,5 +1,60 @@
 # AGENTS.md
 
+Single source of truth for agents working in this repo. `CLAUDE.md` imports this file via
+`@AGENTS.md`, so Claude Code, Codex, and any other agent that reads `AGENTS.md` share the same
+instructions.
+
+---
+
+## Behavioral Guidelines
+
+Behavioral guidelines to reduce common LLM coding mistakes. (Adapted from Andrej Karpathy's
+[CLAUDE.md](https://github.com/multica-ai/andrej-karpathy-skills/blob/main/CLAUDE.md).)
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### 2. Simplicity First
+**Minimum code that solves the problem. Nothing speculative.**
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+**Touch only what you must. Clean up only your own mess.**
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- Remove imports/variables YOUR changes made unused; leave pre-existing dead code unless asked.
+
+The test: every changed line should trace directly to the request.
+
+### 4. Goal-Driven Execution
+**Define success criteria. Loop until verified.**
+- "Add validation" → "Write tests for invalid inputs, then make them pass."
+- "Fix the bug" → "Write a test that reproduces it, then make it pass."
+
+For multi-step tasks, state a brief plan with a verify step for each item.
+
+---
+
+## Third-Party Library Docs
+
+For **any third-party library** (`viem`, `vitest`, etc.), use the **context7** MCP to fetch
+up-to-date documentation rather than relying on training data, which lags real library APIs. If
+the context7 MCP server is not available, set it up: https://context7.com/install
+
+---
+
 ## Project Overview
 
 This repository is a pnpm workspace for the OMS TypeScript SDK. The root package exports the `@0xsequence/typescript-sdk` library used by the React and Node examples. The SDK covers wallet authentication, OIDC redirect auth, signed WaaS requests, wallet/session storage, transaction submission, signing, access management, and indexer balance queries.
@@ -59,7 +114,12 @@ This repository is a pnpm workspace for the OMS TypeScript SDK. The root package
 - Keep supported network metadata and chain ID lookup going through `src/networks.ts`, `Networks`, `supportedNetworks`, `findNetworkById`, and `findNetworkByName` instead of ad hoc conversion.
 - The TypeScript compiler is the enforced style gate. There is no separate lint or formatter command in the root scripts, so avoid broad formatting churn and match the local file style.
 
-## Testing Guidance
+## Testing
+
+See **[TESTING.md](./TESTING.md)** for testing conventions, unit vs. integration boundaries, and
+execution commands.
+
+### Testing Guidance
 
 - Test promises, not implementation. Use `Promise -> Risk -> Evidence -> Cost -> Action` for non-trivial changes.
 - Prefer the lowest reliable evidence level: TypeScript checks for impossible states, Vitest tests for SDK behavior, type tests for public API constraints, and example builds for consumer compatibility.
@@ -99,3 +159,17 @@ This repository is a pnpm workspace for the OMS TypeScript SDK. The root package
 - Do not add a `codex/` prefix when creating git branches.
 - Use plain, descriptive branch names such as `fix-login-timeout` or `add-wallet-tests`.
 - Only use a branch prefix when the user explicitly asks for that exact prefix.
+
+---
+
+## Maintenance Matrix
+
+| When this changes… | Also update… |
+|---|---|
+| Public API in `src/index.ts` | `API.md`, `README.md`, `type-tests/oidcProviderTypes.ts` |
+| Test commands (`package.json` scripts) | `TESTING.md`, `.github/workflows/tests.yml`, `AGENTS.md` Commands section |
+| Node or pnpm version | `.nvmrc`, `package.json#packageManager`, `.github/workflows/*.yml` |
+| New third-party dependency | `package.json`, `pnpm-lock.yaml`, context7 instruction in `AGENTS.md` |
+| `src/generated/waas.gen.ts` (regenerated) | Document schema source + regen command in PR description |
+| Repo structure (new top-level dirs) | `AGENTS.md` Repository Layout section |
+| Examples added or renamed | `pnpm-workspace.yaml`, root `package.json` scripts, `pages.yml` |
