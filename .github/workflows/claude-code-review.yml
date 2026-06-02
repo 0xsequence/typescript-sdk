@@ -1,0 +1,26 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  claude-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY_GITHUB_ACTIONS }}
+          direct_prompt: |
+            Review this pull request. Focus on:
+            - Correctness of SDK behavior changes (wallet auth, signing, transactions, indexer)
+            - Test coverage — every changed behavior should have a test
+            - Public API changes reflected in API.md and type-tests
+            - Explicit .js extensions in relative imports under src/
+            - No new secrets or credential values committed
+            - TypeScript types are sound; no unsafe casts beyond existing patterns
+            Keep feedback constructive and specific. Reference file + line where applicable.
+          use_sticky_comment: true

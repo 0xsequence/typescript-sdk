@@ -489,3 +489,13 @@ await oms.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
 ## API Reference
 
 See [API.md](./API.md) for the full method and type reference.
+
+## Contributing
+
+1. **Read [`AGENTS.md`](./AGENTS.md)** — covers repo layout, coding rules, and the agent workflow.
+2. **Install dependencies:** `pnpm install`
+3. **Verify your change:** `pnpm exec tsc --noEmit && pnpm test`
+4. **Branch naming:** use plain descriptive names like `fix-login-timeout` (no `codex/` prefix).
+5. **Open a PR** — the PR template will walk you through the checklist.
+
+See [`TESTING.md`](./TESTING.md) for full testing conventions and commands.
