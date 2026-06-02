@@ -8,6 +8,7 @@
 - [WalletClient](#walletclient)
   - [walletAddress](#walletaddress)
   - [session](#session)
+  - [onSessionExpired](#onsessionexpired)
   - [startEmailAuth](#startemailauth)
   - [completeEmailAuth](#completeemailauth)
   - [startOidcRedirectAuth](#startoidcredirectauth)
