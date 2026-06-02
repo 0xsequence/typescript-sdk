@@ -329,7 +329,7 @@ signInWithOidcRedirect(params: {
 }): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential } | PendingWalletSelection | void>
 ```
 
-Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth and returns the same result as [`completeOidcRedirectAuth`](#completeoidcredirectauth). Otherwise it starts auth, redirects with `window.location.assign`, and returns `void`. `loginHint` is passed through to the started redirect flow; `sessionLifetimeSeconds` is used when completing the callback. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
+Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth and returns the same result as [`completeOidcRedirectAuth`](#completeoidcredirectauth). Otherwise it starts auth, redirects with `window.location.assign`, and returns `void`. `loginHint` is passed through to the started redirect flow; `sessionLifetimeSeconds` is used when completing the callback and defaults to one week when omitted. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
 
 ```typescript
 void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
