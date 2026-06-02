@@ -198,11 +198,15 @@ For simple browser apps, use the one-call convenience method from a sign-in acti
 void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
 ```
 
+Pass `loginHint` only when you want to prefill or select a specific Google account, such as during session-expiry reauth. The SDK only sends `login_hint` for Google providers. When omitted, the SDK falls back to the previous active session email when one exists before the redirect auth attempt starts. After `signOut()`, that previous session email is cleared. To force no `login_hint` for a call, pass `loginHint: ''`.
+
 Pending redirect state is stored in `sessionStorage` by default. Final wallet session metadata continues to use the configured SDK storage.
 
 ### Session State
 
 Email and OIDC auth both persist the active wallet session in the configured SDK storage. Browser storage defaults to `localStorage` when available; non-browser runtimes fall back to in-memory storage unless you provide a custom `StorageManager`. Browser signing defaults to a non-extractable WebCrypto P-256 credential using `ecdsa-p256-sha256`, so the private session key is not written to `localStorage`. Completed auth requests ask WaaS for a one-week session lifetime.
+
+Pass `sessionLifetimeSeconds` to `completeEmailAuth`, `completeOidcRedirectAuth`, or `signInWithOidcRedirect` to request a different session lifetime for that auth completion.
 
 Use `oms.wallet.walletAddress` when you only need the active wallet address. Use `oms.wallet.session` when you also need credential expiry, login type, or the email returned by the wallet API.
 
@@ -214,6 +218,19 @@ const { expiresAt, loginType, sessionEmail } = oms.wallet.session
 Use `oms.wallet.getIdToken({ ttlSeconds, customClaims })` to request an ID token for the active wallet session.
 
 Pending email OTP and OIDC redirect state are not exposed through `session`; use the auth method results to drive pending UI.
+
+The SDK makes expired sessions inactive before protected wallet operations and throws `OmsSessionError` with code `OMS_SESSION_EXPIRED`. It clears the active signer/session state, but keeps the expired session metadata in storage until the app explicitly starts a new auth flow or calls `signOut()`. Subscribe with `oms.wallet.onSessionExpired` to route the user back to sign-in while preserving the expired session snapshot for email OTP reauth or Google account hints, including after a page refresh:
+
+```typescript
+const oms = new OMSClient({
+  publishableKey: 'your-publishable-key',
+  projectId: 'your-project-id',
+})
+
+const unsubscribe = oms.wallet.onSessionExpired(({ session }) => {
+  showReauth(session)
+})
+```
 
 To end the session, call:
 

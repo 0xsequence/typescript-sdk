@@ -94,8 +94,73 @@ label {
   min-width: 0;
 }
 
-.header-option {
+.header-options {
+  display: grid;
+  gap: 10px;
   margin-top: 14px;
+}
+
+.session-lifetime-option {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(104px, 150px);
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #e1e6ee;
+  border-radius: 6px;
+  background: #fbfcfe;
+}
+
+.session-lifetime-option > span {
+  display: grid;
+}
+
+.session-lifetime-copy {
+  gap: 3px;
+}
+
+.session-lifetime-copy strong {
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.session-lifetime-copy small {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.session-lifetime-option > span:last-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-lifetime-option input {
+  min-height: 36px;
+  padding: 8px 10px;
+}
+
+.session-lifetime-option input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.session-lifetime-option input[type='number']::-webkit-inner-spin-button,
+.session-lifetime-option input[type='number']::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.session-lifetime-option small {
+  color: #667085;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .field-stack {
@@ -543,6 +608,67 @@ output {
   text-decoration: underline;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(16 24 40 / 48%);
+}
+
+.modal {
+  width: min(100%, 420px);
+  display: grid;
+  gap: 14px;
+  padding: 22px;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 22px 64px rgb(16 24 40 / 28%);
+}
+
+.modal h2,
+.modal p {
+  margin: 0;
+}
+
+.modal h2 {
+  color: #101828;
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+.modal p {
+  color: #475467;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.modal-detail {
+  padding: 10px 12px;
+  border: 1px solid #e1e6ee;
+  border-radius: 6px;
+  background: #fbfcfe;
+  overflow-wrap: anywhere;
+}
+
+.modal-detail strong {
+  color: #1f2937;
+}
+
+.modal-hint {
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #eef2f7;
+}
+
+.modal-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
 @media (max-width: 520px) {
   .shell {
     padding: 16px;
@@ -556,7 +682,15 @@ output {
     grid-template-columns: 1fr;
   }
 
+  .session-lifetime-option {
+    grid-template-columns: 1fr;
+  }
+
   .session-info {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-actions {
     grid-template-columns: 1fr;
   }
 }

@@ -6,13 +6,14 @@ import {
   type FeeOptionSelection,
   type FeeOptionWithBalance,
   type Network,
+  type OMSClientSessionExpiredEvent,
   type OMSClientSessionLoginType,
   type OmsWallet,
   type PendingWalletSelection,
   type WalletActivationResult,
 } from '@0xsequence/typescript-sdk'
 import './styles.css'
-import { oms } from './omsClient'
+import { TEST_SESSION_LIFETIME_SECONDS, oms } from './omsClient'
 import { WalletKitDollarExample } from './WalletKitDollarExample'
 
 type Step = 'email' | 'code' | 'wallet-selection' | 'wallet'
@@ -24,6 +25,7 @@ type FeeSelectionController = {
 const DEFAULT_MESSAGE = 'test'
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99'
 const MANUAL_WALLET_SELECTION_KEY = 'oms-demo-manual-wallet-selection'
+const SESSION_LIFETIME_SECONDS_KEY = 'oms-demo-session-lifetime-seconds-v2'
 
 function App() {
   const [step, setStep] = useState<Step>('email')
@@ -40,16 +42,22 @@ function App() {
   const [lastTransactionExplorerUrl, setLastTransactionExplorerUrl] = useState('')
   const [feeOptions, setFeeOptions] = useState<FeeOptionWithBalance[]>([])
   const [useManualWalletSelection, setUseManualWalletSelection] = useState(readManualWalletSelectionPreference)
+  const [sessionLifetimeSeconds, setSessionLifetimeSeconds] = useState(readSessionLifetimePreference)
   const [pendingWalletSelection, setPendingWalletSelection] = useState<PendingWalletSelection | null>(null)
   const [emailAuthStatus, setEmailAuthStatus] = useState('Enter an email to start.')
   const [redirectStatus, setRedirectStatus] = useState('')
   const [walletStatus, setWalletStatus] = useState('')
+  const [sessionExpiredPrompt, setSessionExpiredPrompt] = useState<OMSClientSessionExpiredEvent | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const oidcCallbackStarted = useRef(false)
   const feeSelection = useRef<FeeSelectionController | null>(null)
 
   const selectedNetwork = supportedNetworks.find(network => network.id === selectedNetworkId) ?? Networks.amoy
   const session = oms.wallet.session
+
+  useEffect(() => {
+    return oms.wallet.onSessionExpired(showSessionExpired)
+  }, [])
 
   useEffect(() => {
     if (oms.wallet.walletAddress) {
@@ -84,6 +92,10 @@ function App() {
     window.sessionStorage.setItem(MANUAL_WALLET_SELECTION_KEY, useManualWalletSelection ? 'true' : 'false')
   }, [useManualWalletSelection])
 
+  useEffect(() => {
+    window.sessionStorage.setItem(SESSION_LIFETIME_SECONDS_KEY, sessionLifetimeSeconds.toString())
+  }, [sessionLifetimeSeconds])
+
   async function run(
     label: string,
     setActiveStatus: (message: string) => void,
@@ -116,6 +128,7 @@ function App() {
       const result = await oms.wallet.completeEmailAuth({
         code: code.trim(),
         walletSelection: useManualWalletSelection ? 'manual' : 'automatic',
+        sessionLifetimeSeconds,
       })
       handleAuthCompletion(result, 'Email login complete.')
     })
@@ -124,8 +137,13 @@ function App() {
   async function startOidcRedirect() {
     await run('Redirecting to provider...', setRedirectStatus, async () => {
       window.sessionStorage.setItem(MANUAL_WALLET_SELECTION_KEY, useManualWalletSelection ? 'true' : 'false')
+      window.sessionStorage.setItem(SESSION_LIFETIME_SECONDS_KEY, sessionLifetimeSeconds.toString())
       setPendingWalletSelection(null)
-      await oms.wallet.signInWithOidcRedirect({ provider: 'google' })
+      await oms.wallet.signInWithOidcRedirect({
+        provider: 'google',
+        loginHint: email.trim() || oms.wallet.session.sessionEmail,
+        sessionLifetimeSeconds,
+      })
     })
   }
 
@@ -134,6 +152,7 @@ function App() {
       const result = await oms.wallet.signInWithOidcRedirect({
         provider: 'google',
         walletSelection: readManualWalletSelectionPreference() ? 'manual' : 'automatic',
+        sessionLifetimeSeconds: readSessionLifetimePreference(),
       })
       if (result) {
         handleAuthCompletion(result, 'Google login complete.')
@@ -164,6 +183,78 @@ function App() {
     setWalletAddress(result.walletAddress)
     setStep('wallet')
     setWalletStatus(status)
+  }
+
+  function showSessionExpired(event: OMSClientSessionExpiredEvent) {
+    feeSelection.current?.reject(new Error('Session expired'))
+    feeSelection.current = null
+    setFeeOptions([])
+    setPendingWalletSelection(null)
+    setWalletAddress('')
+    setLastSignature('')
+    setLastIdToken('')
+    setLastTransactionHash('')
+    setLastTransactionExplorerUrl('')
+    setCode('')
+    setStep('email')
+    setEmailAuthStatus(
+      event.session.sessionEmail
+        ? `Session expired for ${event.session.sessionEmail}.`
+        : 'Session expired. Enter an email to continue.',
+    )
+    setRedirectStatus('')
+    setWalletStatus('')
+    if (event.session.sessionEmail) {
+      setEmail(event.session.sessionEmail)
+    }
+    setSessionExpiredPrompt(event)
+  }
+
+  async function reauthenticateExpiredSession() {
+    if (!sessionExpiredPrompt) return
+
+    const expiredSession = sessionExpiredPrompt.session
+    if (expiredSession.loginType === 'google-auth') {
+      await run('Redirecting to Google...', setRedirectStatus, async () => {
+        setSessionExpiredPrompt(null)
+        window.sessionStorage.setItem(MANUAL_WALLET_SELECTION_KEY, useManualWalletSelection ? 'true' : 'false')
+        window.sessionStorage.setItem(SESSION_LIFETIME_SECONDS_KEY, sessionLifetimeSeconds.toString())
+        setPendingWalletSelection(null)
+        await oms.wallet.signInWithOidcRedirect({
+          provider: 'google',
+          loginHint: expiredSession.sessionEmail,
+          sessionLifetimeSeconds,
+        })
+      })
+      return
+    }
+
+    if (expiredSession.loginType === 'email' && expiredSession.sessionEmail) {
+      await run('Sending code...', setEmailAuthStatus, async () => {
+        setSessionExpiredPrompt(null)
+        setPendingWalletSelection(null)
+        setEmail(expiredSession.sessionEmail ?? '')
+        await oms.wallet.startEmailAuth({ email: expiredSession.sessionEmail ?? '' })
+        setStep('code')
+        setEmailAuthStatus('Code sent. Check your email.')
+      })
+      return
+    }
+
+    setSessionExpiredPrompt(null)
+    setStep('email')
+    setEmailAuthStatus('Enter an email to start.')
+  }
+
+  function dismissSessionExpiredPrompt() {
+    setSessionExpiredPrompt(null)
+    setStep('email')
+  }
+
+  function updateSessionLifetime(value: string) {
+    const next = Math.floor(Number(value))
+    if (!Number.isFinite(next)) return
+    setSessionLifetimeSeconds(Math.max(1, next))
   }
 
   async function selectPendingWallet(wallet: OmsWallet) {
@@ -279,15 +370,34 @@ function App() {
           <p className="eyebrow">OMS Client Typescript SDK</p>
           <h1>Wallet Demo</h1>
           {step === 'email' && (
-            <label className="checkbox-row header-option">
-              <input
-                type="checkbox"
-                checked={useManualWalletSelection}
-                onChange={(event) => setUseManualWalletSelection(event.target.checked)}
-                disabled={isBusy}
-              />
-              <span>Use manual wallet selection</span>
-            </label>
+            <div className="header-options">
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={useManualWalletSelection}
+                  onChange={(event) => setUseManualWalletSelection(event.target.checked)}
+                  disabled={isBusy}
+                />
+                <span>Use manual wallet selection</span>
+              </label>
+              <label className="session-lifetime-option">
+                <span className="session-lifetime-copy">
+                  <strong>Session lifetime</strong>
+                  <small>Shorten this to test session expiry easier.</small>
+                </span>
+                <span>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={sessionLifetimeSeconds}
+                    onChange={(event) => updateSessionLifetime(event.target.value)}
+                    disabled={isBusy}
+                  />
+                  <small>seconds</small>
+                </span>
+              </label>
+            </div>
           )}
         </header>
 
@@ -561,6 +671,42 @@ function App() {
 
         {step === 'wallet' && walletStatus && <output>{walletStatus}</output>}
       </section>
+
+      {sessionExpiredPrompt && (
+        <div className="modal-backdrop">
+          <section
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="session-expired-title"
+          >
+            <h2 id="session-expired-title">Session expired</h2>
+            <p>
+              Your wallet session has expired. Reauthenticate to continue using this wallet.
+            </p>
+            {sessionExpiredPrompt.session.sessionEmail && (
+              <p className="modal-detail">
+                Account <strong>{sessionExpiredPrompt.session.sessionEmail}</strong>
+              </p>
+            )}
+            <p className="modal-hint">
+              {sessionExpiredPrompt.session.loginType === 'google-auth'
+                ? 'You will be redirected to Google with the same account selected.'
+                : sessionExpiredPrompt.session.loginType === 'email' && sessionExpiredPrompt.session.sessionEmail
+                  ? 'A new sign-in code will be sent to the same email address.'
+                  : 'Sign in again to continue.'}
+            </p>
+            <div className="modal-actions">
+              <button type="button" onClick={() => void reauthenticateExpiredSession()} disabled={isBusy}>
+                Reauthenticate
+              </button>
+              <button type="button" className="secondary" onClick={dismissSessionExpiredPrompt} disabled={isBusy}>
+                Not now
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   )
 }
@@ -610,4 +756,11 @@ function isPendingWalletSelection(
 
 function readManualWalletSelectionPreference(): boolean {
   return window.sessionStorage.getItem(MANUAL_WALLET_SELECTION_KEY) === 'true'
+}
+
+function readSessionLifetimePreference(): number {
+  const stored = Number(window.sessionStorage.getItem(SESSION_LIFETIME_SECONDS_KEY))
+  return Number.isFinite(stored) && stored > 0
+    ? Math.floor(stored)
+    : TEST_SESSION_LIFETIME_SECONDS
 }

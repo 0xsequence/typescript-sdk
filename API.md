@@ -8,6 +8,7 @@
 - [WalletClient](#walletclient)
   - [walletAddress](#walletaddress)
   - [session](#session)
+  - [onSessionExpired](#onsessionexpired)
   - [startEmailAuth](#startemailauth)
   - [completeEmailAuth](#completeemailauth)
   - [startOidcRedirectAuth](#startoidcredirectauth)
@@ -142,10 +143,27 @@ interface OMSClientSessionState {
   sessionEmail: string | undefined
 }
 
+interface OMSClientSessionExpiredEvent {
+  session: OMSClientSessionState
+  expiredAt: string
+}
+
 wallet.session: OMSClientSessionState
 ```
 
 Completed wallet sessions persist `walletAddress`, credential expiry, login type, and returned email in the configured `storage`. Pending email OTP and OIDC redirect state are not exposed through `session`; use the auth method results to drive pending UI.
+
+Expired sessions are made inactive before protected wallet operations and throw `OmsSessionError` with code `OMS_SESSION_EXPIRED`. The SDK clears the active signer/session state, but keeps the expired session metadata in storage until the app explicitly starts a new auth flow or calls `signOut()`. Use `wallet.onSessionExpired` to update app state or route back to sign-in; the event includes the expired session snapshot so apps can reuse `sessionEmail` for email OTP reauth or as a Google `loginHint`, including after a page refresh.
+
+### onSessionExpired
+
+```typescript
+const unsubscribe = wallet.onSessionExpired((event) => {
+  showReauth(event.session)
+})
+```
+
+Registers a listener for expired wallet sessions and returns an unsubscribe function. The wallet client stores the latest expired-session event and replays it to each new listener until a new auth flow, new wallet session, or `signOut()` clears it.
 
 ---
 
@@ -184,6 +202,7 @@ completeEmailAuth(params: {
   code: string
   walletType?: WalletType
   walletSelection?: 'automatic' | 'manual'
+  sessionLifetimeSeconds?: number
 }): Promise<
   | { walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }
   | PendingWalletSelection
@@ -192,7 +211,7 @@ completeEmailAuth(params: {
 
 Verifies the OTP code and activates a wallet. Must be called after [`startEmailAuth`](#startemailauth).
 
-This method verifies the code with a one-week WaaS session lifetime, loads all wallet pages, then automatically selects an existing wallet matching `walletType`, or creates a new one if none exists. Wallet metadata is persisted to storage. Pass `walletSelection: 'manual'` to return a [`PendingWalletSelection`](#pendingwalletselection) bound to the verified auth flow; complete selection through that object.
+This method verifies the code with a one-week WaaS session lifetime by default, loads all wallet pages, then automatically selects an existing wallet matching `walletType`, or creates a new one if none exists. Wallet metadata is persisted to storage. Pass `sessionLifetimeSeconds` to request a shorter or longer WaaS session lifetime. Pass `walletSelection: 'manual'` to return a [`PendingWalletSelection`](#pendingwalletselection) bound to the verified auth flow; complete selection through that object.
 
 **Parameters**
 
@@ -201,6 +220,7 @@ This method verifies the code with a one-week WaaS session lifetime, loads all w
 | `code` | `string` | Yes | The one-time passcode entered by the user. |
 | `walletType` | `WalletType` | No | The wallet type to load or create. Defaults to `WalletType.Ethereum`. |
 | `walletSelection` | `'automatic' \| 'manual'` | No | Defaults to `'automatic'`. Set to `'manual'` to let the app choose an existing wallet or create one through the returned pending selection. |
+| `sessionLifetimeSeconds` | `number` | No | Requested WaaS session lifetime in seconds. Defaults to one week. |
 
 **Returns** `Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }>` by default, or `Promise<PendingWalletSelection>` when `walletSelection` is `'manual'`.
 
@@ -242,6 +262,7 @@ startOidcRedirectAuth(params: {
   walletType?: WalletType
   relayRedirectUri?: string
   authorizeParams?: Record<string, string>
+  loginHint?: string
 }): Promise<{ url: string; state: string; challenge: string }>
 ```
 
@@ -250,6 +271,8 @@ Starts an OIDC authorization-code PKCE flow and returns the provider authorizati
 If `provider` is a string, it must match a configured `environment.auth.oidcProviders` key. Passing an `OidcProviderConfig` object directly is also supported.
 
 In direct mode, `redirect_uri` is `redirectUri`. In relay mode, `redirect_uri` is `relayRedirectUri`, and the encoded state includes the final app `redirect_uri`.
+
+Pass `loginHint` for Google redirect flows to set the Google `login_hint` authorization parameter, which can prefill or select the expected account. The SDK only sends `login_hint` for providers whose issuer is `https://accounts.google.com`. If omitted, the SDK falls back to the previous active session email when one exists before the redirect auth attempt starts. After `signOut()`, that previous session email is cleared. To force no `login_hint` for a call, pass `loginHint: ''`.
 
 ```typescript
 const { url } = await oms.wallet.startOidcRedirectAuth({
@@ -270,13 +293,14 @@ completeOidcRedirectAuth(params: {
   cleanUrl?: boolean
   replaceUrl?: (url: string) => void
   walletSelection?: 'automatic' | 'manual'
+  sessionLifetimeSeconds?: number
 }): Promise<
   | { walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential }
   | PendingWalletSelection
 >
 ```
 
-Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime, and activating an existing wallet or creating one. Pass `walletSelection: 'manual'` to return a [`PendingWalletSelection`](#pendingwalletselection) for app-driven wallet selection. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
+Completes an OIDC redirect flow by validating the persisted state nonce, exchanging the authorization code with WaaS using a one-week session lifetime by default, and activating an existing wallet or creating one. Pass `sessionLifetimeSeconds` to request a shorter or longer WaaS session lifetime. Pass `walletSelection: 'manual'` to return a [`PendingWalletSelection`](#pendingwalletselection) for app-driven wallet selection. `cleanUrl` removes OAuth query parameters after successful completion; outside a browser, pass `replaceUrl`.
 
 ```typescript
 const { walletAddress, credential } = await oms.wallet.completeOidcRedirectAuth({
@@ -297,6 +321,8 @@ signInWithOidcRedirect(params: {
   walletSelection?: 'automatic' | 'manual'
   relayRedirectUri?: string
   authorizeParams?: Record<string, string>
+  loginHint?: string
+  sessionLifetimeSeconds?: number
   cleanUrl?: boolean
   currentUrl?: string
   assignUrl?: (url: string) => void
@@ -304,7 +330,7 @@ signInWithOidcRedirect(params: {
 }): Promise<{ walletAddress: Address; wallet: OmsWallet; wallets: OmsWallet[]; credential: WalletCredential } | PendingWalletSelection | void>
 ```
 
-Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth and returns the same result as [`completeOidcRedirectAuth`](#completeoidcredirectauth). Otherwise it starts auth, redirects with `window.location.assign`, and returns `void`. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
+Browser convenience method for regular web apps. If the current URL has OIDC callback params, it completes auth and returns the same result as [`completeOidcRedirectAuth`](#completeoidcredirectauth). Otherwise it starts auth, redirects with `window.location.assign`, and returns `void`. `loginHint` is passed through to the started redirect flow; `sessionLifetimeSeconds` is used when completing the callback and defaults to one week when omitted. For router-driven apps, prefer [`startOidcRedirectAuth`](#startoidcredirectauth) and [`completeOidcRedirectAuth`](#completeoidcredirectauth).
 
 ```typescript
 void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
@@ -757,6 +783,7 @@ type OmsSdkErrorCode =
   | 'OMS_REQUEST_FAILED'
   | 'OMS_AUTH_COMMITMENT_CONSUMED'
   | 'OMS_SESSION_MISSING'
+  | 'OMS_SESSION_EXPIRED'
   | 'OMS_WALLET_SELECTION_STALE'
   | 'OMS_WALLET_SELECTION_UNAVAILABLE'
   | 'OMS_WALLET_SELECTION_IN_FLIGHT'
@@ -768,7 +795,7 @@ type OmsSdkErrorCode =
 
 | Class | Typical use |
 |---|---|
-| `OmsSessionError` | Missing or stale wallet session. |
+| `OmsSessionError` | Missing, expired, or stale wallet session. |
 | `OmsRequestError` | Network, fetch, or non-2xx HTTP failures. |
 | `OmsResponseError` | Invalid JSON or malformed API responses. |
 | `OmsTransactionError` | Transaction was submitted but status polling failed; includes `txnId`. |
