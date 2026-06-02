@@ -179,7 +179,6 @@ For routers such as React Router or Next.js, use the explicit start/complete met
 const { url } = await oms.wallet.startOidcRedirectAuth({
   provider: 'google',
   redirectUri: `${window.location.origin}/auth/callback`,
-  loginHint: oms.wallet.session.sessionEmail,
 })
 
 window.location.assign(url)
@@ -199,7 +198,7 @@ For simple browser apps, use the one-call convenience method from a sign-in acti
 void oms.wallet.signInWithOidcRedirect({ provider: 'google' })
 ```
 
-Pass `loginHint` to prefill or select the expected Google account. The SDK only sends `login_hint` for Google providers. When omitted, the SDK uses the provider hint returned by WaaS, then falls back to the previous session email if one was active before the redirect auth attempt.
+Pass `loginHint` only when you want to prefill or select a specific Google account, such as during session-expiry reauth. The SDK only sends `login_hint` for Google providers. When omitted, the SDK falls back to the previous active session email when one exists before the redirect auth attempt starts. After `signOut()`, that previous session email is cleared. To force no `login_hint` for a call, pass `loginHint: ''`.
 
 Pending redirect state is stored in `sessionStorage` by default. Final wallet session metadata continues to use the configured SDK storage.
 

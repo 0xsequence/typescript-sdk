@@ -146,6 +146,47 @@ describe("WalletClient session storage", () => {
         });
     });
 
+    it("notifies session expiry listeners when signer cleanup fails", async () => {
+        const storage = new MemoryStorageManager();
+        const signer = new MockSigner();
+        signer.clear.mockRejectedValueOnce(new Error("clear failed"));
+        const onSessionExpired = vi.fn();
+        const wallet = new WalletClient({
+            publishableKey: "publishable-key",
+            projectId: "project-id",
+            environment: testEnvironment(),
+            storage,
+            credentialSigner: signer,
+        });
+        wallet.onSessionExpired(onSessionExpired);
+        (wallet as any).persistSession("wallet-id", "0x1111111111111111111111111111111111111111", {
+            expiresAt: "2000-01-01T00:00:00Z",
+            loginType: "email",
+            sessionEmail: "user@example.com",
+        });
+
+        await expect(wallet.signMessage({network: Networks.polygon, message: "hello"})).rejects.toMatchObject({
+            code: "OMS_SESSION_EXPIRED",
+            operation: "wallet.signMessage",
+        });
+        expect(wallet.session).toEqual({
+            walletAddress: undefined,
+            expiresAt: undefined,
+            loginType: undefined,
+            sessionEmail: undefined,
+        });
+        expect(signer.clear).toHaveBeenCalledOnce();
+        expect(onSessionExpired).toHaveBeenCalledWith({
+            session: {
+                walletAddress: "0x1111111111111111111111111111111111111111",
+                expiresAt: "2000-01-01T00:00:00Z",
+                loginType: "email",
+                sessionEmail: "user@example.com",
+            },
+            expiredAt: "2000-01-01T00:00:00Z",
+        });
+    });
+
     it("does not restore expired sessions from storage and notifies after construction without clearing stored metadata", async () => {
         const storage = new MemoryStorageManager();
         const signer = new MockSigner();
@@ -206,6 +247,41 @@ describe("WalletClient session storage", () => {
         await Promise.resolve();
 
         expect(nextOnSessionExpired).toHaveBeenCalledWith({
+            session: {
+                walletAddress: "0x1111111111111111111111111111111111111111",
+                expiresAt: "2000-01-01T00:00:00Z",
+                loginType: "email",
+                sessionEmail: "user@example.com",
+            },
+            expiredAt: "2000-01-01T00:00:00Z",
+        });
+    });
+
+    it("replays expired stored sessions when signer cleanup fails", async () => {
+        const storage = new MemoryStorageManager();
+        const signer = new MockSigner();
+        signer.clear.mockRejectedValueOnce(new Error("clear failed"));
+        const onSessionExpired = vi.fn();
+        storage.set(Constants.walletIdStorageKey, "wallet-id");
+        storage.set(Constants.walletAddressStorageKey, "0x1111111111111111111111111111111111111111");
+        storage.set(Constants.sessionExpiresAtStorageKey, "2000-01-01T00:00:00Z");
+        storage.set(Constants.sessionLoginTypeStorageKey, "email");
+        storage.set(Constants.sessionEmailStorageKey, "user@example.com");
+
+        const client = new OMSClient({
+            publishableKey: "publishable-key",
+            projectId: "project-id",
+            environment: testEnvironment(),
+            storage,
+            credentialSigner: signer,
+        });
+        client.wallet.onSessionExpired(onSessionExpired);
+
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(signer.clear).toHaveBeenCalledOnce();
+        expect(onSessionExpired).toHaveBeenCalledWith({
             session: {
                 walletAddress: "0x1111111111111111111111111111111111111111",
                 expiresAt: "2000-01-01T00:00:00Z",

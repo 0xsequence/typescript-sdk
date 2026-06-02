@@ -573,7 +573,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 authorizeParams,
                 loginHint: this.loginHintForProvider(
                     provider.config,
-                    params.loginHint ?? response.loginHint ?? previousSession.sessionEmail,
+                    params.loginHint ?? previousSession.sessionEmail,
                 ),
             })
 
@@ -1695,7 +1695,11 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
 
     private async expireSession(session: OMSClientSessionState): Promise<void> {
         const expiredAt = session.expiresAt
-        await this.clearSession({clearStorage: false})
+        try {
+            await this.clearSession({clearStorage: false})
+        } catch {
+            // Expiry notification should not depend on credential cleanup succeeding.
+        }
         if (expiredAt) {
             this.notifySessionExpired({session, expiredAt})
         }
@@ -1749,7 +1753,11 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
     private scheduleStoredSessionExpiryNotification(session: OMSClientSessionState): void {
         const expiredAt = session.expiresAt
         void Promise.resolve().then(async () => {
-            await this.credentialSigner.clear?.()
+            try {
+                await this.credentialSigner.clear?.()
+            } catch {
+                // Expiry replay should still happen if credential cleanup fails.
+            }
             if (expiredAt) {
                 this.notifySessionExpired({session, expiredAt})
             }

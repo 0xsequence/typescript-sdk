@@ -65,7 +65,6 @@ describe("WalletClient OIDC redirect auth", () => {
             return jsonResponse({
                 verifier: "verifier-1",
                 challenge: "challenge-1",
-                loginHint: "user@example.com",
             });
         });
         vi.stubGlobal("fetch", fetchMock);
@@ -87,7 +86,7 @@ describe("WalletClient OIDC redirect auth", () => {
         expect(authorizeUrl.searchParams.get("state")).toBe(result.state);
         expect(authorizeUrl.searchParams.get("code_challenge")).toBe("challenge-1");
         expect(authorizeUrl.searchParams.get("code_challenge_method")).toBe("S256");
-        expect(authorizeUrl.searchParams.get("login_hint")).toBe("user@example.com");
+        expect(authorizeUrl.searchParams.get("login_hint")).toBeNull();
 
         const state = decodeOidcState(result.state);
         expect(state.scope).toBe("project-id");
@@ -95,11 +94,10 @@ describe("WalletClient OIDC redirect auth", () => {
         expect(redirectAuthStorage.get(Constants.redirectAuthStorageKey)).toContain("verifier-1");
     });
 
-    it("uses an explicit login hint ahead of the WaaS-provided hint", async () => {
+    it("uses an explicit login hint", async () => {
         const fetchMock = vi.fn(async () => jsonResponse({
             verifier: "verifier-1",
             challenge: "challenge-1",
-            loginHint: "server@example.com",
         }));
         vi.stubGlobal("fetch", fetchMock);
 
@@ -113,6 +111,25 @@ describe("WalletClient OIDC redirect auth", () => {
 
         const authorizeUrl = new URL(result.url);
         expect(authorizeUrl.searchParams.get("login_hint")).toBe("last@example.com");
+    });
+
+    it("ignores WaaS-provided login hints", async () => {
+        const fetchMock = vi.fn(async () => jsonResponse({
+            verifier: "verifier-1",
+            challenge: "challenge-1",
+            loginHint: "server@example.com",
+        }));
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = createWalletClient({redirectAuthStorage: new MemoryStorageManager()});
+
+        const result = await wallet.startOidcRedirectAuth({
+            provider: "google",
+            redirectUri: "https://app.example/auth/callback",
+        });
+
+        const authorizeUrl = new URL(result.url);
+        expect(authorizeUrl.searchParams.get("login_hint")).toBeNull();
     });
 
     it("uses the previous session email as a login hint when no explicit hint is provided", async () => {
