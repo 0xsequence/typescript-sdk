@@ -45,6 +45,7 @@ export class OmsWalletProvider {
         private readonly setChainId: (chainId: number) => void,
         private readonly syncChainId: (chainId: number) => void,
         private readonly getNetworks: () => MaybePromise<readonly OmsWalletNetwork[]>,
+        private readonly isChainConfigured: (chainId: number) => boolean,
         private readonly connectWallet: (parameters?: {chainId?: number; isReconnecting?: boolean}) => Promise<readonly Address[]>,
         private readonly isDisconnected: () => MaybePromise<boolean>,
     ) {}
@@ -183,6 +184,9 @@ export class OmsWalletProvider {
     private async switchEthereumChain(params: unknown): Promise<null> {
         const [request] = paramsAsTuple(params, "wallet_switchEthereumChain") as [{chainId?: Hex | number | string}];
         const chainId = normalizeChainId(request?.chainId);
+        if (!this.isChainConfigured(chainId)) {
+            throw new OmsWalletProviderRpcError(4901, `Chain ${chainId} is not configured in wagmi.`);
+        }
         await this.requireNetwork(chainId);
         this.setChainId(chainId);
         this.syncChainId(chainId);

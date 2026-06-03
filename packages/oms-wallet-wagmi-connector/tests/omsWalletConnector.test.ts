@@ -321,6 +321,30 @@ describe("omsWalletConnector", () => {
         await expect(connector.getChainId()).resolves.toBe(mainnet.id);
     });
 
+    it("rejects provider chain switches to OMS-supported chains that are not configured in wagmi", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const config = createConfig({
+            chains: [polygon],
+            connectors: [omsWalletConnector({client, networks})],
+            transports: {
+                [polygon.id]: http(),
+            },
+        });
+        const connector = config.connectors[0];
+
+        await connect(config, {connector});
+        const provider = await connector.getProvider();
+        await expect(provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{chainId: "0x1"}],
+        })).rejects.toMatchObject({
+            code: 4901,
+        });
+
+        expect(config.state.connections.get(config.state.current!)?.chainId).toBe(polygon.id);
+        await expect(connector.getChainId()).resolves.toBe(polygon.id);
+    });
+
     it("uses and validates initialChainId", async () => {
         const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
         const config = createWagmiConfig(client, {initialChainId: mainnet.id});

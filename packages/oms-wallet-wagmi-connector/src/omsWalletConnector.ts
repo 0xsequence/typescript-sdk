@@ -140,6 +140,7 @@ export function omsWalletConnector(parameters: OmsWalletConnectorParameters) {
                 setChainId,
                 syncChainId,
                 getNetworks,
+                nextChainId => Boolean(chainById(nextChainId)),
                 connectWallet,
                 isManuallyDisconnected,
             );
