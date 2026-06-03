@@ -542,11 +542,17 @@ export function App() {
                 <h2>Operations</h2>
               </div>
               <div className="operation-example trails-widget-launcher">
-                <TrailsWidget apiKey={TRAILS_API_KEY} adapters={trailsAdapters}>
-                  <button type="button" className="trails-widget-button">
-                    Open Trails Widget
+                {TRAILS_API_KEY ? (
+                  <TrailsWidget apiKey={TRAILS_API_KEY} adapters={trailsAdapters}>
+                    <button type="button" className="trails-widget-button">
+                      Open Trails Widget
+                    </button>
+                  </TrailsWidget>
+                ) : (
+                  <button type="button" className="trails-widget-button" disabled>
+                    Add Trails API key
                   </button>
-                </TrailsWidget>
+                )}
               </div>
               <div className="field-stack operation-example">
                 <label>

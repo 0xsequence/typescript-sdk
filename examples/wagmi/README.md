@@ -8,8 +8,7 @@ Run it from the repository root:
 pnpm install
 pnpm build
 cp examples/wagmi/.env.example examples/wagmi/.env.local
-# Fill VITE_OMS_PUBLISHABLE_KEY and VITE_OMS_PROJECT_ID
-# VITE_TRAILS_API_KEY is prefilled with the public Trails demo key
+# Fill VITE_OMS_PUBLISHABLE_KEY, VITE_OMS_PROJECT_ID, and VITE_TRAILS_API_KEY
 pnpm dev:wagmi-example
 ```
 
