@@ -56,12 +56,21 @@ jobs:
           VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLIC_API_KEY }}
           VITE_OMS_PROJECT_ID: ${{ secrets.OMS_PROJECT_ID }}
 
+      - name: Build Wagmi example
+        run: pnpm build:wagmi-example
+        env:
+          GITHUB_PAGES: 'true'
+          VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLIC_API_KEY }}
+          VITE_OMS_PROJECT_ID: ${{ secrets.OMS_PROJECT_ID }}
+
       - name: Stage Pages artifact
         run: |
           mkdir -p pages/react-example
           mkdir -p pages/trails-actions-example
+          mkdir -p pages/wagmi-example
           cp -R examples/react/dist/. pages/react-example/
           cp -R examples/trails-actions/dist/. pages/trails-actions-example/
+          cp -R examples/wagmi/dist/. pages/wagmi-example/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5

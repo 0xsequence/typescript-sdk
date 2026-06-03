@@ -71,6 +71,32 @@ cp examples/react/.env.example examples/react/.env.local
 pnpm dev:example
 ```
 
+## Wagmi Connector
+
+This workspace also includes `@0xsequence/oms-wallet-wagmi-connector`, an ESM-only package that adapts an
+active OMS client to wagmi's connector API.
+
+```bash
+pnpm --filter @0xsequence/oms-wallet-wagmi-connector build
+pnpm --filter @0xsequence/oms-wallet-wagmi-connector test
+```
+
+See [packages/oms-wallet-wagmi-connector/README.md](./packages/oms-wallet-wagmi-connector/README.md) for usage.
+
+## Wagmi React Example
+
+The Wagmi example uses both `@0xsequence/oms-wallet-wagmi-connector` and wagmi's MetaMask connector.
+
+The deployed Wagmi example is available at [https://0xsequence.github.io/typescript-sdk/wagmi-example/](https://0xsequence.github.io/typescript-sdk/wagmi-example/).
+
+To run it locally from the repository root:
+
+```bash
+cp examples/wagmi/.env.example examples/wagmi/.env.local
+# Fill VITE_OMS_PUBLISHABLE_KEY and VITE_OMS_PROJECT_ID in examples/wagmi/.env.local
+pnpm dev:wagmi-example
+```
+
 ## Trails Actions React Example
 
 The Trails Actions example prepares and sends Polygon swap, deposit, and swap plus deposit flows with `0xtrails/actions`.

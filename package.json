@@ -40,6 +40,8 @@
     "build:example": "pnpm --filter react-example build",
     "dev:trails-actions-example": "pnpm --filter trails-actions-example dev",
     "build:trails-actions-example": "pnpm --filter trails-actions-example build",
+    "dev:wagmi-example": "pnpm --filter @0xsequence/oms-wallet-wagmi-connector build && pnpm --filter wagmi-example dev",
+    "build:wagmi-example": "pnpm --filter @0xsequence/oms-wallet-wagmi-connector build && pnpm --filter wagmi-example build",
     "dev:node-example": "pnpm --filter node-example dev",
     "build:node-example": "pnpm --filter node-example build",
     "dev:node-contract-deploy-example": "pnpm --filter node-contract-deploy-example dev",

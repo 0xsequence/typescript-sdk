@@ -1,11 +1,13 @@
 packages:
   - "."
+  - "packages/*"
   - "examples/*"
 
 allowBuilds:
   '@reown/appkit': false
   bufferutil: false
   esbuild: true
+  protobufjs: false
   utf-8-validate: false
 
 minimumReleaseAge: 10080
