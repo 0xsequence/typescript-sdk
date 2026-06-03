@@ -62,6 +62,7 @@ jobs:
           GITHUB_PAGES: 'true'
           VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLISHABLE_KEY }}
           VITE_OMS_PROJECT_ID: ${{ secrets.OMS_PROJECT_ID }}
+          VITE_TRAILS_API_KEY: ${{ secrets.VITE_TRAILS_API_KEY }}
 
       - name: Stage Pages artifact
         run: |
