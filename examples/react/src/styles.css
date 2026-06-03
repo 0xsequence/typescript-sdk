@@ -431,9 +431,23 @@ select:disabled {
   background: #eef2f7;
 }
 
+.fee-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(16 24 40 / 52%);
+}
+
 .fee-options {
+  width: min(100%, 420px);
+  max-height: min(640px, calc(100vh - 40px));
   display: grid;
   gap: 10px;
+  overflow: auto;
+  box-shadow: 0 22px 70px rgb(20 28 38 / 28%);
 }
 
 .fee-option-list {

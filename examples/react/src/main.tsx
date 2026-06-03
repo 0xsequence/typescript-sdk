@@ -333,6 +333,11 @@ function App() {
   }
 
   function chooseFeeOption(option: FeeOptionWithBalance) {
+    if (!canAffordFeeOption(option)) {
+      setWalletStatus(`Insufficient ${option.feeOption.token.symbol} balance for fee.`)
+      return
+    }
+
     feeSelection.current?.resolve({ token: option.feeOption.token.symbol })
     feeSelection.current = null
     setFeeOptions([])
@@ -599,30 +604,6 @@ function App() {
               <button type="button" onClick={sendTransaction} disabled={isBusy || !transactionTo.trim()}>
                 Send transaction
               </button>
-              {feeOptions.length > 0 && (
-                <div className="fee-options" aria-live="polite">
-                  <h3>Fee option</h3>
-                  <div className="fee-option-list">
-                    {feeOptions.map(option => (
-                      <button
-                        key={`${option.feeOption.token.symbol}-${option.feeOption.value}`}
-                        type="button"
-                        className="fee-option"
-                        onClick={() => chooseFeeOption(option)}
-                      >
-                        <span>
-                          <strong>{option.feeOption.token.symbol}</strong>
-                          <small>{option.feeOption.displayValue || option.feeOption.value}</small>
-                        </span>
-                        <span>{option.available ?? 'Balance unavailable'}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <button type="button" className="secondary" onClick={cancelFeeSelection}>
-                    Cancel transaction
-                  </button>
-                </div>
-              )}
               {lastTransactionHash && (
                 <div className="result-block">
                   <p className="result labeled-result">
@@ -669,8 +650,16 @@ function App() {
           </div>
         )}
 
-        {step === 'wallet' && walletStatus && <output>{walletStatus}</output>}
+            {step === 'wallet' && walletStatus && <output>{walletStatus}</output>}
       </section>
+
+      {feeOptions.length > 0 && (
+        <FeeOptionsPanel
+          feeOptions={feeOptions}
+          onCancel={cancelFeeSelection}
+          onChoose={chooseFeeOption}
+        />
+      )}
 
       {sessionExpiredPrompt && (
         <div className="modal-backdrop">
@@ -708,6 +697,48 @@ function App() {
         </div>
       )}
     </main>
+  )
+}
+
+function FeeOptionsPanel({
+  feeOptions,
+  onCancel,
+  onChoose,
+}: {
+  feeOptions: FeeOptionWithBalance[]
+  onCancel: () => void
+  onChoose: (option: FeeOptionWithBalance) => void
+}) {
+  return (
+    <div className="fee-modal-backdrop">
+      <section className="tool fee-options" role="dialog" aria-modal="true" aria-labelledby="fee-options-title">
+        <h2 id="fee-options-title">Fee option</h2>
+        <div className="fee-option-list">
+          {feeOptions.map((option) => {
+            const canAfford = canAffordFeeOption(option)
+
+            return (
+              <button
+                key={`${option.feeOption.token.symbol}-${option.feeOption.value}`}
+                type="button"
+                className="fee-option"
+                onClick={() => onChoose(option)}
+                disabled={!canAfford}
+              >
+                <span>
+                  <strong>{option.feeOption.token.symbol}</strong>
+                  <small>{option.feeOption.displayValue || option.feeOption.value}</small>
+                </span>
+                <span>{canAfford ? option.available ?? 'Balance unavailable' : 'Insufficient balance'}</span>
+              </button>
+            )
+          })}
+        </div>
+        <button type="button" className="secondary" onClick={onCancel}>
+          Cancel transaction
+        </button>
+      </section>
+    </div>
   )
 }
 
@@ -752,6 +783,16 @@ function isPendingWalletSelection(
   result: PendingWalletSelection | WalletActivationResult,
 ): result is PendingWalletSelection {
   return 'selectWallet' in result
+}
+
+function canAffordFeeOption(option: FeeOptionWithBalance): boolean {
+  if (option.availableRaw === undefined) return false
+
+  try {
+    return BigInt(option.availableRaw) >= BigInt(option.feeOption.value)
+  } catch {
+    return false
+  }
 }
 
 function readManualWalletSelectionPreference(): boolean {
