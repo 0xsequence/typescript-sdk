@@ -85,7 +85,7 @@ See [packages/oms-wallet-wagmi-connector/README.md](./packages/oms-wallet-wagmi-
 
 ## Wagmi React Example
 
-The Wagmi example uses both `@0xsequence/oms-wallet-wagmi-connector` and wagmi's MetaMask connector.
+The Wagmi example uses `@0xsequence/oms-wallet-wagmi-connector`, wagmi's MetaMask connector, and the Trails widget.
 
 The deployed Wagmi example is available at [https://0xsequence.github.io/typescript-sdk/wagmi-example/](https://0xsequence.github.io/typescript-sdk/wagmi-example/).
 

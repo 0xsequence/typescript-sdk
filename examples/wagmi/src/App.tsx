@@ -12,11 +12,13 @@ import {
   useSwitchChain,
   useWaitForTransactionReceipt,
 } from 'wagmi'
+import { TrailsWidget } from '0xtrails'
 import { formatEther, isAddress, parseEther, type Address, type Hash } from 'viem'
 import type { FeeOptionWithBalance, OMSClientSessionLoginType } from '@0xsequence/typescript-sdk'
 import { TEST_SESSION_LIFETIME_SECONDS, oms } from './omsClient'
 import { useFeeOptionSelection } from './useFeeOptionSelection'
-import { defaultChain, omsWalletChains, omsWalletNetworks } from './wagmiConfig'
+import { TRAILS_API_KEY } from './config'
+import { defaultChain, omsWalletChains, omsWalletNetworks, trailsAdapters } from './wagmiConfig'
 
 type Connector = ReturnType<typeof useConnectors>[number]
 type DemoStep = 'auth' | 'operations'
@@ -538,6 +540,13 @@ export function App() {
             <section className="section">
               <div className="tool-header">
                 <h2>Operations</h2>
+              </div>
+              <div className="field-stack operation-example trails-widget-launcher">
+                <TrailsWidget apiKey={TRAILS_API_KEY} adapters={trailsAdapters}>
+                  <button type="button">
+                    Open Trails Widget
+                  </button>
+                </TrailsWidget>
               </div>
               <div className="field-stack operation-example">
                 <label>

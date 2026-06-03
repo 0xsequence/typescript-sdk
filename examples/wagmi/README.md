@@ -1,6 +1,6 @@
 # Wagmi Example
 
-This Vite React example uses wagmi with both the OMS Wallet connector and the MetaMask connector.
+This Vite React example uses wagmi with the OMS Wallet connector, the MetaMask connector, and the Trails widget.
 
 Run it from the repository root:
 
@@ -20,6 +20,8 @@ The deployed example is available at `https://0xsequence.github.io/typescript-sd
 The example authenticates OMS Wallet with the SDK, then connects through wagmi. Account state,
 balance reads, chain switching, message signing, typed-data signing, transaction sending, fee-option
 selection, and transaction receipt polling are all performed with wagmi hooks.
+
+The Trails widget is configured with the same wagmi runtime through `@0xtrails/adapter-wagmi`.
 
 The OMS Wallet connector is configured with a stable `selectFeeOption` callback,
 `selectFeeOptionWithAppUi`. The React app subscribes to that callback with

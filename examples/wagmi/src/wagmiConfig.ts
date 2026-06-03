@@ -1,5 +1,6 @@
 import { supportedNetworks } from '@0xsequence/typescript-sdk'
 import { omsWalletConnector } from '@0xsequence/oms-wallet-wagmi-connector'
+import { wagmiAdapter } from '@0xtrails/adapter-wagmi'
 import { createConfig, http } from 'wagmi'
 import {
   arbitrum,
@@ -81,6 +82,8 @@ export const wagmiConfig = createConfig({
     [katana.id]: http(),
   },
 })
+
+export const trailsAdapters = [wagmiAdapter({ wagmiConfig })]
 
 declare module 'wagmi' {
   interface Register {

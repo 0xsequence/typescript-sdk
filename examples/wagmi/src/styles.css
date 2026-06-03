@@ -164,6 +164,15 @@ h3 {
   border-top: 1px solid #e6ebf2;
 }
 
+.trails-widget-launcher > div {
+  display: block;
+  padding: 0;
+}
+
+.trails-widget-launcher button {
+  width: 100%;
+}
+
 .field-hint {
   min-height: 42px;
   padding: 11px 12px;

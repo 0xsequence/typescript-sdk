@@ -9,8 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "0xtrails": "0.16.0",
     "@0xsequence/oms-wallet-wagmi-connector": "workspace:*",
     "@0xsequence/typescript-sdk": "workspace:*",
+    "@0xtrails/adapter-wagmi": "0.16.0",
     "@metamask/connect-evm": "^1.4.0",
     "@tanstack/react-query": "5.100.14",
     "react": "^19.2.5",
