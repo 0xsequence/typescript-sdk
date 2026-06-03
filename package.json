@@ -1,6 +1,6 @@
 {
   "name": "@0xsequence/typescript-sdk",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "TypeScript SDK for OMS (Open Money Stack).",
   "main": "dist/index.js",
   "module": "dist/esm/index.js",
@@ -35,7 +35,8 @@
     "clean": "rm -rf dist",
     "build": "pnpm clean && tsc && tsc -p tsconfig.esm.json && node scripts/write-esm-package.cjs",
     "prepack": "pnpm build",
-    "prepublishOnly": "pnpm exec tsc --noEmit && pnpm test",
+    "prepublishOnly": "pnpm check:package-versions && pnpm exec tsc --noEmit && pnpm test",
+    "check:package-versions": "node scripts/check-package-versions.cjs",
     "dev:example": "pnpm --filter react-example dev",
     "build:example": "pnpm --filter react-example build",
     "dev:trails-actions-example": "pnpm --filter trails-actions-example dev",

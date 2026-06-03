@@ -87,6 +87,7 @@ This repository is a pnpm workspace for the OMS TypeScript SDK. The root package
 ## Commands
 
 - `pnpm install --frozen-lockfile`: Install dependencies in CI-compatible mode.
+- `pnpm check:package-versions`: Verify publishable workspace package versions and SDK peer dependencies stay in sync.
 - `pnpm exec tsc --noEmit`: Typecheck SDK source.
 - `pnpm test`: Run Vitest and type tests.
 - `pnpm test:types`: Compile `type-tests/oidcProviderTypes.ts`; useful for public type/API changes.

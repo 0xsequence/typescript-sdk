@@ -1,6 +1,6 @@
 {
   "name": "@0xsequence/oms-wallet-wagmi-connector",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "description": "Wagmi connector for OMS Wallet.",
   "type": "module",
   "main": "dist/index.js",
@@ -36,7 +36,7 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "@0xsequence/typescript-sdk": ">=0.1.0-alpha.1 <1",
+    "@0xsequence/typescript-sdk": "0.1.0-alpha.2",
     "@wagmi/core": ">=3.5.0 <4",
     "viem": ">=2.48.4 <3"
   },
