@@ -549,7 +549,12 @@ export function App() {
               </div>
               <div className="operation-example trails-widget-launcher">
                 {TRAILS_API_KEY ? (
-                  <TrailsWidget apiKey={TRAILS_API_KEY} adapters={trailsAdapters} customCss={TRAILS_WIDGET_CSS}>
+                  <TrailsWidget
+                    apiKey={TRAILS_API_KEY}
+                    adapters={trailsAdapters}
+                    customCss={TRAILS_WIDGET_CSS}
+                    mode="swap"
+                  >
                     <button
                       type="button"
                       className="trails-modal-button w-80 max-w-full px-4 py-3 text-base font-semibold text-center cursor-pointer"

@@ -93,7 +93,7 @@ To run it locally from the repository root:
 
 ```bash
 cp examples/wagmi/.env.example examples/wagmi/.env.local
-# Fill VITE_OMS_PUBLISHABLE_KEY, VITE_OMS_PROJECT_ID, and VITE_TRAILS_API_KEY in examples/wagmi/.env.local
+# Fill VITE_OMS_PUBLISHABLE_KEY and VITE_OMS_PROJECT_ID in examples/wagmi/.env.local
 pnpm dev:wagmi-example
 ```
 
