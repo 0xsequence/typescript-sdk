@@ -553,6 +553,7 @@ export function App() {
                     apiKey={TRAILS_API_KEY}
                     adapters={trailsAdapters}
                     customCss={TRAILS_WIDGET_CSS}
+                    isSmartWallet
                     mode="swap"
                   >
                     <button
