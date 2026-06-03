@@ -8,6 +8,7 @@ on:
 
 jobs:
   test:
+    name: Typecheck, tests, and builds
     runs-on: ubuntu-latest
 
     steps:
