@@ -31,6 +31,11 @@ If no component has mounted `useFeeOptionSelection`, `selectFeeOptionWithAppUi` 
 first fee option with enough balance and throws when none can pay the fee. In this example,
 `App` mounts the hook once and owns the modal.
 
+The fee-option bridge only keeps one listener. If multiple components mount
+`useFeeOptionSelection`, the last registered listener is the active one. When the active listener
+unmounts, the bridge does not restore an earlier listener; that component must remount or register
+again to become active.
+
 Disconnecting in the example disconnects wagmi state only. To fully sign out an OMS Wallet session,
 call `oms.wallet.signOut()` from the SDK.
 
