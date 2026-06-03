@@ -535,8 +535,8 @@ See [API.md](./API.md) for the full method and type reference.
 
 ## Publishing
 
-While these packages are in alpha, publish the SDK before the wagmi connector. The connector has an
-exact peer dependency on the SDK version, so the SDK package must exist in the npm registry first.
+Publish the SDK before the wagmi connector. The connector has an exact peer dependency on the SDK
+version, so the SDK package must exist in the npm registry first.
 
 Before publishing a new alpha version, update these values to the same exact version:
 
@@ -565,8 +565,8 @@ pnpm --filter @0xsequence/oms-wallet-wagmi-connector publish --access public --t
 npm view @0xsequence/oms-wallet-wagmi-connector@$VERSION version
 ```
 
-While in alpha, do not use a recursive workspace publish for these packages. The publish order
-matters because the connector's peer dependency is intentionally lockstep with the SDK version.
+Do not use a recursive workspace publish for these packages while the connector's peer dependency is
+intentionally lockstep with the SDK version. The publish order matters.
 
 ## Contributing
 
