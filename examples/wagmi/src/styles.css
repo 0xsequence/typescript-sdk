@@ -164,12 +164,14 @@ h3 {
   border-top: 1px solid #e6ebf2;
 }
 
-.trails-widget-launcher > div {
+.trails-widget-launcher > div,
+.trails-widget-launcher > div > div {
   display: block;
   padding: 0;
+  margin: 0;
 }
 
-.trails-widget-launcher button {
+.trails-widget-button {
   width: 100%;
 }
 

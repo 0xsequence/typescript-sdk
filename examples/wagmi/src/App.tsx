@@ -541,9 +541,9 @@ export function App() {
               <div className="tool-header">
                 <h2>Operations</h2>
               </div>
-              <div className="field-stack operation-example trails-widget-launcher">
+              <div className="operation-example trails-widget-launcher">
                 <TrailsWidget apiKey={TRAILS_API_KEY} adapters={trailsAdapters}>
-                  <button type="button">
+                  <button type="button" className="trails-widget-button">
                     Open Trails Widget
                   </button>
                 </TrailsWidget>
