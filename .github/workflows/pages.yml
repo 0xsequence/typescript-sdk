@@ -46,21 +46,21 @@ jobs:
         run: pnpm build:example
         env:
           GITHUB_PAGES: 'true'
-          VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLIC_API_KEY }}
+          VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLISHABLE_KEY }}
           VITE_OMS_PROJECT_ID: ${{ secrets.OMS_PROJECT_ID }}
 
       - name: Build Trails Actions example
         run: pnpm build:trails-actions-example
         env:
           GITHUB_PAGES: 'true'
-          VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLIC_API_KEY }}
+          VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLISHABLE_KEY }}
           VITE_OMS_PROJECT_ID: ${{ secrets.OMS_PROJECT_ID }}
 
       - name: Build Wagmi example
         run: pnpm build:wagmi-example
         env:
           GITHUB_PAGES: 'true'
-          VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLIC_API_KEY }}
+          VITE_OMS_PUBLISHABLE_KEY: ${{ secrets.OMS_PUBLISHABLE_KEY }}
           VITE_OMS_PROJECT_ID: ${{ secrets.OMS_PROJECT_ID }}
 
       - name: Stage Pages artifact
