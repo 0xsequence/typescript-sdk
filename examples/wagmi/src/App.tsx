@@ -31,6 +31,12 @@ const DEFAULT_TYPED_DATA_AMOUNT = '0.001'
 const DEFAULT_TYPED_DATA_MEMO = 'Approve OMS Wallet wagmi demo payment'
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const OMS_WALLET_CONNECTOR_TYPE = 'omsWallet'
+const TRAILS_WIDGET_CSS = `
+  --trails-primary: #1d4ed8;
+  --trails-primary-hover: #1e40af;
+  --trails-border-radius-button: 6px;
+  --trails-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+`
 const selectableNetworkOptions = omsWalletChains.flatMap((chain) => {
   const network = omsWalletNetworks.find((candidate) => candidate.id === chain.id)
   return network ? [{ chain, network }] : []
@@ -543,8 +549,11 @@ export function App() {
               </div>
               <div className="operation-example trails-widget-launcher">
                 {TRAILS_API_KEY ? (
-                  <TrailsWidget apiKey={TRAILS_API_KEY} adapters={trailsAdapters}>
-                    <button type="button" className="trails-widget-button">
+                  <TrailsWidget apiKey={TRAILS_API_KEY} adapters={trailsAdapters} customCss={TRAILS_WIDGET_CSS}>
+                    <button
+                      type="button"
+                      className="trails-modal-button w-80 max-w-full px-4 py-3 text-base font-semibold text-center cursor-pointer"
+                    >
                       Open Trails Widget
                     </button>
                   </TrailsWidget>
