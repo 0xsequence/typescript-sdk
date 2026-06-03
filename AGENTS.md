@@ -150,7 +150,7 @@ execution commands.
 - The React example uses `examples/react/.env.example` for `VITE_OMS_PUBLISHABLE_KEY` and `VITE_OMS_PROJECT_ID`; keep local overrides in `examples/react/.env.local`.
 - The wagmi React example uses `examples/wagmi/.env.example` for `VITE_OMS_PUBLISHABLE_KEY` and `VITE_OMS_PROJECT_ID`; keep local overrides in `examples/wagmi/.env.local`.
 - Treat credential signing, nonce handling, OIDC redirect state cleanup, session persistence, transaction execution/status polling, and access revocation as high-risk paths. Prefer focused regression tests for changes in these areas.
-- GitHub Pages currently reads the existing `OMS_PUBLIC_API_KEY` secret and exposes it as `VITE_OMS_PUBLISHABLE_KEY` for deployed examples. Do not require those secrets for ordinary local unit tests unless the test explicitly needs an external boundary.
+- GitHub Pages reads `OMS_PUBLISHABLE_KEY` and `OMS_PROJECT_ID` for deployed examples. The wagmi example also reads `VITE_TRAILS_API_KEY`. Do not require those secrets for ordinary local unit tests unless the test explicitly needs an external boundary.
 
 ## Agent Workflow Rules
 
