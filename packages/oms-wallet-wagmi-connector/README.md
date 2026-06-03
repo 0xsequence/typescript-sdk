@@ -104,7 +104,7 @@ omsWalletConnector({
 
 The SDK calls `selectFeeOption` after preparing the transaction. The selector receives `FeeOptionWithBalance[]`, including each WaaS fee option and wallet balance data when the indexer can load it. Without a selector, the SDK keeps sponsored transactions fee-free and otherwise chooses the first returned fee option.
 
-For React UI, keep `selectFeeOption` wired in the connector initializer and bridge it into a modal or sheet with app state. The workspace wagmi example shows this as a hook-driven modal.
+For React UI, keep `selectFeeOption` wired in the connector initializer and bridge it into a modal or sheet with app state. The workspace wagmi example shows this as a hook-driven modal; see `examples/wagmi/src/feeOptionSelectionBridge.ts`, `examples/wagmi/src/useFeeOptionSelection.ts`, and the fee option panel in `examples/wagmi/src/App.tsx`.
 
 ## Transactions
 
