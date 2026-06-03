@@ -107,7 +107,7 @@ export function omsWalletConnector(parameters: OmsWalletConnectorParameters) {
         };
 
         const connectWallet = async (
-            connectParameters: {chainId?: number; isReconnecting?: boolean} = {},
+            connectParameters: {isReconnecting?: boolean} = {},
         ): Promise<readonly Address[]> => {
             if (!connectParameters.isReconnecting) {
                 await setManuallyDisconnected(false);
@@ -170,7 +170,7 @@ export function omsWalletConnector(parameters: OmsWalletConnectorParameters) {
                 isReconnecting?: boolean
                 withCapabilities?: withCapabilities | boolean
             } = {}) {
-                const nextAccounts = await connectWallet({chainId: requestedChainId, isReconnecting});
+                const nextAccounts = await connectWallet({isReconnecting});
                 if (requestedChainId && requestedChainId !== chainId) {
                     await connector.switchChain({chainId: requestedChainId});
                 }

@@ -46,7 +46,7 @@ export class OmsWalletProvider {
         private readonly syncChainId: (chainId: number) => void,
         private readonly getNetworks: () => MaybePromise<readonly OmsWalletNetwork[]>,
         private readonly isChainConfigured: (chainId: number) => boolean,
-        private readonly connectWallet: (parameters?: {chainId?: number; isReconnecting?: boolean}) => Promise<readonly Address[]>,
+        private readonly connectWallet: (parameters?: {isReconnecting?: boolean}) => Promise<readonly Address[]>,
         private readonly isDisconnected: () => MaybePromise<boolean>,
     ) {}
 
@@ -75,7 +75,7 @@ export class OmsWalletProvider {
             case "eth_accounts":
                 return this.accounts();
             case "eth_requestAccounts":
-                return this.connectWallet({chainId: this.getChainId()});
+                return this.connectWallet();
             case "personal_sign":
                 return this.signMessage(params);
             case "eth_sign":
@@ -188,7 +188,6 @@ export class OmsWalletProvider {
             throw new OmsWalletProviderRpcError(4901, `Chain ${chainId} is not configured in wagmi.`);
         }
         await this.requireNetwork(chainId);
-        this.setChainId(chainId);
         this.syncChainId(chainId);
         this.emit("chainChanged", numberToHex(chainId));
         return null;
