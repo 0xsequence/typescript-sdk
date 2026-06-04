@@ -12,5 +12,6 @@ yarn-error.log*
 .pnp.js
 
 .vscode/*
+.codex/
 dist
 .idea

@@ -1,0 +1,50 @@
+{
+  "name": "@0xsequence/oms-wallet-wagmi-connector",
+  "version": "0.1.0-alpha.2",
+  "description": "Wagmi connector for OMS Wallet.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xsequence/typescript-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/0xsequence/typescript-sdk/issues"
+  },
+  "homepage": "https://github.com/0xsequence/typescript-sdk#readme",
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "pnpm clean && tsc -p tsconfig.json",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@0xsequence/typescript-sdk": "0.1.0-alpha.2",
+    "@wagmi/core": ">=3.5.0 <4",
+    "viem": ">=2.48.4 <3"
+  },
+  "devDependencies": {
+    "@0xsequence/typescript-sdk": "workspace:*",
+    "@wagmi/core": "^3.5.0",
+    "typescript": "^5.9.3",
+    "viem": "^2.48.4",
+    "vitest": "^4.1.5"
+  }
+}

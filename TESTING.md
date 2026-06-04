@@ -16,6 +16,8 @@ How testing works in this repo. `AGENTS.md` points here so agents know how to ve
   and type-level API contracts — not internal implementation details.
 - **Location:** `tests/**/*.ts`
 - **Run:** `pnpm exec vitest run` (or `pnpm test` which runs this then type tests)
+- **Package tests:** `packages/oms-wallet-wagmi-connector/tests/**/*.ts` run from that package with
+  `pnpm --filter @0xsequence/oms-wallet-wagmi-connector test`
 
 ## Integration / type tests
 
@@ -30,7 +32,11 @@ How testing works in this repo. `AGENTS.md` points here so agents know how to ve
 
 | Scenario | Command |
 |---|---|
+| Changed publishable package versions | `pnpm check:package-versions` |
 | Changed SDK behavior | `pnpm exec vitest run` |
+| Changed wagmi connector behavior | `pnpm --filter @0xsequence/oms-wallet-wagmi-connector test` |
+| Changed wagmi connector types/build | `pnpm --filter @0xsequence/oms-wallet-wagmi-connector build` |
+| Changed wagmi React example | `pnpm build:wagmi-example` |
 | Changed public types / `src/index.ts` | `pnpm test:types` |
 | Full pre-handoff check | `pnpm exec tsc --noEmit && pnpm test` |
 | Watch mode during development | `pnpm test:watch` |

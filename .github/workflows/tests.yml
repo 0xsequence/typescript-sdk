@@ -8,6 +8,7 @@ on:
 
 jobs:
   test:
+    name: Typecheck, tests, and builds
     runs-on: ubuntu-latest
 
     steps:
@@ -28,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check package versions
+        run: pnpm check:package-versions
+
       - name: Typecheck
         run: pnpm exec tsc --noEmit
 
@@ -35,3 +39,31 @@ jobs:
         env:
           OMS_PROJECT_ACCESS_KEY: ${{ secrets.OMS_PROJECT_ACCESS_KEY }}
         run: pnpm test
+
+      - name: Build SDK
+        run: pnpm build
+
+      - name: Build OMS Wallet wagmi connector
+        run: pnpm --filter @0xsequence/oms-wallet-wagmi-connector build
+
+      - name: Test OMS Wallet wagmi connector
+        run: pnpm --filter @0xsequence/oms-wallet-wagmi-connector test
+
+      - name: Build React example
+        run: pnpm build:example
+        env:
+          VITE_OMS_PUBLISHABLE_KEY: ci-publishable-key
+          VITE_OMS_PROJECT_ID: ci-project-id
+
+      - name: Build Trails Actions example
+        run: pnpm build:trails-actions-example
+        env:
+          VITE_OMS_PUBLISHABLE_KEY: ci-publishable-key
+          VITE_OMS_PROJECT_ID: ci-project-id
+
+      - name: Build Wagmi example
+        run: pnpm --filter wagmi-example build
+        env:
+          VITE_OMS_PUBLISHABLE_KEY: ci-publishable-key
+          VITE_OMS_PROJECT_ID: ci-project-id
+          VITE_TRAILS_API_KEY: ci-trails-key

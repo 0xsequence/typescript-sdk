@@ -71,6 +71,32 @@ cp examples/react/.env.example examples/react/.env.local
 pnpm dev:example
 ```
 
+## Wagmi Connector
+
+This workspace also includes `@0xsequence/oms-wallet-wagmi-connector`, an ESM-only package that adapts an
+active OMS client to wagmi's connector API.
+
+```bash
+pnpm --filter @0xsequence/oms-wallet-wagmi-connector build
+pnpm --filter @0xsequence/oms-wallet-wagmi-connector test
+```
+
+See [packages/oms-wallet-wagmi-connector/README.md](./packages/oms-wallet-wagmi-connector/README.md) for usage.
+
+## Wagmi React Example
+
+The Wagmi example uses `@0xsequence/oms-wallet-wagmi-connector`, wagmi's MetaMask connector, and the Trails widget.
+
+The deployed Wagmi example is available at [https://0xsequence.github.io/typescript-sdk/wagmi-example/](https://0xsequence.github.io/typescript-sdk/wagmi-example/).
+
+To run it locally from the repository root:
+
+```bash
+cp examples/wagmi/.env.example examples/wagmi/.env.local
+# Fill VITE_OMS_PUBLISHABLE_KEY and VITE_OMS_PROJECT_ID in examples/wagmi/.env.local
+pnpm dev:wagmi-example
+```
+
 ## Trails Actions React Example
 
 The Trails Actions example prepares and sends Polygon swap, deposit, and swap plus deposit flows with `0xtrails/actions`.
@@ -506,6 +532,41 @@ await oms.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
 ## API Reference
 
 See [API.md](./API.md) for the full method and type reference.
+
+## Publishing
+
+Publish the SDK before the wagmi connector. The connector has an exact peer dependency on the SDK
+version, so the SDK package must exist in the npm registry first.
+
+Before publishing a new alpha version, update these values to the same exact version:
+
+- `package.json` `version`
+- `packages/oms-wallet-wagmi-connector/package.json` `version`
+- `packages/oms-wallet-wagmi-connector/package.json` `peerDependencies["@0xsequence/typescript-sdk"]`
+
+Then publish from the repository root with the alpha dist tag:
+
+```bash
+npm whoami
+
+VERSION=$(node -p "require('./package.json').version")
+
+pnpm install --frozen-lockfile
+pnpm check:package-versions
+pnpm exec tsc --noEmit
+pnpm test
+pnpm --filter @0xsequence/oms-wallet-wagmi-connector test
+pnpm --filter @0xsequence/oms-wallet-wagmi-connector build
+
+pnpm publish --access public --tag alpha
+npm view @0xsequence/typescript-sdk@$VERSION version
+
+pnpm --filter @0xsequence/oms-wallet-wagmi-connector publish --access public --tag alpha
+npm view @0xsequence/oms-wallet-wagmi-connector@$VERSION version
+```
+
+Do not use a recursive workspace publish for these packages while the connector's peer dependency is
+intentionally lockstep with the SDK version. The publish order matters.
 
 ## Contributing
 

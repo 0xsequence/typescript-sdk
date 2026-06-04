@@ -3,10 +3,11 @@ export const PUBLISHABLE_KEY = requiredEnv(
   import.meta.env.VITE_OMS_PUBLISHABLE_KEY,
 )
 export const PROJECT_ID = requiredEnv('VITE_OMS_PROJECT_ID', import.meta.env.VITE_OMS_PROJECT_ID)
+export const TRAILS_API_KEY = import.meta.env.VITE_TRAILS_API_KEY
 
 function requiredEnv(name: string, value: string | undefined): string {
   if (!value) {
-    throw new Error(`Missing ${name}. Copy examples/react/.env.example to examples/react/.env.local and set it.`)
+    throw new Error(`Missing ${name}. Copy examples/wagmi/.env.example to examples/wagmi/.env.local and set it.`)
   }
   return value
 }
