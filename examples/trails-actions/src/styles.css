@@ -1,10 +1,5 @@
-:root {
-  color: #202124;
-  background: #f7f8fa;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-}
+/* Design tokens live in one place — see examples/shared/oms-tokens.css. */
+@import url("../../shared/oms-tokens.css");
 
 * {
   box-sizing: border-box;
@@ -32,30 +27,34 @@ select {
   display: grid;
   gap: 18px;
   padding: 28px;
-  border: 1px solid #dde2e8;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 16px 48px rgb(20 28 38 / 10%);
+  border: 1px solid var(--oms-slate-200);
+  border-radius: 24px;
+  background: var(--oms-surface);
+  box-shadow: 0 24px 60px rgb(20 16 53 / 10%);
 }
 
 .eyebrow {
   margin: 0 0 6px;
-  color: #5f6c7b;
+  color: var(--oms-brand);
   font-size: 13px;
   font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 h1 {
   margin: 0;
+  color: var(--oms-ink);
   font-size: 28px;
+  font-weight: 700;
   line-height: 1.15;
 }
 
 .section-title {
   margin: 0;
-  color: #1f2937;
+  color: var(--oms-ink);
   font-size: 17px;
+  font-weight: 700;
   line-height: 1.25;
 }
 
@@ -67,9 +66,9 @@ h1 {
 label {
   display: grid;
   gap: 8px;
-  color: #374151;
+  color: var(--oms-slate-900);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .checkbox-row {
@@ -78,16 +77,16 @@ label {
   gap: 10px;
   min-height: 44px;
   padding: 10px 12px;
-  border: 1px solid #e1e6ee;
-  border-radius: 6px;
-  background: #fbfcfe;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: 12px;
+  background: var(--oms-slate-50);
 }
 
 .checkbox-row input {
   width: 18px;
   min-height: 18px;
   margin: 0;
-  accent-color: #1d4ed8;
+  accent-color: var(--oms-brand);
 }
 
 .checkbox-row span {
@@ -111,9 +110,9 @@ label {
   gap: 12px;
   min-height: 44px;
   padding: 10px 12px;
-  border: 1px solid #e1e6ee;
-  border-radius: 6px;
-  background: #fbfcfe;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: 12px;
+  background: var(--oms-slate-50);
 }
 
 .session-lifetime-option > span {
@@ -125,13 +124,13 @@ label {
 }
 
 .session-lifetime-copy strong {
-  color: #374151;
+  color: var(--oms-slate-900);
   font-size: 14px;
   line-height: 1.25;
 }
 
 .session-lifetime-copy small {
-  color: #667085;
+  color: var(--oms-muted-ink);
   font-size: 12px;
   font-weight: 600;
   line-height: 1.35;
@@ -162,7 +161,7 @@ label {
 }
 
 .session-lifetime-option small {
-  color: #667085;
+  color: var(--oms-muted-ink);
   font-size: 12px;
   font-weight: 700;
 }
@@ -175,10 +174,10 @@ label {
 .field-hint {
   min-height: 42px;
   padding: 11px 12px;
-  border-radius: 6px;
+  border-radius: 12px;
   margin: 0;
-  color: #344054;
-  background: #eef2f7;
+  color: var(--oms-slate-800);
+  background: var(--oms-slate-100);
   font-size: 14px;
 }
 
@@ -191,49 +190,87 @@ select {
   width: 100%;
   min-height: 44px;
   padding: 10px 12px;
-  border: 1px solid #cbd3dd;
-  border-radius: 6px;
-  color: #111827;
-  background: #ffffff;
+  border: 1px solid var(--oms-slate-300);
+  border-radius: 12px;
+  color: var(--oms-ink);
+  background: var(--oms-surface);
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
 }
 
 input:focus,
 select:focus {
-  outline: 2px solid #7aa7ff;
-  outline-offset: 1px;
-  border-color: #6b9dff;
+  outline: none;
+  border-color: var(--oms-slate-400);
+  box-shadow: var(--oms-input-focus);
 }
 
 input:disabled {
-  color: #667085;
-  background: #eef2f7;
+  color: var(--oms-muted-ink);
+  background: var(--oms-slate-100);
 }
 
 button {
   min-height: 44px;
-  border: 0;
-  border-radius: 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
   padding: 10px 14px;
-  color: #ffffff;
-  background: #1d4ed8;
+  color: var(--oms-surface);
+  background: var(--oms-slate-950);
   font-weight: 700;
   cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--oms-slate-800);
+}
+
+button:active:not(:disabled) {
+  background: var(--oms-purple-700);
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: var(--oms-focus-ring);
 }
 
 button.secondary {
-  color: #243044;
-  background: #e6ebf2;
+  color: var(--oms-slate-950);
+  background: transparent;
+  border-color: var(--oms-slate-500);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--oms-slate-950);
+}
+
+button.secondary:active:not(:disabled) {
+  background: var(--oms-purple-100);
+  border-color: var(--oms-purple-200);
 }
 
 button.subtle {
-  color: #475467;
+  color: var(--oms-muted-ink);
   background: transparent;
-  border: 1px solid #d8dee8;
+  border: 1px solid var(--oms-slate-300);
+}
+
+button.subtle:hover:not(:disabled) {
+  background: transparent;
+  border-color: var(--oms-slate-400);
 }
 
 button:disabled {
   cursor: not-allowed;
-  background: #a7b1c2;
+  color: var(--oms-slate-400);
+  background: var(--oms-slate-200);
+  border-color: transparent;
 }
 
 .actions {
@@ -247,7 +284,7 @@ button:disabled {
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 10px;
-  color: #667085;
+  color: var(--oms-muted-ink);
   font-size: 13px;
   font-weight: 700;
 }
@@ -256,29 +293,31 @@ button:disabled {
 .divider::after {
   content: "";
   height: 1px;
-  background: #d8dee8;
+  background: var(--oms-slate-300);
 }
 
 .tool {
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid #e1e6ee;
-  border-radius: 8px;
-  background: #fbfcfe;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: 16px;
+  background: var(--oms-slate-50);
 }
 
 .tool h2 {
   margin: 0;
-  color: #1f2937;
+  color: var(--oms-ink);
   font-size: 17px;
+  font-weight: 700;
   line-height: 1.25;
 }
 
 .tool h3 {
   margin: 0;
-  color: #1f2937;
+  color: var(--oms-ink);
   font-size: 15px;
+  font-weight: 700;
   line-height: 1.25;
 }
 
@@ -291,15 +330,15 @@ button:disabled {
 .collapsible-tool summary {
   min-height: 52px;
   padding: 16px;
-  color: #1f2937;
+  color: var(--oms-ink);
   font-size: 17px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.25;
   cursor: pointer;
 }
 
 .collapsible-tool summary::marker {
-  color: #667085;
+  color: var(--oms-muted-ink);
 }
 
 .collapsible-content {
@@ -330,19 +369,19 @@ button:disabled {
   display: grid;
   gap: 4px;
   padding: 12px;
-  border: 1px solid #e1e6ee;
-  border-radius: 6px;
-  background: #ffffff;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: 12px;
+  background: var(--oms-surface);
 }
 
 .balance-panel span {
-  color: #5f6c7b;
+  color: var(--oms-muted-ink);
   font-size: 12px;
   font-weight: 700;
 }
 
 .balance-panel strong {
-  color: #1f2937;
+  color: var(--oms-ink);
   font-size: 18px;
   line-height: 1.25;
   overflow-wrap: anywhere;
@@ -362,9 +401,9 @@ button:disabled {
 .network-meta {
   min-width: 48px;
   padding: 4px 8px;
-  border-radius: 6px;
-  color: #ffffff;
-  background: #1d4ed8;
+  border-radius: 16px;
+  color: var(--oms-surface);
+  background: var(--oms-brand);
   font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
@@ -374,10 +413,10 @@ button:disabled {
 .metadata-pill {
   min-width: 48px;
   padding: 4px 8px;
-  border: 1px solid #d8dee8;
-  border-radius: 6px;
-  color: #475467;
-  background: #eef2f7;
+  border: 1px solid var(--oms-slate-300);
+  border-radius: 16px;
+  color: var(--oms-slate-800);
+  background: var(--oms-slate-100);
   font-size: 12px;
   font-weight: 800;
   line-height: 1.2;
@@ -391,7 +430,7 @@ button:disabled {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgb(16 24 40 / 52%);
+  background: rgb(9 6 36 / 55%);
 }
 
 .modal-backdrop {
@@ -401,17 +440,17 @@ button:disabled {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: rgb(16 24 40 / 55%);
+  background: rgb(9 6 36 / 55%);
 }
 
 .modal {
   width: min(100%, 420px);
   display: grid;
   gap: 12px;
-  padding: 22px;
-  border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 22px 70px rgb(20 28 38 / 28%);
+  padding: 24px;
+  border-radius: 24px;
+  background: var(--oms-surface);
+  box-shadow: 0 30px 80px rgb(9 6 36 / 28%);
 }
 
 .modal h2,
@@ -420,25 +459,26 @@ button:disabled {
 }
 
 .modal h2 {
-  color: #1f2937;
+  color: var(--oms-ink);
   font-size: 20px;
+  font-weight: 700;
   line-height: 1.25;
 }
 
 .modal p {
-  color: #475467;
+  color: var(--oms-muted-ink);
   font-size: 14px;
   line-height: 1.5;
 }
 
 .modal-detail {
   padding: 10px 12px;
-  border-radius: 6px;
-  background: #eef2f7;
+  border-radius: 12px;
+  background: var(--oms-slate-100);
 }
 
 .modal-detail strong {
-  color: #1f2937;
+  color: var(--oms-ink);
   overflow-wrap: anywhere;
 }
 
@@ -459,7 +499,7 @@ button:disabled {
   display: grid;
   gap: 10px;
   overflow: auto;
-  box-shadow: 0 22px 70px rgb(20 28 38 / 28%);
+  box-shadow: 0 30px 80px rgb(9 6 36 / 28%);
 }
 
 .fee-option-list {
@@ -475,8 +515,9 @@ button:disabled {
   gap: 12px;
   min-height: 54px;
   padding: 10px 12px;
-  color: #1f2937;
-  background: #eef2f7;
+  border-radius: 12px;
+  color: var(--oms-ink);
+  background: var(--oms-slate-100);
   text-align: left;
 }
 
@@ -485,13 +526,24 @@ button:disabled {
   row-gap: 6px;
 }
 
+/* Keep light-background option buttons readable; override the generic button hover/active. */
+.fee-option:hover:not(:disabled),
+.wallet-option:hover:not(:disabled) {
+  background: var(--oms-slate-200);
+}
+
+.fee-option:active:not(:disabled),
+.wallet-option:active:not(:disabled) {
+  background: var(--oms-purple-100);
+}
+
 .fee-option span,
 .wallet-option span {
   min-width: 0;
 }
 
 .fee-option span:last-child {
-  color: #475467;
+  color: var(--oms-slate-500);
   font-size: 13px;
   text-align: right;
 }
@@ -507,7 +559,7 @@ button:disabled {
 .fee-option small,
 .wallet-option small {
   margin-top: 3px;
-  color: #667085;
+  color: var(--oms-muted-ink);
   font-size: 12px;
 }
 
@@ -515,13 +567,14 @@ button:disabled {
   grid-column: 1 / -1;
   min-width: 0;
   overflow-wrap: anywhere;
-  color: #344054;
+  color: var(--oms-slate-800);
+  font-family: var(--oms-font-mono);
   font-size: 12px;
 }
 
 .wallet-option-action {
   justify-self: end;
-  color: #1d4ed8;
+  color: var(--oms-brand);
   font-size: 13px;
   font-weight: 800;
 }
@@ -534,9 +587,9 @@ button:disabled {
 output {
   min-height: 42px;
   padding: 11px 12px;
-  border-radius: 6px;
-  color: #344054;
-  background: #eef2f7;
+  border-radius: 12px;
+  color: var(--oms-slate-800);
+  background: var(--oms-slate-100);
   font-size: 14px;
 }
 
@@ -547,7 +600,7 @@ output {
 }
 
 .wallet span {
-  color: #5f6c7b;
+  color: var(--oms-muted-ink);
   font-size: 13px;
   font-weight: 700;
 }
@@ -559,30 +612,37 @@ output {
   gap: 8px;
   min-width: 0;
   padding: 6px 6px 6px 12px;
-  border-radius: 6px;
-  background: #101828;
+  border-radius: 12px;
+  background: var(--oms-slate-950);
 }
 
 .wallet-address-row code {
   min-width: 0;
   overflow-wrap: anywhere;
-  color: #dbeafe;
+  color: var(--oms-purple-100);
+  font-family: var(--oms-font-mono);
   font-size: 13px;
 }
 
 .wallet-copy {
   min-height: 32px;
   padding: 6px 10px;
-  border: 1px solid rgb(219 234 254 / 22%);
-  border-radius: 6px;
-  color: #ffffff;
-  background: #1d4ed8;
+  border: 1px solid rgb(234 228 245 / 22%);
+  border-radius: 12px;
+  color: var(--oms-surface);
+  background: var(--oms-brand);
   font-size: 13px;
   font-weight: 800;
 }
 
+.wallet-copy:hover:not(:disabled) {
+  background: var(--oms-purple-700);
+}
+
 .wallet-copy:disabled {
-  background: #475467;
+  color: var(--oms-slate-400);
+  background: var(--oms-slate-800);
+  border-color: transparent;
 }
 
 .session-info {
@@ -594,9 +654,9 @@ output {
 .session-info div {
   min-width: 0;
   padding: 10px 12px;
-  border: 1px solid #e1e6ee;
-  border-radius: 6px;
-  background: #fbfcfe;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: 12px;
+  background: var(--oms-slate-50);
 }
 
 .session-info span,
@@ -607,14 +667,14 @@ output {
 }
 
 .session-info span {
-  color: #5f6c7b;
+  color: var(--oms-muted-ink);
   font-size: 12px;
   font-weight: 700;
 }
 
 .session-info strong {
   margin-top: 4px;
-  color: #1f2937;
+  color: var(--oms-ink);
   font-size: 13px;
 }
 
@@ -627,19 +687,20 @@ output {
   overflow-wrap: anywhere;
   margin: 0;
   padding: 10px 12px;
-  border-radius: 6px;
-  background: #101828;
-  color: #dbeafe;
+  border-radius: 12px;
+  background: var(--oms-slate-950);
+  color: var(--oms-purple-100);
+  font-family: var(--oms-font-mono);
 }
 
 .result-label {
-  color: #98a2b3;
+  color: var(--oms-slate-400);
   font-size: 12px;
   font-weight: 800;
 }
 
 .result-value {
-  color: #7dd3fc;
+  color: var(--oms-purple-300);
 }
 
 .result-block {
@@ -648,7 +709,7 @@ output {
 }
 
 .result-block a {
-  color: #1d4ed8;
+  color: var(--oms-brand);
   font-size: 14px;
   font-weight: 700;
   text-decoration: none;
@@ -673,7 +734,7 @@ output {
 }
 
 .prepared-summary dt {
-  color: #5f6c7b;
+  color: var(--oms-muted-ink);
   font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
@@ -682,7 +743,7 @@ output {
 .prepared-summary dd {
   min-width: 0;
   margin: 0;
-  color: #1f2937;
+  color: var(--oms-ink);
   font-size: 13px;
   font-weight: 700;
 }
@@ -691,6 +752,7 @@ output {
   display: block;
   max-width: 100%;
   overflow-x: auto;
+  font-family: var(--oms-font-mono);
   white-space: nowrap;
 }
 
@@ -705,9 +767,9 @@ output {
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid #e1e6ee;
-  border-radius: 6px;
-  background: #ffffff;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: 12px;
+  background: var(--oms-surface);
 }
 
 .position-row div {
@@ -723,7 +785,7 @@ output {
 }
 
 .position-row small {
-  color: #667085;
+  color: var(--oms-muted-ink);
   font-size: 12px;
 }
 
@@ -747,9 +809,10 @@ output {
   overflow: auto;
   margin: 0;
   padding: 10px 12px;
-  border-radius: 6px;
-  color: #dbeafe;
-  background: #101828;
+  border-radius: 12px;
+  color: var(--oms-purple-100);
+  background: var(--oms-slate-950);
+  font-family: var(--oms-font-mono);
   white-space: pre-wrap;
 }
 
