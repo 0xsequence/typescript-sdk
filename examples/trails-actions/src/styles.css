@@ -526,6 +526,17 @@ button:disabled {
   row-gap: 6px;
 }
 
+/* Keep light-background option buttons readable; override the generic button hover/active. */
+.fee-option:hover:not(:disabled),
+.wallet-option:hover:not(:disabled) {
+  background: var(--oms-slate-200);
+}
+
+.fee-option:active:not(:disabled),
+.wallet-option:active:not(:disabled) {
+  background: var(--oms-purple-100);
+}
+
 .fee-option span,
 .wallet-option span {
   min-width: 0;

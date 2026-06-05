@@ -413,6 +413,15 @@ button:disabled {
   text-align: left;
 }
 
+/* Keep light-background option buttons readable; override the generic button hover/active. */
+.fee-option:hover:not(:disabled) {
+  background: var(--oms-slate-200);
+}
+
+.fee-option:active:not(:disabled) {
+  background: var(--oms-purple-100);
+}
+
 .fee-option span {
   min-width: 0;
 }
