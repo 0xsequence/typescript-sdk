@@ -1,0 +1,72 @@
+/*
+ * OMS design-system tokens — single source of truth for example app styling.
+ * Mirrors `oms-sdk-design-system`'s omsTokens. The example `styles.css` files
+ * import this file and must reference these `--oms-*` variables instead of
+ * hardcoding hex/radius values. Update tokens here, not per-app.
+ */
+:root {
+  /* slate scale */
+  --oms-slate-50: #f6f6fc;
+  --oms-slate-100: #eef0f9;
+  --oms-slate-200: #dfe3f0;
+  --oms-slate-300: #c8cfe1;
+  --oms-slate-400: #929eba;
+  --oms-slate-500: #64708f;
+  --oms-slate-800: #222744;
+  --oms-slate-900: #141635;
+  --oms-slate-950: #090624;
+
+  /* purple scale */
+  --oms-purple-50: #f6f3fb;
+  --oms-purple-100: #eae4f5;
+  --oms-purple-200: #d5c4f2;
+  --oms-purple-300: #b78eef;
+  --oms-purple-500: #670de5;
+  --oms-purple-700: #400a8e;
+
+  /* red scale */
+  --oms-red-50: #fef2f2;
+  --oms-red-100: #fee2e2;
+  --oms-red-200: #fecaca;
+  --oms-red-400: #f87171;
+  --oms-red-500: #ef4444;
+  --oms-red-600: #dc2626;
+  --oms-red-700: #b91c1c;
+  --oms-red-800: #991b1b;
+
+  /* status scales */
+  --oms-emerald-50: #ecfdf5;
+  --oms-emerald-200: #a7f3d0;
+  --oms-emerald-700: #047857;
+  --oms-orange-50: #fff7ed;
+  --oms-orange-200: #fed7aa;
+  --oms-amber-700: #b45309;
+
+  /* semantic */
+  --oms-page: #f6f6fc;
+  --oms-surface: #ffffff;
+  --oms-brand: #670de5;
+  --oms-ink: #141635;
+  --oms-muted-ink: #64708f;
+  --oms-border: #c8cfe1;
+
+  /* radius scale */
+  --oms-radius-button: 8px;
+  --oms-radius-button-large: 12px;
+  --oms-radius-input: 12px;
+  --oms-radius-badge: 16px;
+  --oms-radius-card: 24px;
+  --oms-radius-pill: 999px;
+
+  /* typography */
+  --oms-font: 'Fustat', 'Inter', system-ui, sans-serif;
+  --oms-font-mono: 'Geist Mono', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* focus rings */
+  --oms-focus-ring: 0 0 0 2px #fff, 0 0 0 4px var(--oms-purple-300);
+  --oms-input-focus: 0 0 0 4px rgb(103 13 229 / 15%);
+
+  color: var(--oms-ink);
+  background: var(--oms-page);
+  font-family: var(--oms-font);
+}

@@ -82,6 +82,7 @@ This repository is a pnpm workspace for the OMS TypeScript SDK. The root package
 - `examples/react/`: Vite React demo that consumes the SDK through the workspace.
 - `examples/wagmi/`: Vite React wagmi demo using the OMS Wallet connector and MetaMask connector.
 - `examples/node/`: Interactive Node OTP/signing example.
+- `examples/shared/oms-tokens.css`: Shared OMS design tokens (`--oms-*`) imported by each browser example's `styles.css`. See the Example App Styling rules.
 - `scripts/write-esm-package.cjs`: Writes `dist/esm/package.json` during the root build.
 
 ## Commands
@@ -123,6 +124,12 @@ This repository is a pnpm workspace for the OMS TypeScript SDK. The root package
 - Preserve typed SDK error classes and `toOmsSdkError` behavior when wrapping network, generated-client, validation, session, and transaction-status failures.
 - Keep supported network metadata and chain ID lookup going through `src/networks.ts`, `Networks`, `supportedNetworks`, `findNetworkById`, and `findNetworkByName` instead of ad hoc conversion.
 - The TypeScript compiler is the enforced style gate. There is no separate lint or formatter command in the root scripts, so avoid broad formatting churn and match the local file style.
+
+## Example App Styling
+
+- The browser examples (`examples/react`, `examples/wagmi`, `examples/trails-actions`) share one set of design tokens in `examples/shared/oms-tokens.css`, mirrored from `oms-sdk-design-system`'s `omsTokens`. Each example's `styles.css` imports it via `@import url("../../shared/oms-tokens.css")`.
+- Reference the `--oms-*` CSS variables (colors, radius, typography, focus rings) for any example styling. Do not hardcode new hex/radius values in the per-app `styles.css` files; if a token is missing, add it to `examples/shared/oms-tokens.css` so all examples stay in sync. (The `.burn-button` fire gradient in the React example is an intentional decorative-effect exception, not a token.)
+- When tokens change in `oms-sdk-design-system`, update `examples/shared/oms-tokens.css` to match rather than editing each example.
 
 ## Testing
 
@@ -184,3 +191,4 @@ execution commands.
 | `src/generated/waas.gen.ts` (regenerated) | Document schema source + regen command in PR description |
 | Repo structure (new top-level dirs) | `AGENTS.md` Repository Layout section |
 | Examples added or renamed | `pnpm-workspace.yaml`, root `package.json` scripts, `pages.yml` |
+| Design tokens (`oms-sdk-design-system`) | `examples/shared/oms-tokens.css` (single source; examples import it — never hardcode hex/radius in per-app `styles.css`) |
