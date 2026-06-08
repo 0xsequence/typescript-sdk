@@ -579,7 +579,9 @@ All three variants share the following optional base fields:
 
 When fee options are returned, `selectFeeOption` receives `FeeOptionWithBalance[]`.
 Each entry includes the generated `FeeOption` plus the selected wallet's balance
-for that fee token when the indexer can load it.
+for that fee token when the indexer can load it. Use
+`FeeOptionSelector.firstAvailable` to choose the first option the wallet can pay,
+or return `option.selection` from a custom selector.
 
 ---
 
@@ -1138,8 +1140,13 @@ type FeeOptionSelector = (
   feeOptions: FeeOptionWithBalance[]
 ) => FeeOptionSelection | undefined | Promise<FeeOptionSelection | undefined>
 
+const FeeOptionSelector: {
+  firstAvailable: FeeOptionSelector
+}
+
 type FeeOptionWithBalance = {
   feeOption: FeeOption
+  selection: FeeOptionSelection
   balance?: TokenBalance
   available?: string
   availableRaw?: string
@@ -1147,7 +1154,11 @@ type FeeOptionWithBalance = {
 }
 ```
 
-When no selector is provided, the SDK uses the first required fee option, or no fee option for sponsored transactions.
+When no selector is provided, the SDK uses the first required fee option, or no
+fee option for sponsored transactions. `FeeOptionSelector.firstAvailable` uses
+enriched balances to skip underfunded fee options and selects the first option
+the wallet can pay. For custom selectors, return `option.selection` to select
+that fee option.
 
 ---
 

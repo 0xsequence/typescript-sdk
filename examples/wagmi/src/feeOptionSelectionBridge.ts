@@ -1,4 +1,4 @@
-import type { FeeOptionSelection, FeeOptionWithBalance } from '@0xsequence/typescript-sdk'
+import { FeeOptionSelector, type FeeOptionSelection, type FeeOptionWithBalance } from '@0xsequence/typescript-sdk'
 
 export type FeeOptionSelectionRequest = {
   options: FeeOptionWithBalance[]
@@ -25,11 +25,11 @@ export function subscribeToFeeOptionSelection(nextListener: FeeOptionSelectionLi
 
 export async function selectFeeOptionWithAppUi(options: FeeOptionWithBalance[]): Promise<FeeOptionSelection | undefined> {
   if (!listener) {
-    const payableOption = options.find(canPayFeeOption)
-    if (!payableOption) {
+    const selection = FeeOptionSelector.firstAvailable(options)
+    if (!selection) {
       throw new Error('No fee option has enough balance.')
     }
-    return { token: payableOption.feeOption.token.symbol }
+    return selection
   }
 
   rejectPendingSelection?.(new Error('Fee option selection was superseded.'))
@@ -48,14 +48,4 @@ export async function selectFeeOptionWithAppUi(options: FeeOptionWithBalance[]):
       },
     })
   })
-}
-
-function canPayFeeOption(option: FeeOptionWithBalance): boolean {
-  if (option.availableRaw === undefined) return false
-
-  try {
-    return BigInt(option.availableRaw) >= BigInt(option.feeOption.value)
-  } catch {
-    return false
-  }
 }

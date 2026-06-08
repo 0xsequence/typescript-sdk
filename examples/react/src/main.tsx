@@ -338,7 +338,7 @@ function App() {
       return
     }
 
-    feeSelection.current?.resolve({ token: option.feeOption.token.symbol })
+    feeSelection.current?.resolve(option.selection)
     feeSelection.current = null
     setFeeOptions([])
     setWalletStatus(`Selected ${option.feeOption.token.symbol}. Sending transaction...`)

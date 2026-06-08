@@ -384,7 +384,7 @@ export function App() {
       return
     }
 
-    feeOptionSelection.resolveFeeOption({ token: option.feeOption.token.symbol })
+    feeOptionSelection.resolveFeeOption(option.selection)
     setWalletStatus(`Selected ${option.feeOption.token.symbol}. Sending transaction...`)
   }
 

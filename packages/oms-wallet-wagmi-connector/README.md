@@ -7,24 +7,13 @@ Wagmi connector for an active `@0xsequence/typescript-sdk` OMS client.
 ```ts
 import { createConfig, http } from 'wagmi'
 import { polygon } from 'wagmi/chains'
-import { OMSClient, type FeeOptionWithBalance } from '@0xsequence/typescript-sdk'
+import { FeeOptionSelector, OMSClient } from '@0xsequence/typescript-sdk'
 import { omsWalletConnector } from '@0xsequence/oms-wallet-wagmi-connector'
 
 const oms = new OMSClient({
   publishableKey: import.meta.env.VITE_OMS_PUBLISHABLE_KEY,
   projectId: import.meta.env.VITE_OMS_PROJECT_ID,
 })
-
-function selectFirstPayableFeeOption(feeOptions: FeeOptionWithBalance[]) {
-  const payableOption = feeOptions.find((option) =>
-    option.availableRaw !== undefined &&
-    BigInt(option.availableRaw) >= BigInt(option.feeOption.value)
-  )
-  if (!payableOption) {
-    throw new Error('No fee option has enough balance.')
-  }
-  return { token: payableOption.feeOption.token.symbol }
-}
 
 export const wagmiConfig = createConfig({
   chains: [polygon],
@@ -37,7 +26,7 @@ export const wagmiConfig = createConfig({
       networks: oms.supportedNetworks,
       initialChainId: polygon.id,
       transactionOptions: {
-        selectFeeOption: selectFirstPayableFeeOption,
+        selectFeeOption: FeeOptionSelector.firstAvailable,
       },
     }),
   ],
@@ -96,13 +85,13 @@ omsWalletConnector({
     mode: TransactionMode.Relayer,
     selectFeeOption: async (feeOptions) => {
       const usdc = feeOptions.find(option => option.feeOption.token.symbol === 'USDC')
-      return usdc ? { token: usdc.feeOption.token.symbol } : undefined
+      return usdc?.selection
     },
   }),
 })
 ```
 
-The SDK calls `selectFeeOption` after preparing the transaction. The selector receives `FeeOptionWithBalance[]`, including each WaaS fee option and wallet balance data when the indexer can load it. Without a selector, the SDK keeps sponsored transactions fee-free and otherwise chooses the first returned fee option.
+The SDK calls `selectFeeOption` after preparing the transaction. The selector receives `FeeOptionWithBalance[]`, including each WaaS fee option and wallet balance data when the indexer can load it. Use `FeeOptionSelector.firstAvailable` to choose the first option the wallet can pay, or return `option.selection` from a custom selector. Without a selector, the SDK keeps sponsored transactions fee-free and otherwise chooses the first returned fee option.
 
 For React UI, keep `selectFeeOption` wired in the connector initializer and bridge it into a modal or sheet with app state. The workspace wagmi example shows this as a hook-driven modal; see `examples/wagmi/src/feeOptionSelectionBridge.ts`, `examples/wagmi/src/useFeeOptionSelection.ts`, and the fee option panel in `examples/wagmi/src/App.tsx`.
 

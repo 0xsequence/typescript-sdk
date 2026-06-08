@@ -88,8 +88,10 @@ export type {
 export type {
     FeeOption,
     FeeOptionSelection,
-    FeeOptionSelector,
     FeeOptionWithBalance,
     SendTransactionResponse,
     TransactionStatusPollingOptions,
+} from './types/transactionTypes.js'
+export {
+    FeeOptionSelector,
 } from './types/transactionTypes.js'

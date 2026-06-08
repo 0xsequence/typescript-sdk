@@ -845,7 +845,7 @@ function App() {
     }
 
     selectedFeeOption.current = option
-    feeSelection.current?.resolve({ token: option.feeOption.token.symbol })
+    feeSelection.current?.resolve(option.selection)
     feeSelection.current = null
     setFeeOptions([])
     appendLog(`Selected ${option.feeOption.token.symbol}.`)
