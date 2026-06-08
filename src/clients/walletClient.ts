@@ -63,6 +63,7 @@ import type {Network} from "../networks.js";
 import {
     FeeOptionSelector,
     FeeOptionWithBalance,
+    feeOptionSelection,
     SendContractTransactionParams,
     SendDataTransactionParams, SendNativeTransactionParams,
     SendTransactionParams,
@@ -1483,17 +1484,25 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
         network: Network
         selectFeeOption?: FeeOptionSelector
     }): Promise<FeeOptionSelection | undefined> {
-        if (params.feeOptions.length === 0) {
+        if (params.sponsored) {
             return undefined
         }
 
-        if (!params.selectFeeOption) {
-            return this.defaultFeeOptionSelection(params.feeOptions, params.sponsored)
+        if (params.feeOptions.length === 0) {
+            throw new Error("No fee options available for unsponsored transaction")
         }
 
-        return params.selectFeeOption(
+        if (!params.selectFeeOption) {
+            return this.defaultFeeOptionSelection(params.feeOptions)
+        }
+
+        const selected = await params.selectFeeOption(
             await this.enrichFeeOptionsWithBalances(params.network, params.feeOptions),
         )
+        if (!selected) {
+            throw new Error("No fee option selected for unsponsored transaction")
+        }
+        return selected
     }
 
     private async enrichFeeOptionsWithBalances(
@@ -1529,6 +1538,7 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
 
             return {
                 feeOption,
+                selection: feeOptionSelection(feeOption),
                 balance,
                 available: this.formatTokenAmount(balance?.balance, decimals),
                 availableRaw: balance?.balance,
@@ -1573,9 +1583,8 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
 
     private defaultFeeOptionSelection(
         feeOptions: FeeOption[],
-        sponsored: boolean,
-    ): FeeOptionSelection | undefined {
-        return sponsored ? undefined : feeOptions[0] ? {token: feeOptions[0].token.symbol} : undefined
+    ): FeeOptionSelection {
+        return feeOptionSelection(feeOptions[0])
     }
 
     private async waitForTransactionStatus(

@@ -114,7 +114,7 @@ pnpm dev:trails-actions-example
 ## Quick Start
 
 ```typescript
-import { Networks, OMSClient, WalletType } from '@0xsequence/typescript-sdk'
+import { FeeOptionSelector, Networks, OMSClient, WalletType } from '@0xsequence/typescript-sdk'
 import { parseUnits } from 'viem'
 
 const oms = new OMSClient({
@@ -137,17 +137,8 @@ const tx = await oms.wallet.sendTransaction({
   network: Networks.polygon,
   to: '0xRecipient',
   value: parseUnits('1', 18), // 1 POL
-  selectFeeOption: (feeOptions) => {
-    // If this Polygon mainnet transaction is not sponsored, choose a fee token the wallet can pay.
-    const selectedFeeOption = feeOptions.find(({ feeOption, availableRaw }) =>
-      availableRaw !== undefined && BigInt(availableRaw) >= BigInt(feeOption.value)
-    )
-    if (!selectedFeeOption) {
-      throw new Error('No fee option has enough balance')
-    }
-
-    return { token: selectedFeeOption.feeOption.token.symbol }
-  },
+  // If this Polygon mainnet transaction is not sponsored, choose the first fee token the wallet can pay.
+  selectFeeOption: FeeOptionSelector.firstAvailable,
 })
 console.log(tx.txnHash ?? tx.txnId)
 ```
@@ -390,7 +381,8 @@ await oms.wallet.sendTransaction({
 
 If WaaS returns fee options, pass a selector to choose one. The selector receives
 fee options enriched with the current wallet balance for each token when
-available.
+available. Use `FeeOptionSelector.firstAvailable` to choose the first option the
+wallet can pay, or return `option.selection` from a custom selector.
 
 ```typescript
 const tx = await oms.wallet.sendTransaction({
@@ -399,7 +391,7 @@ const tx = await oms.wallet.sendTransaction({
   data: '0xa9059cbb000000000000000000000000...',
   selectFeeOption: async (feeOptions) => {
     const selected = feeOptions.find(option => option.feeOption.token.symbol === 'USDC')
-    return selected ? { token: selected.feeOption.token.symbol } : undefined
+    return selected?.selection
   },
 })
 ```

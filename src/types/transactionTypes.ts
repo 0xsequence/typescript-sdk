@@ -17,15 +17,37 @@ export type {
 
 export type FeeOptionWithBalance = {
     feeOption: FeeOption
+    selection: FeeOptionSelection
     balance?: TokenBalance
     available?: string
     availableRaw?: string
     decimals?: number
 }
 
-export type FeeOptionSelector = (
-    feeOptions: FeeOptionWithBalance[]
-) => FeeOptionSelection | undefined | Promise<FeeOptionSelection | undefined>
+export interface FeeOptionSelector {
+    (feeOptions: FeeOptionWithBalance[]): FeeOptionSelection | undefined | Promise<FeeOptionSelection | undefined>
+}
+
+export namespace FeeOptionSelector {
+    export const firstAvailable: FeeOptionSelector = (feeOptions) => feeOptions.find(canPayFeeOption)?.selection
+}
+
+export function feeOptionSelection(feeOption: FeeOption): FeeOptionSelection {
+    const tokenIdentifier = feeOption.token.tokenID?.trim()
+    return {token: tokenIdentifier && tokenIdentifier.length > 0 ? tokenIdentifier : feeOption.token.symbol}
+}
+
+function canPayFeeOption(option: FeeOptionWithBalance): boolean {
+    if (option.availableRaw === undefined) {
+        return false
+    }
+
+    try {
+        return BigInt(option.availableRaw) >= BigInt(option.feeOption.value)
+    } catch {
+        return false
+    }
+}
 
 export type SendTransactionResponse = {
     txnId: string

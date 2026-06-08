@@ -5,6 +5,7 @@ import type {CredentialSigner} from "../src/credentialSigner";
 import {TransactionStatus} from "../src/generated/waas.gen";
 import {Networks} from "../src/networks";
 import {MemoryStorageManager} from "../src/storageManager";
+import {FeeOptionSelector} from "../src/types/transactionTypes";
 
 class MockSigner implements CredentialSigner {
     readonly signingAlgorithm = "ecdsa-p256-sha256";
@@ -145,7 +146,7 @@ describe("WalletClient transactions", () => {
             selectFeeOption: (feeOptions) => {
                 expect(feeOptions[0].available).toBe("1");
                 expect(feeOptions[1].available).toBe("2.5");
-                return {token: feeOptions[1].feeOption.token.symbol};
+                return feeOptions[1].selection;
             },
         });
 
@@ -154,6 +155,329 @@ describe("WalletClient transactions", () => {
             status: TransactionStatus.Executed,
             txnHash: "0xtx",
         });
+    });
+
+    it("selects the default fee option identifier without balance lookup", async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = init?.body ? JSON.parse(init.body as string) : undefined;
+
+            if (url.endsWith("/PrepareEthereumTransaction")) {
+                return jsonResponse({
+                    txnId: "txn-default-fee",
+                    status: "quoted",
+                    feeOptions: [
+                        {
+                            token: {
+                                network: "137",
+                                name: "Polygon",
+                                symbol: "POL",
+                                type: "native",
+                                decimals: 18,
+                                logoURL: "",
+                                tokenID: "pol",
+                            },
+                            value: "100000000000000000",
+                            displayValue: "0.1",
+                        },
+                    ],
+                    sponsored: false,
+                    expiresAt: "2099-01-01T00:00:00Z",
+                });
+            }
+
+            if (url.endsWith("/GetNativeTokenBalance") || url.endsWith("/GetTokenBalances")) {
+                throw new Error("default fee selection should not load balances");
+            }
+
+            if (url.endsWith("/Execute")) {
+                expect(body).toEqual({
+                    txnId: "txn-default-fee",
+                    feeOption: {token: "pol"},
+                });
+                return jsonResponse({status: "pending"});
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = createWalletWithSession(
+            new MemoryStorageManager(),
+            "0x9999999999999999999999999999999999999999",
+        );
+
+        await expect(wallet.sendTransaction({
+            network: Networks.polygon,
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            waitForStatus: false,
+        })).resolves.toEqual({
+            txnId: "txn-default-fee",
+            status: TransactionStatus.Pending,
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("skips fee selection for sponsored transactions", async () => {
+        const selectFeeOption = vi.fn(() => {
+            throw new Error("sponsored transactions should not ask for fee selection");
+        });
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = init?.body ? JSON.parse(init.body as string) : undefined;
+
+            if (url.endsWith("/PrepareEthereumTransaction")) {
+                return jsonResponse({
+                    txnId: "txn-sponsored",
+                    status: "quoted",
+                    feeOptions: [
+                        {
+                            token: {
+                                network: "137",
+                                name: "Polygon",
+                                symbol: "POL",
+                                type: "native",
+                                decimals: 18,
+                                logoURL: "",
+                                tokenID: "pol",
+                            },
+                            value: "100000000000000000",
+                            displayValue: "0.1",
+                        },
+                    ],
+                    sponsored: true,
+                    expiresAt: "2099-01-01T00:00:00Z",
+                });
+            }
+
+            if (url.endsWith("/Execute")) {
+                expect(body).toEqual({txnId: "txn-sponsored"});
+                return jsonResponse({status: "pending"});
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = createWalletWithSession(
+            new MemoryStorageManager(),
+            "0x9999999999999999999999999999999999999999",
+        );
+
+        await expect(wallet.sendTransaction({
+            network: Networks.polygon,
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            selectFeeOption,
+            waitForStatus: false,
+        })).resolves.toEqual({
+            txnId: "txn-sponsored",
+            status: TransactionStatus.Pending,
+        });
+        expect(selectFeeOption).not.toHaveBeenCalled();
+    });
+
+    it("firstAvailable selects the first affordable fee option", async () => {
+        const usdcAddress = "0x2222222222222222222222222222222222222222";
+        const daiAddress = "0x3333333333333333333333333333333333333333";
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = init?.body ? JSON.parse(init.body as string) : undefined;
+
+            if (url.endsWith("/PrepareEthereumTransaction")) {
+                return jsonResponse({
+                    txnId: "txn-first-available",
+                    status: "quoted",
+                    feeOptions: [
+                        {
+                            token: {
+                                network: "137",
+                                name: "Dai",
+                                symbol: "DAI",
+                                type: "erc20",
+                                decimals: 18,
+                                logoURL: "",
+                                contractAddress: daiAddress,
+                                tokenID: "dai",
+                            },
+                            value: "1000",
+                            displayValue: "0.000000000000001",
+                        },
+                        {
+                            token: {
+                                network: "137",
+                                name: "USD Coin",
+                                symbol: "USDC",
+                                type: "erc20",
+                                decimals: 6,
+                                logoURL: "",
+                                contractAddress: usdcAddress,
+                                tokenID: "usdc",
+                            },
+                            value: "2000",
+                            displayValue: "0.002",
+                        },
+                    ],
+                    sponsored: false,
+                    expiresAt: "2099-01-01T00:00:00Z",
+                });
+            }
+
+            if (url.endsWith("/GetTokenBalances")) {
+                const balance = body.contractAddress === daiAddress ? "100" : "2000";
+                return jsonResponse({
+                    page: {page: 0, pageSize: 40, more: false},
+                    balances: [{
+                        contractType: "ERC20",
+                        contractAddress: body.contractAddress,
+                        accountAddress: body.accountAddress,
+                        tokenID: null,
+                        balance,
+                        chainId: 137,
+                    }],
+                });
+            }
+
+            if (url.endsWith("/Execute")) {
+                expect(body).toEqual({
+                    txnId: "txn-first-available",
+                    feeOption: {token: "usdc"},
+                });
+                return jsonResponse({status: "pending"});
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = createWalletWithSession(
+            new MemoryStorageManager(),
+            "0x9999999999999999999999999999999999999999",
+        );
+
+        await expect(wallet.sendTransaction({
+            network: Networks.polygon,
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            selectFeeOption: FeeOptionSelector.firstAvailable,
+            waitForStatus: false,
+        })).resolves.toEqual({
+            txnId: "txn-first-available",
+            status: TransactionStatus.Pending,
+        });
+    });
+
+    it("firstAvailable requires an affordable fee option", async () => {
+        const usdcAddress = "0x2222222222222222222222222222222222222222";
+        const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+            const url = input.toString();
+            const body = init?.body ? JSON.parse(init.body as string) : undefined;
+
+            if (url.endsWith("/PrepareEthereumTransaction")) {
+                return jsonResponse({
+                    txnId: "txn-no-affordable-fee",
+                    status: "quoted",
+                    feeOptions: [
+                        {
+                            token: {
+                                network: "137",
+                                name: "USD Coin",
+                                symbol: "USDC",
+                                type: "erc20",
+                                decimals: 6,
+                                logoURL: "",
+                                contractAddress: usdcAddress,
+                                tokenID: "usdc",
+                            },
+                            value: "1000",
+                            displayValue: "0.001",
+                        },
+                    ],
+                    sponsored: false,
+                    expiresAt: "2099-01-01T00:00:00Z",
+                });
+            }
+
+            if (url.endsWith("/GetTokenBalances")) {
+                return jsonResponse({
+                    page: {page: 0, pageSize: 40, more: false},
+                    balances: [{
+                        contractType: "ERC20",
+                        contractAddress: body.contractAddress,
+                        accountAddress: body.accountAddress,
+                        tokenID: null,
+                        balance: "100",
+                        chainId: 137,
+                    }],
+                });
+            }
+
+            if (url.endsWith("/Execute")) {
+                throw new Error("Execute should not run without an affordable fee option");
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = createWalletWithSession(
+            new MemoryStorageManager(),
+            "0x9999999999999999999999999999999999999999",
+        );
+
+        await expect(wallet.sendTransaction({
+            network: Networks.polygon,
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            selectFeeOption: FeeOptionSelector.firstAvailable,
+            waitForStatus: false,
+        })).rejects.toMatchObject({
+            code: "OMS_VALIDATION_ERROR",
+            operation: "wallet.sendTransaction",
+            message: "No fee option selected for unsponsored transaction",
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("requires fee options for unsponsored transactions", async () => {
+        const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+            const url = input.toString();
+
+            if (url.endsWith("/PrepareEthereumTransaction")) {
+                return jsonResponse({
+                    txnId: "txn-no-fee-options",
+                    status: "quoted",
+                    feeOptions: [],
+                    sponsored: false,
+                    expiresAt: "2099-01-01T00:00:00Z",
+                });
+            }
+
+            if (url.endsWith("/Execute")) {
+                throw new Error("Execute should not run without fee options");
+            }
+
+            throw new Error(`Unexpected request: ${url}`);
+        });
+        vi.stubGlobal("fetch", fetchMock);
+
+        const wallet = createWalletWithSession(
+            new MemoryStorageManager(),
+            "0x9999999999999999999999999999999999999999",
+        );
+
+        await expect(wallet.sendTransaction({
+            network: Networks.polygon,
+            to: "0x1111111111111111111111111111111111111111",
+            value: 0n,
+            waitForStatus: false,
+        })).rejects.toMatchObject({
+            code: "OMS_VALIDATION_ERROR",
+            operation: "wallet.sendTransaction",
+            message: "No fee options available for unsponsored transaction",
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
     });
 
     it("can skip transaction status polling", async () => {
@@ -165,7 +489,7 @@ describe("WalletClient transactions", () => {
                     txnId: "txn-1",
                     status: "quoted",
                     feeOptions: [],
-                    sponsored: false,
+                    sponsored: true,
                     expiresAt: "2099-01-01T00:00:00Z",
                 });
             }
@@ -240,7 +564,7 @@ describe("WalletClient transactions", () => {
                     txnId: "txn-1",
                     status: "quoted",
                     feeOptions: [],
-                    sponsored: false,
+                    sponsored: true,
                     expiresAt: "2099-01-01T00:00:00Z",
                 });
             }
