@@ -43,7 +43,7 @@
   "devDependencies": {
     "@0xsequence/typescript-sdk": "workspace:*",
     "@wagmi/core": "^3.5.0",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "viem": "^2.48.4",
     "vitest": "^4.1.5"
   }
