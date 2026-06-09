@@ -7,24 +7,13 @@ Wagmi connector for an active `@0xsequence/typescript-sdk` OMS client.
 ```ts
 import { createConfig, http } from 'wagmi'
 import { polygon } from 'wagmi/chains'
-import { OMSClient, type FeeOptionWithBalance } from '@0xsequence/typescript-sdk'
+import { OMSClient } from '@0xsequence/typescript-sdk'
 import { omsWalletConnector } from '@0xsequence/oms-wallet-wagmi-connector'
 
 const oms = new OMSClient({
   publishableKey: import.meta.env.VITE_OMS_PUBLISHABLE_KEY,
   projectId: import.meta.env.VITE_OMS_PROJECT_ID,
 })
-
-function selectFirstPayableFeeOption(feeOptions: FeeOptionWithBalance[]) {
-  const payableOption = feeOptions.find((option) =>
-    option.availableRaw !== undefined &&
-    BigInt(option.availableRaw) >= BigInt(option.feeOption.value)
-  )
-  if (!payableOption) {
-    throw new Error('No fee option has enough balance.')
-  }
-  return { token: payableOption.feeOption.token.symbol }
-}
 
 export const wagmiConfig = createConfig({
   chains: [polygon],
@@ -35,10 +24,6 @@ export const wagmiConfig = createConfig({
     omsWalletConnector({
       client: oms,
       networks: oms.supportedNetworks,
-      initialChainId: polygon.id,
-      transactionOptions: {
-        selectFeeOption: selectFirstPayableFeeOption,
-      },
     }),
   ],
 })
@@ -81,11 +66,11 @@ await oms.wallet.signOut()
 
 OMS `Network` values are not wagmi chain definitions. Wagmi still needs viem `Chain` objects with RPC transport configuration. Use `wagmi/chains`, `viem/chains`, or custom viem `Chain` objects, then pass the OMS networks to the connector for OMS support validation.
 
-The connector validates `initialChainId`, `switchChain`, and provider chain switches against both the wagmi chain list and the OMS network list. A transaction `chainId` is used for that transaction without switching the connector's current chain, and must be supported by OMS.
+The connector defaults to Polygon (`137`) when that chain is present in both the wagmi chain list and the OMS network list, otherwise it uses the first shared chain. It validates `initialChainId`, `switchChain`, and provider chain switches against both lists. A transaction `chainId` is used for that transaction without switching the connector's current chain, and must be supported by OMS.
 
 ## Fee options
 
-Wagmi transaction parameters do not include OMS fee-option preferences. Pass `transactionOptions` to the connector to apply static options or resolve options per transaction request.
+Wagmi transaction parameters do not include OMS fee-option preferences. The connector exposes a structural wallet runtime for host UIs that want to render dapp-owned fee-token selection. Pass `transactionOptions` only when you want to apply static options or override selection per transaction request.
 
 ```ts
 import { TransactionMode } from '@0xsequence/typescript-sdk'
@@ -102,9 +87,19 @@ omsWalletConnector({
 })
 ```
 
-The SDK calls `selectFeeOption` after preparing the transaction. The selector receives `FeeOptionWithBalance[]`, including each WaaS fee option and wallet balance data when the indexer can load it. Without a selector, the SDK keeps sponsored transactions fee-free and otherwise chooses the first returned fee option.
+The SDK calls `selectFeeOption` after preparing the transaction. The selector receives `FeeOptionWithBalance[]`, including each fee option and wallet balance data when the indexer can load it. An explicit `transactionOptions.selectFeeOption` still wins. Otherwise the connector exposes a pending wallet runtime request and waits for the host UI to confirm or reject an opaque fee-option id.
 
-For React UI, keep `selectFeeOption` wired in the connector initializer and bridge it into a modal or sheet with app state. The workspace wagmi example shows this as a hook-driven modal; see `examples/wagmi/src/feeOptionSelectionBridge.ts`, `examples/wagmi/src/useFeeOptionSelection.ts`, and the fee option panel in `examples/wagmi/src/App.tsx`.
+Host UIs can discover the connector-owned fee bridge with `getWalletFeeOptionsBridge`:
+
+```ts
+import { getWalletFeeOptionsBridge } from '@0xsequence/oms-wallet-wagmi-connector'
+
+const feeBridge = getWalletFeeOptionsBridge(omsConnector)
+const pending = feeBridge?.getSnapshot()
+if (feeBridge && pending) {
+  feeBridge.confirm(pending.id, pending.options[0].id)
+}
+```
 
 ## Transactions
 
@@ -130,4 +125,4 @@ Unsupported methods include direct read/RPC methods such as `eth_call`, `eth_est
 
 Raw byte message signing is not supported because OMS Wallet signs string messages. `eth_sign` and legacy `eth_signTypedData` are not supported; use `personal_sign` and `eth_signTypedData_v4`.
 
-`wallet_getCapabilities` returns no capabilities unless OMS Wallet adds support for capability methods.
+`wallet_getCapabilities` returns no fee-option capability; host UIs should use the structural wallet runtime attached to the connector/provider.
