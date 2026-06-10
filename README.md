@@ -527,38 +527,7 @@ See [API.md](./API.md) for the full method and type reference.
 
 ## Publishing
 
-Publish the SDK before the wagmi connector. The connector has an exact peer dependency on the SDK
-version, so the SDK package must exist in the npm registry first.
-
-Before publishing a new alpha version, update these values to the same exact version:
-
-- `package.json` `version`
-- `packages/oms-wallet-wagmi-connector/package.json` `version`
-- `packages/oms-wallet-wagmi-connector/package.json` `peerDependencies["@0xsequence/typescript-sdk"]`
-
-Then publish from the repository root with the alpha dist tag:
-
-```bash
-npm whoami
-
-VERSION=$(node -p "require('./package.json').version")
-
-pnpm install --frozen-lockfile
-pnpm check:package-versions
-pnpm exec tsc --noEmit
-pnpm test
-pnpm --filter @0xsequence/oms-wallet-wagmi-connector test
-pnpm --filter @0xsequence/oms-wallet-wagmi-connector build
-
-pnpm publish --access public --tag alpha
-npm view @0xsequence/typescript-sdk@$VERSION version
-
-pnpm --filter @0xsequence/oms-wallet-wagmi-connector publish --access public --tag alpha
-npm view @0xsequence/oms-wallet-wagmi-connector@$VERSION version
-```
-
-Do not use a recursive workspace publish for these packages while the connector's peer dependency is
-intentionally lockstep with the SDK version. The publish order matters.
+See [PUBLISHING.md](./PUBLISHING.md) for release and npm publishing steps.
 
 ## Contributing
 
