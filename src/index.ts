@@ -46,6 +46,7 @@ export {
     OmsValidationError,
     isOmsSdkError,
     type OmsSdkErrorCode,
+    type OmsUpstreamError,
 } from './errors.js'
 export type {
     CompleteEmailAuthParams,

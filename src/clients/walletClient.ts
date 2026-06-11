@@ -50,6 +50,7 @@ import {
     PrepareEthereumTransactionRequest,
     PrepareEthereumContractCallRequest,
     ExecuteRequest,
+    ExecuteResponse,
     TransactionStatusRequest,
     PrepareResponse,
     TransactionStatusResponse,
@@ -1446,7 +1447,23 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
             request.feeOption = feeOption
         }
 
-        const executed = await this.client.execute(request)
+        let executed: ExecuteResponse
+        try {
+            executed = await this.client.execute(request)
+        } catch (error) {
+            const sdkError = toOmsSdkError(error, WalletOperation.execute)
+            throw new OmsTransactionError({
+                code: "OMS_TRANSACTION_EXECUTION_UNCONFIRMED",
+                operation: WalletOperation.execute,
+                txnId: params.prepared.txnId,
+                status: sdkError.status,
+                retryable: false,
+                upstreamError: sdkError.upstreamError,
+                cause: sdkError,
+                message: "Transaction execution failed before status could be confirmed",
+            })
+        }
+
         if (params.waitForStatus === false) {
             return {
                 txnId: params.prepared.txnId,
@@ -1462,11 +1479,14 @@ export class WalletClient<Env extends OmsEnvironment = OmsEnvironment> {
                 params.statusPolling,
             )
         } catch (error) {
+            const sdkError = toOmsSdkError(error, WalletOperation.transactionStatus)
             throw new OmsTransactionError({
                 operation: WalletOperation.transactionStatus,
                 txnId: params.prepared.txnId,
+                status: sdkError.status,
                 retryable: true,
-                cause: error,
+                upstreamError: sdkError.upstreamError,
+                cause: sdkError,
                 message: "Transaction was submitted, but status polling failed",
             })
         }

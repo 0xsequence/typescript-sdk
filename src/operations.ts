@@ -17,6 +17,7 @@ export const WalletOperation = {
     isValidTypedDataSignature: "wallet.isValidTypedDataSignature",
     sendTransaction: "wallet.sendTransaction",
     callContract: "wallet.callContract",
+    execute: "wallet.execute",
     getTransactionStatus: "wallet.getTransactionStatus",
     listAccess: "wallet.listAccess",
     listAccessPages: "wallet.listAccessPages",

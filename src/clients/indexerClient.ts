@@ -1,7 +1,7 @@
 // Converted from Swift IndexerClient.
 
 import {HttpClient} from "../httpClient.js";
-import {errorMessage, OmsRequestError, OmsResponseError} from "../errors.js";
+import {errorMessage, OmsRequestError, OmsResponseError, type OmsUpstreamError} from "../errors.js";
 import type {Network} from "../networks.js";
 import {IndexerOperation} from "../operations.js";
 
@@ -246,6 +246,7 @@ export class IndexerClient {
             throw new OmsRequestError({
                 operation,
                 retryable: true,
+                upstreamError: indexerRequestFailure(error),
                 cause: error,
                 message: errorMessage(error),
             });
@@ -254,24 +255,32 @@ export class IndexerClient {
         let payload: T;
         if (response.statusCode < 200 || response.statusCode >= 300) {
             const errorPayload = parseJsonOrText(response.body);
+            const message = responseErrorMessage(errorPayload, operation, response.statusCode);
             throw new OmsRequestError({
                 code: "OMS_HTTP_ERROR",
                 operation,
                 status: response.statusCode,
                 retryable: response.statusCode >= 500,
+                upstreamError: indexerResponseError(errorPayload, response.statusCode, message),
                 cause: errorPayload,
-                message: responseErrorMessage(errorPayload, operation, response.statusCode),
+                message,
             });
         }
 
         try {
             payload = JSON.parse(response.body) as T;
         } catch (error) {
+            const message = `Invalid JSON response from ${operation}`;
             throw new OmsResponseError({
                 operation,
                 status: response.statusCode,
+                upstreamError: {
+                    service: "indexer",
+                    status: response.statusCode,
+                    message,
+                },
                 cause: error,
-                message: `Invalid JSON response from ${operation}`,
+                message,
             });
         }
 
@@ -342,4 +351,46 @@ function parseJsonOrText(body: string): unknown {
     } catch {
         return body;
     }
+}
+
+function indexerRequestFailure(error: unknown): OmsUpstreamError {
+    const status = numberField(error, "status");
+    return {
+        service: "indexer",
+        name: error instanceof Error ? error.name : stringField(error, "name"),
+        code: numberOrStringField(error, "code"),
+        message: errorMessage(error),
+        status,
+    };
+}
+
+function indexerResponseError(payload: unknown, status: number, fallbackMessage: string): OmsUpstreamError {
+    return {
+        service: "indexer",
+        name: stringField(payload, "name") ?? stringField(payload, "error"),
+        code: numberOrStringField(payload, "code"),
+        message: stringField(payload, "message") ?? fallbackMessage,
+        status,
+    };
+}
+
+function stringField(source: unknown, key: string): string | undefined {
+    const value = objectField(source, key);
+    return typeof value === "string" ? value : undefined;
+}
+
+function numberField(source: unknown, key: string): number | undefined {
+    const value = objectField(source, key);
+    return typeof value === "number" ? value : undefined;
+}
+
+function numberOrStringField(source: unknown, key: string): number | string | undefined {
+    const value = objectField(source, key);
+    return typeof value === "number" || typeof value === "string" ? value : undefined;
+}
+
+function objectField(source: unknown, key: string): unknown {
+    return source && typeof source === "object"
+        ? (source as Record<string, unknown>)[key]
+        : undefined;
 }

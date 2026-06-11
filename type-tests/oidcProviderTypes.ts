@@ -10,6 +10,9 @@ import {
     type OMSClientSessionLoginType,
     type OMSClientSessionExpiredListener,
     type OMSClientSessionState,
+    type OmsSdkError,
+    type OmsSdkErrorCode,
+    type OmsUpstreamError,
     type TokenBalance,
     type TokenBalancesPage,
     type TokenBalancesResult,
@@ -109,6 +112,16 @@ const tokenBalance: TokenBalance = {
 };
 const tokenBalancesPage: TokenBalancesPage = {page: 0, pageSize: 40, more: false};
 const tokenBalancesResult: TokenBalancesResult = {status: 200, page: tokenBalancesPage, balances: [tokenBalance]};
+const upstreamError: OmsUpstreamError = {
+    service: "waas",
+    name: "CommitmentConsumed",
+    code: 7008,
+    message: "The authentication commitment has already been used",
+    status: 400,
+};
+const sdkError = undefined as unknown as OmsSdkError;
+const maybeUpstreamError: OmsUpstreamError | undefined = sdkError.upstreamError;
+const transactionExecutionCode: OmsSdkErrorCode = "OMS_TRANSACTION_EXECUTION_UNCONFIRMED";
 void session;
 void unsubscribeSessionExpired;
 void loginType;
@@ -119,6 +132,9 @@ void allNetworks;
 void tokenContractInfo;
 void tokenMetadata;
 void tokenBalancesResult;
+void upstreamError;
+void maybeUpstreamError;
+void transactionExecutionCode;
 void defaultClient.supportedNetworks;
 // @ts-expect-error findNetworkById accepts numeric chain IDs only.
 findNetworkById("80002");
