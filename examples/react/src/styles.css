@@ -253,6 +253,23 @@ button.subtle:hover:not(:disabled) {
   border-color: var(--oms-slate-400);
 }
 
+button.danger {
+  color: var(--oms-red-700);
+  background: var(--oms-red-50);
+  border-color: var(--oms-red-200);
+}
+
+button.danger:hover:not(:disabled) {
+  color: var(--oms-red-800);
+  background: var(--oms-red-100);
+  border-color: var(--oms-red-400);
+}
+
+button.danger:active:not(:disabled) {
+  background: var(--oms-red-200);
+  border-color: var(--oms-red-500);
+}
+
 button:disabled {
   cursor: not-allowed;
   color: var(--oms-slate-400);
@@ -453,16 +470,21 @@ button:disabled {
 }
 
 .metadata-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 48px;
-  padding: 4px 8px;
+  min-height: 24px;
+  padding: 3px 9px;
   border: 1px solid var(--oms-slate-300);
   border-radius: 16px;
   color: var(--oms-slate-800);
   background: var(--oms-slate-100);
   font-size: 12px;
   font-weight: 800;
-  line-height: 1.2;
+  line-height: 1;
   text-align: center;
+  white-space: nowrap;
 }
 
 select:disabled {
@@ -569,6 +591,115 @@ select:disabled {
 .wallet-option-list {
   display: grid;
   gap: 8px;
+}
+
+.inline-field-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.management-list {
+  display: grid;
+  gap: 8px;
+}
+
+.management-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: var(--oms-radius-input);
+  background: var(--oms-surface);
+}
+
+.management-card-active {
+  border-color: var(--oms-purple-200);
+  background: var(--oms-purple-50);
+}
+
+.management-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.management-card-header > span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.management-card-header strong,
+.management-card-header small {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.management-card-header strong {
+  color: var(--oms-ink);
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.management-card-header small {
+  color: var(--oms-muted-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.management-card-header button {
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: var(--oms-radius-button);
+}
+
+.management-card code {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  border-radius: var(--oms-radius-button);
+  color: var(--oms-slate-800);
+  background: var(--oms-slate-100);
+  font-family: var(--oms-font-mono);
+  font-size: 12px;
+}
+
+.management-meta {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
+.management-meta div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.management-meta dt,
+.management-meta dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.management-meta dt {
+  color: var(--oms-muted-ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.management-meta dd {
+  margin: 0;
+  color: var(--oms-ink);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 output {
@@ -756,6 +887,10 @@ output {
   }
 
   .session-info {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-field-action {
     grid-template-columns: 1fr;
   }
 
