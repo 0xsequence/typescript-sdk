@@ -1,7 +1,7 @@
 import { createConnector } from "@wagmi/core";
 import { getAddress, numberToHex, SwitchChainError, type Address } from "viem";
 
-import { OmsWalletProvider } from "./provider.js";
+import { OmsWalletProvider, OmsWalletProviderRpcError } from "./provider.js";
 import type {
     MaybePromise,
     OmsWalletClientLike,
@@ -116,12 +116,12 @@ export function omsWalletConnector(parameters: OmsWalletConnectorParameters) {
             const client = await resolveClient();
             subscribeSessionExpired(client);
             if (!client.wallet.walletAddress) {
-                throw new Error("No active OMS wallet session. Authenticate with the OMS SDK before connecting through wagmi.");
+                throw new OmsWalletProviderRpcError(4100, "No active OMS wallet session. Authenticate with the OMS SDK before connecting through wagmi.");
             }
 
             const nextAccounts = await accounts();
             if (!nextAccounts.length) {
-                throw new Error("No active OMS wallet session. Authenticate with the OMS SDK before connecting through wagmi.");
+                throw new OmsWalletProviderRpcError(4100, "No active OMS wallet session. Authenticate with the OMS SDK before connecting through wagmi.");
             }
             provider?.emit("accountsChanged", nextAccounts);
             return nextAccounts;

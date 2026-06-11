@@ -2,7 +2,8 @@ import { createConfig, createStorage, connect, disconnect, reconnect, sendTransa
 import { describe, expect, it, vi } from "vitest";
 import { http, type Address, type Chain, type Hex } from "viem";
 
-import { omsWalletConnector, stringToPersonalSignHex, type OmsWalletClientLike } from "../src/index.js";
+import { OmsTransactionError } from "../../../src/index.js";
+import { OmsWalletProviderRpcError, omsWalletConnector, stringToPersonalSignHex, type OmsWalletClientLike } from "../src/index.js";
 
 const polygon = {
     id: 137,
@@ -16,6 +17,13 @@ const mainnet = {
     name: "Ethereum",
     nativeCurrency: {name: "Ether", symbol: "ETH", decimals: 18},
     rpcUrls: {default: {http: ["https://mainnet.example"]}},
+} as const satisfies Chain;
+
+const optimism = {
+    id: 10,
+    name: "Optimism",
+    nativeCurrency: {name: "Ether", symbol: "ETH", decimals: 18},
+    rpcUrls: {default: {http: ["https://optimism.example"]}},
 } as const satisfies Chain;
 
 const networks = [
@@ -44,6 +52,32 @@ describe("omsWalletConnector", () => {
             connector: config.connectors[0],
             chainId: polygon.id,
         })).rejects.toThrow("Authenticate with the OMS SDK before connecting through wagmi.");
+    });
+
+    it("rejects connect when initialChainId is not configured in wagmi", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const config = createConfig({
+            chains: [polygon],
+            connectors: [omsWalletConnector({client, networks, initialChainId: mainnet.id})],
+            transports: {
+                [polygon.id]: http(),
+            },
+        });
+
+        await expect(connect(config, {connector: config.connectors[0]})).rejects.toThrow("Chain 1 is not configured in wagmi.");
+    });
+
+    it("rejects connect when no configured wagmi chain is supported by OMS", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const config = createConfig({
+            chains: [optimism],
+            connectors: [omsWalletConnector({client, networks})],
+            transports: {
+                [optimism.id]: http(),
+            },
+        });
+
+        await expect(connect(config, {connector: config.connectors[0]})).rejects.toThrow("No wagmi chain is supported by OMS.");
     });
 
     it("signs messages and typed data through the OMS wallet", async () => {
@@ -76,6 +110,49 @@ describe("omsWalletConnector", () => {
         });
     });
 
+    it("rejects provider signing validation errors before calling OMS", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const config = createWagmiConfig(client);
+
+        await connect(config, {connector: config.connectors[0]});
+        const provider = await config.connectors[0].getProvider();
+
+        await expect(provider.request({
+            method: "personal_sign",
+            params: {message: "hello"},
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: -32602,
+            message: "personal_sign requires positional parameters.",
+        });
+        await expect(provider.request({
+            method: "personal_sign",
+            params: [123, client.wallet.walletAddress],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: -32602,
+            message: "Signing message must be a string.",
+        });
+        await expect(provider.request({
+            method: "eth_signTypedData_v4",
+            params: [client.wallet.walletAddress, "{"],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: -32602,
+            message: "Typed data must be JSON when passed as a string.",
+        });
+        await expect(provider.request({
+            method: "eth_signTypedData_v4",
+            params: ["0x1111111111111111111111111111111111111111", {message: "hello"}],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: 4100,
+            message: "eth_signTypedData_v4 requested 0x1111111111111111111111111111111111111111, but the active OMS wallet is 0x9999999999999999999999999999999999999999.",
+        });
+        expect(client.wallet.signMessage).not.toHaveBeenCalled();
+        expect(client.wallet.signTypedData).not.toHaveBeenCalled();
+    });
+
     it("sends transactions through the OMS wallet and returns the EVM transaction hash", async () => {
         const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
         const config = createWagmiConfig(client);
@@ -94,6 +171,61 @@ describe("omsWalletConnector", () => {
             data: undefined,
             waitForStatus: true,
         });
+    });
+
+    it("rejects provider transaction validation errors before calling OMS", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const config = createWagmiConfig(client);
+        const connector = config.connectors[0];
+
+        await connect(config, {connector});
+        const provider = await connector.getProvider();
+
+        await expect(provider.request({
+            method: "eth_sendTransaction",
+            params: {to: "0x1111111111111111111111111111111111111111"},
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: -32602,
+            message: "eth_sendTransaction requires positional parameters.",
+        });
+        await expect(provider.request({
+            method: "eth_sendTransaction",
+            params: [{
+                from: client.wallet.walletAddress,
+                value: "0x1",
+            }],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: 4200,
+            message: "Unsupported OMS provider method: eth_sendTransaction without a recipient address; contract deployment is not supported by the current OMS wallet SDK.",
+        });
+        await expect(provider.request({
+            method: "eth_sendTransaction",
+            params: [{
+                from: client.wallet.walletAddress,
+                to: "not-an-address",
+                value: "0x1",
+            }],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: 4200,
+            message: "Unsupported OMS provider method: eth_sendTransaction without a recipient address; contract deployment is not supported by the current OMS wallet SDK.",
+        });
+        await expect(provider.request({
+            method: "eth_sendTransaction",
+            params: [{
+                from: client.wallet.walletAddress,
+                to: "0x1111111111111111111111111111111111111111",
+                value: "0x1",
+                chainId: "not-a-chain",
+            }],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: -32602,
+            message: "Chain ID must be a positive safe integer.",
+        });
+        expect(client.wallet.sendTransaction).not.toHaveBeenCalled();
     });
 
     it("rejects non-quantity transaction values at the provider boundary", async () => {
@@ -216,6 +348,109 @@ describe("omsWalletConnector", () => {
         });
     });
 
+    it("rejects transactions for wagmi-configured chains that OMS does not support", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const config = createConfig({
+            chains: [polygon, optimism],
+            connectors: [omsWalletConnector({client, networks})],
+            transports: {
+                [polygon.id]: http(),
+                [optimism.id]: http(),
+            },
+        });
+        const connector = config.connectors[0];
+
+        await connect(config, {connector});
+        const provider = await connector.getProvider();
+
+        await expect(provider.request({
+            method: "eth_sendTransaction",
+            params: [{
+                from: client.wallet.walletAddress,
+                to: "0x1111111111111111111111111111111111111111",
+                value: "0x1",
+                chainId: "0xa",
+            }],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: 4901,
+            message: "OMS does not support chain 10.",
+        });
+        expect(client.wallet.sendTransaction).not.toHaveBeenCalled();
+    });
+
+    it("wraps SDK transaction failures as provider RPC errors", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const sdkError = createTransactionExecutionError();
+        client.wallet.sendTransaction = vi.fn(async () => {
+            throw sdkError;
+        });
+        const config = createWagmiConfig(client);
+        const connector = config.connectors[0];
+
+        await connect(config, {connector});
+        const provider = await connector.getProvider();
+
+        await expect(provider.request({
+            method: "eth_sendTransaction",
+            params: [{
+                from: client.wallet.walletAddress,
+                to: "0x1111111111111111111111111111111111111111",
+                value: "0x1",
+            }],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: -32603,
+            message: "Transaction execution failed before status could be confirmed",
+            data: expect.objectContaining({
+                name: "OmsTransactionError",
+                code: "OMS_TRANSACTION_EXECUTION_UNCONFIRMED",
+                operation: "wallet.execute",
+                retryable: false,
+                txnId: "txn-execute",
+                upstreamError: expect.objectContaining({
+                    service: "waas",
+                    name: "WebrpcRequestFailed",
+                    code: -1,
+                }),
+            }),
+        });
+    });
+
+    it("preserves SDK transaction error details through wagmi sendTransaction wrapping", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        client.wallet.sendTransaction = vi.fn(async () => {
+            throw createTransactionExecutionError();
+        });
+        const config = createWagmiConfig(client);
+
+        await connect(config, {connector: config.connectors[0]});
+
+        await expect(sendTransaction(config, {
+            to: "0x1111111111111111111111111111111111111111",
+            value: 1n,
+        })).rejects.toMatchObject({
+            cause: expect.objectContaining({
+                code: -32603,
+                cause: expect.objectContaining({
+                    code: -32603,
+                    data: expect.objectContaining({
+                        name: "OmsTransactionError",
+                        code: "OMS_TRANSACTION_EXECUTION_UNCONFIRMED",
+                        operation: "wallet.execute",
+                        retryable: false,
+                        txnId: "txn-execute",
+                        upstreamError: expect.objectContaining({
+                            service: "waas",
+                            name: "WebrpcRequestFailed",
+                            code: -1,
+                        }),
+                    }),
+                }),
+            }),
+        });
+    });
+
     it("ignores wallet-managed transaction fields when sending transactions", async () => {
         const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
         const config = createWagmiConfig(client);
@@ -291,6 +526,20 @@ describe("omsWalletConnector", () => {
         });
     });
 
+    it("rejects eth_requestAccounts without an active OMS wallet session", async () => {
+        const client = createClient();
+        const config = createWagmiConfig(client);
+        const provider = await config.connectors[0].getProvider();
+
+        await expect(provider.request({
+            method: "eth_requestAccounts",
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: 4100,
+            message: "No active OMS wallet session. Authenticate with the OMS SDK before connecting through wagmi.",
+        });
+    });
+
     it("switches the OMS network used for signing and transactions", async () => {
         const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
         const config = createWagmiConfig(client);
@@ -345,6 +594,52 @@ describe("omsWalletConnector", () => {
         await expect(connector.getChainId()).resolves.toBe(polygon.id);
     });
 
+    it("rejects provider chain switches to wagmi-configured chains that OMS does not support", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const config = createConfig({
+            chains: [polygon, optimism],
+            connectors: [omsWalletConnector({client, networks})],
+            transports: {
+                [polygon.id]: http(),
+                [optimism.id]: http(),
+            },
+        });
+        const connector = config.connectors[0];
+
+        await connect(config, {connector});
+        const provider = await connector.getProvider();
+        await expect(provider.request({
+            method: "wallet_switchEthereumChain",
+            params: [{chainId: "0xa"}],
+        })).rejects.toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: 4901,
+            message: "OMS does not support chain 10.",
+        });
+
+        expect(config.state.connections.get(config.state.current!)?.chainId).toBe(polygon.id);
+        await expect(connector.getChainId()).resolves.toBe(polygon.id);
+    });
+
+    it("rejects wagmi switchChain calls to wagmi-configured chains that OMS does not support", async () => {
+        const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
+        const config = createConfig({
+            chains: [polygon, optimism],
+            connectors: [omsWalletConnector({client, networks})],
+            transports: {
+                [polygon.id]: http(),
+                [optimism.id]: http(),
+            },
+        });
+        const connector = config.connectors[0];
+
+        await connect(config, {connector});
+
+        await expect(switchChain(config, {chainId: optimism.id})).rejects.toThrow("OMS does not support chain 10.");
+        expect(config.state.connections.get(config.state.current!)?.chainId).toBe(polygon.id);
+        await expect(connector.getChainId()).resolves.toBe(polygon.id);
+    });
+
     it("uses and validates initialChainId", async () => {
         const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
         const config = createWagmiConfig(client, {initialChainId: mainnet.id});
@@ -360,18 +655,12 @@ describe("omsWalletConnector", () => {
 
     it("rejects initialChainId when OMS does not support it", async () => {
         const client = createClient({walletAddress: "0x9999999999999999999999999999999999999999"});
-        const unsupported = {
-            id: 10,
-            name: "Optimism",
-            nativeCurrency: {name: "Ether", symbol: "ETH", decimals: 18},
-            rpcUrls: {default: {http: ["https://optimism.example"]}},
-        } as const satisfies Chain;
         const config = createConfig({
-            chains: [polygon, unsupported],
-            connectors: [omsWalletConnector({client, networks, initialChainId: unsupported.id})],
+            chains: [polygon, optimism],
+            connectors: [omsWalletConnector({client, networks, initialChainId: optimism.id})],
             transports: {
                 [polygon.id]: http(),
-                [unsupported.id]: http(),
+                [optimism.id]: http(),
             },
         });
 
@@ -504,6 +793,18 @@ describe("omsWalletConnector", () => {
         })).rejects.toMatchObject({code: 4200});
         expect(client.wallet.signTypedData).not.toHaveBeenCalled();
     });
+
+    it("preserves the exported provider RPC error field contract", () => {
+        const data = {txnId: "txn-1"};
+        const error = new OmsWalletProviderRpcError(-32603, "Provider failed.", data);
+
+        expect(error).toMatchObject({
+            name: "OmsWalletProviderRpcError",
+            code: -32603,
+            message: "Provider failed.",
+            data,
+        });
+    });
 });
 
 function createWagmiConfig(
@@ -534,6 +835,22 @@ function createMemoryStorage(): Storage {
                 values.delete(key);
             },
         },
+    });
+}
+
+function createTransactionExecutionError(): OmsTransactionError {
+    return new OmsTransactionError({
+        code: "OMS_TRANSACTION_EXECUTION_UNCONFIRMED",
+        operation: "wallet.execute",
+        txnId: "txn-execute",
+        retryable: false,
+        upstreamError: {
+            service: "waas",
+            name: "WebrpcRequestFailed",
+            code: -1,
+            message: "request failed",
+        },
+        message: "Transaction execution failed before status could be confirmed",
     });
 }
 

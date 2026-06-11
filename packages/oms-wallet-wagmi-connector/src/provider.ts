@@ -15,6 +15,7 @@ import type {
     OmsWalletClientLike,
     OmsWalletConnectorParameters,
     OmsWalletNetwork,
+    OmsWalletSendTransactionResponse,
     OmsWalletProviderTransactionRequest,
     OmsWalletTransactionOptions,
 } from "./types.js";
@@ -159,16 +160,21 @@ export class OmsWalletProvider {
             waitForStatus: true,
         } as const;
         const value = request.value === undefined ? 0n : normalizeValue(request.value);
-        const response = request.data === undefined
-            ? await client.wallet.sendTransaction({
-                ...transactionBase,
-                value,
-            })
-            : await client.wallet.sendTransaction({
-                ...transactionBase,
-                value,
-                data: request.data,
-            });
+        let response: OmsWalletSendTransactionResponse;
+        try {
+            response = request.data === undefined
+                ? await client.wallet.sendTransaction({
+                    ...transactionBase,
+                    value,
+                })
+                : await client.wallet.sendTransaction({
+                    ...transactionBase,
+                    value,
+                    data: request.data,
+                });
+        } catch (error) {
+            throw transactionFailed(error);
+        }
 
         if (!response.txnHash || !isHex(response.txnHash)) {
             throw new OmsWalletProviderRpcError(
@@ -313,6 +319,20 @@ function missingTransactionHashMessage(response: {txnId?: unknown}): string {
         ? ` OMS transaction id: ${response.txnId}.`
         : "";
     return `OMS transaction did not produce the EVM transaction hash required by wagmi sendTransaction.${suffix}`;
+}
+
+function transactionFailed(error: unknown): OmsWalletProviderRpcError {
+    if (error instanceof OmsWalletProviderRpcError) {
+        return error;
+    }
+    return new OmsWalletProviderRpcError(-32603, errorMessage(error), error);
+}
+
+function errorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) {
+        return error.message;
+    }
+    return "OMS wallet transaction failed.";
 }
 
 function isQuantity(value: unknown): value is Hex {
