@@ -774,7 +774,18 @@ class OmsSdkError extends Error {
   status?: number
   txnId?: string
   retryable?: boolean
+  upstreamError?: OmsUpstreamError
   cause?: unknown
+}
+```
+
+```typescript
+interface OmsUpstreamError {
+  service: 'waas' | 'indexer'
+  name?: string
+  code?: number | string
+  message?: string
+  status?: number
 }
 ```
 
@@ -789,18 +800,27 @@ type OmsSdkErrorCode =
   | 'OMS_WALLET_SELECTION_STALE'
   | 'OMS_WALLET_SELECTION_UNAVAILABLE'
   | 'OMS_WALLET_SELECTION_IN_FLIGHT'
+  | 'OMS_TRANSACTION_EXECUTION_UNCONFIRMED'
   | 'OMS_TRANSACTION_STATUS_LOOKUP_FAILED'
   | 'OMS_VALIDATION_ERROR'
 ```
 
 `OMS_AUTH_COMMITMENT_CONSUMED` means the OTP/OIDC auth commitment has already been used. Restart the auth flow before retrying.
 
+`OMS_TRANSACTION_EXECUTION_UNCONFIRMED` means transaction preparation succeeded, but the execute request failed before the SDK could confirm whether the transaction was submitted. The error includes `txnId` when available; do not blindly resend the same write solely because the upstream failure looked temporary.
+
+`OMS_TRANSACTION_STATUS_LOOKUP_FAILED` means the transaction was submitted, but post-submit status polling failed. The error includes `txnId` and is retryable by checking status again with `getTransactionStatus`.
+
+`upstreamError` is normalized diagnostic detail from a remote OMS service response or transport failure. Use the SDK-level `code` for application branching; use `upstreamError` for logging and service-specific troubleshooting.
+
+`retryable` describes the failed SDK operation, not the whole user intent. For example, a retryable transaction status lookup failure means retry `getTransactionStatus`; it does not mean blindly resend the original transaction write.
+
 | Class | Typical use |
 |---|---|
 | `OmsSessionError` | Missing, expired, or stale wallet session. |
 | `OmsRequestError` | Network, fetch, or non-2xx HTTP failures. |
 | `OmsResponseError` | Invalid JSON or malformed API responses. |
-| `OmsTransactionError` | Transaction was submitted but status polling failed; includes `txnId`. |
+| `OmsTransactionError` | Transaction execution could not be confirmed or submitted transaction status polling failed; includes `txnId` when available. |
 | `OmsWalletSelectionError` | Manual wallet selection is stale, invalid, or already processing an action. |
 | `OmsValidationError` | SDK-side validation failures before a request is sent. |
 
