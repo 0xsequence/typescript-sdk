@@ -5,6 +5,7 @@ import {
   supportedNetworks,
   type FeeOptionSelection,
   type FeeOptionWithBalance,
+  type AccessGrant,
   type Network,
   type OMSClientSessionExpiredEvent,
   type OMSClientSessionLoginType,
@@ -41,12 +42,17 @@ function App() {
   const [lastTransactionHash, setLastTransactionHash] = useState('')
   const [lastTransactionExplorerUrl, setLastTransactionExplorerUrl] = useState('')
   const [feeOptions, setFeeOptions] = useState<FeeOptionWithBalance[]>([])
+  const [managedWallets, setManagedWallets] = useState<OmsWallet[]>([])
+  const [newWalletReference, setNewWalletReference] = useState('')
+  const [accessGrants, setAccessGrants] = useState<AccessGrant[]>([])
   const [useManualWalletSelection, setUseManualWalletSelection] = useState(readManualWalletSelectionPreference)
   const [sessionLifetimeSeconds, setSessionLifetimeSeconds] = useState(readSessionLifetimePreference)
   const [pendingWalletSelection, setPendingWalletSelection] = useState<PendingWalletSelection | null>(null)
   const [emailAuthStatus, setEmailAuthStatus] = useState('Enter an email to start.')
   const [redirectStatus, setRedirectStatus] = useState('')
   const [walletStatus, setWalletStatus] = useState('')
+  const [activeWalletStatus, setActiveWalletStatus] = useState('')
+  const [accessStatus, setAccessStatus] = useState('')
   const [sessionExpiredPrompt, setSessionExpiredPrompt] = useState<OMSClientSessionExpiredEvent | null>(null)
   const [isBusy, setIsBusy] = useState(false)
   const oidcCallbackStarted = useRef(false)
@@ -180,6 +186,7 @@ function App() {
 
     setPendingWalletSelection(null)
     setLastIdToken('')
+    clearManagementState()
     setWalletAddress(result.walletAddress)
     setStep('wallet')
     setWalletStatus(status)
@@ -195,6 +202,7 @@ function App() {
     setLastIdToken('')
     setLastTransactionHash('')
     setLastTransactionExplorerUrl('')
+    clearManagementState()
     setCode('')
     setStep('email')
     setEmailAuthStatus(
@@ -316,6 +324,68 @@ function App() {
     })
   }
 
+  async function loadManagedWallets() {
+    await run('Loading wallets...', setActiveWalletStatus, async () => {
+      const wallets = await oms.wallet.listWallets()
+      setManagedWallets(wallets)
+      setActiveWalletStatus(`Loaded ${formatCount(wallets.length, 'wallet')}.`)
+    })
+  }
+
+  async function useManagedWallet(wallet: OmsWallet) {
+    await run('Switching wallet...', setActiveWalletStatus, async () => {
+      const result = await oms.wallet.useWallet({ walletId: wallet.id })
+      setWalletAddress(result.walletAddress)
+      clearWalletOperationResults()
+      setAccessGrants([])
+      setAccessStatus('')
+      setManagedWallets(current =>
+        current.map(item => item.id === result.wallet.id ? result.wallet : item),
+      )
+      setActiveWalletStatus(`Using ${result.wallet.reference ?? formatWalletType(result.wallet.type)}.`)
+    })
+  }
+
+  async function createManagedWallet() {
+    await run('Creating wallet...', setActiveWalletStatus, async () => {
+      const reference = newWalletReference.trim()
+      const result = await oms.wallet.createWallet({
+        reference: reference || undefined,
+      })
+      setWalletAddress(result.walletAddress)
+      clearWalletOperationResults()
+      setAccessGrants([])
+      setAccessStatus('')
+      setManagedWallets(current => {
+        const withoutCreated = current.filter(wallet => wallet.id !== result.wallet.id)
+        return [...withoutCreated, result.wallet]
+      })
+      setNewWalletReference('')
+      setActiveWalletStatus(`Created and activated ${result.wallet.reference ?? formatWalletType(result.wallet.type)}.`)
+    })
+  }
+
+  async function loadAccess() {
+    await run('Loading access...', setAccessStatus, async () => {
+      const grants = await oms.wallet.listAccess()
+      setAccessGrants(grants)
+      setAccessStatus(`Loaded ${formatCount(grants.length, 'access grant')}.`)
+    })
+  }
+
+  async function revokeAccess(grant: AccessGrant) {
+    if (grant.isCaller) {
+      setAccessStatus('The current session access grant cannot be revoked here.')
+      return
+    }
+
+    await run('Revoking access...', setAccessStatus, async () => {
+      await oms.wallet.revokeAccess({ targetCredentialId: grant.credentialId })
+      setAccessGrants(current => current.filter(item => item.credentialId !== grant.credentialId))
+      setAccessStatus('Access grant revoked.')
+    })
+  }
+
   async function getIdToken() {
     await run('Getting ID token...', setWalletStatus, async () => {
       const idToken = await oms.wallet.getIdToken()
@@ -361,11 +431,30 @@ function App() {
       setLastTransactionHash('')
       setLastTransactionExplorerUrl('')
       setFeeOptions([])
+      clearManagementState()
       setStep('email')
       setEmailAuthStatus('Enter an email to start.')
       setRedirectStatus('')
       setWalletStatus('')
     })
+  }
+
+  function clearWalletOperationResults() {
+    feeSelection.current?.reject(new Error('Active wallet changed'))
+    feeSelection.current = null
+    setFeeOptions([])
+    setLastSignature('')
+    setLastIdToken('')
+    setLastTransactionHash('')
+    setLastTransactionExplorerUrl('')
+    setWalletStatus('')
+  }
+
+  function clearManagementState() {
+    setManagedWallets([])
+    setAccessGrants([])
+    setActiveWalletStatus('')
+    setAccessStatus('')
   }
 
   return (
@@ -625,6 +714,122 @@ function App() {
               )}
             </section>
 
+            {selectedNetwork.id === Networks.amoy.id && (
+              <details className="tool collapsible-tool">
+                <summary>ERC20 example</summary>
+                <div className="collapsible-content">
+                  <WalletKitDollarExample key={walletAddress} />
+                </div>
+              </details>
+            )}
+
+            <details className="tool collapsible-tool">
+              <summary>Wallet management</summary>
+              <div className="collapsible-content">
+                <div className="actions">
+                  <button type="button" onClick={loadManagedWallets} disabled={isBusy}>
+                    Load wallets
+                  </button>
+                </div>
+                <div className="inline-field-action">
+                  <label>
+                    New wallet reference
+                    <input
+                      value={newWalletReference}
+                      onChange={(event) => setNewWalletReference(event.target.value)}
+                      placeholder="Optional label"
+                    />
+                  </label>
+                  <button type="button" className="secondary" onClick={createManagedWallet} disabled={isBusy}>
+                    Create wallet
+                  </button>
+                </div>
+
+                {managedWallets.length > 0 ? (
+                  <div className="management-list">
+                    {managedWallets.map(wallet => {
+                      const isActiveWallet = sameAddress(wallet.address, walletAddress)
+
+                      return (
+                        <article
+                          key={wallet.id}
+                          className={isActiveWallet ? 'management-card management-card-active' : 'management-card'}
+                        >
+                          <div className="management-card-header">
+                            <span>
+                              <strong>{wallet.reference ?? `${formatWalletType(wallet.type)} wallet`}</strong>
+                              <small>{wallet.id}</small>
+                            </span>
+                            {isActiveWallet ? (
+                              <span className="metadata-pill">Active</span>
+                            ) : (
+                              <button type="button" onClick={() => void useManagedWallet(wallet)} disabled={isBusy}>
+                                Use
+                              </button>
+                            )}
+                          </div>
+                          <code>{wallet.address}</code>
+                        </article>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <p className="field-hint">Load wallets to switch or create another wallet for this account.</p>
+                )}
+                {activeWalletStatus && <output>{activeWalletStatus}</output>}
+              </div>
+            </details>
+
+            <details className="tool collapsible-tool">
+              <summary>Access management</summary>
+              <div className="collapsible-content">
+                <div className="actions">
+                  <button type="button" onClick={loadAccess} disabled={isBusy}>
+                    Show access grants
+                  </button>
+                </div>
+
+                {accessGrants.length > 0 ? (
+                  <div className="management-list">
+                    {accessGrants.map(grant => (
+                      <article
+                        key={grant.credentialId}
+                        className={grant.isCaller ? 'management-card management-card-active' : 'management-card'}
+                      >
+                        <div className="management-card-header">
+                          <span>
+                            <strong>{grant.isCaller ? 'Current session grant' : 'Access grant'}</strong>
+                            <small>Credential ID: {grant.credentialId}</small>
+                          </span>
+                          {grant.isCaller ? (
+                            <span className="metadata-pill">Caller</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={() => void revokeAccess(grant)}
+                              disabled={isBusy}
+                            >
+                              Revoke
+                            </button>
+                          )}
+                        </div>
+                        <dl className="management-meta">
+                          <div>
+                            <dt>Expires</dt>
+                            <dd>{formatSessionExpiry(grant.expiresAt)}</dd>
+                          </div>
+                        </dl>
+                      </article>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="field-hint">Show access grants to review or revoke grants for other credentials.</p>
+                )}
+                {accessStatus && <output>{accessStatus}</output>}
+              </div>
+            </details>
+
             <details className="tool collapsible-tool">
               <summary>Other operations</summary>
               <div className="collapsible-content">
@@ -634,15 +839,6 @@ function App() {
                 {lastIdToken && <code className="result">{lastIdToken}</code>}
               </div>
             </details>
-
-            {selectedNetwork.id === Networks.amoy.id && (
-              <details className="tool collapsible-tool">
-                <summary>ERC20 example</summary>
-                <div className="collapsible-content">
-                  <WalletKitDollarExample />
-                </div>
-              </details>
-            )}
 
             <button type="button" className="secondary" onClick={signOut} disabled={isBusy}>
               Sign out
@@ -777,6 +973,14 @@ function formatWalletType(walletType: string): string {
     .split(/[-_]/)
     .map(part => part ? part[0].toUpperCase() + part.slice(1) : part)
     .join(' ')
+}
+
+function formatCount(count: number, singular: string): string {
+  return `${count} ${singular}${count === 1 ? '' : 's'}`
+}
+
+function sameAddress(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase()
 }
 
 function isPendingWalletSelection(
