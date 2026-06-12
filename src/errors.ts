@@ -10,8 +10,17 @@ export type OmsSdkErrorCode =
     | "OMS_WALLET_SELECTION_STALE"
     | "OMS_WALLET_SELECTION_UNAVAILABLE"
     | "OMS_WALLET_SELECTION_IN_FLIGHT"
+    | "OMS_TRANSACTION_EXECUTION_UNCONFIRMED"
     | "OMS_TRANSACTION_STATUS_LOOKUP_FAILED"
     | "OMS_VALIDATION_ERROR"
+
+export interface OmsUpstreamError {
+    service: "waas" | "indexer"
+    name?: string
+    code?: number | string
+    message?: string
+    status?: number
+}
 
 export interface OmsSdkErrorParams {
     code: OmsSdkErrorCode
@@ -20,6 +29,7 @@ export interface OmsSdkErrorParams {
     status?: number
     txnId?: string
     retryable?: boolean
+    upstreamError?: OmsUpstreamError
     cause?: unknown
 }
 
@@ -29,6 +39,7 @@ export class OmsSdkError extends Error {
     readonly status?: number
     readonly txnId?: string
     readonly retryable?: boolean
+    readonly upstreamError?: OmsUpstreamError
 
     constructor(params: OmsSdkErrorParams) {
         super(params.message)
@@ -38,6 +49,7 @@ export class OmsSdkError extends Error {
         this.status = params.status
         this.txnId = params.txnId
         this.retryable = params.retryable
+        this.upstreamError = params.upstreamError
         if (params.cause !== undefined) {
             this.cause = params.cause
         }
@@ -96,7 +108,11 @@ export function isOmsSdkError(error: unknown): error is OmsSdkError {
     return error instanceof OmsSdkError
 }
 
-export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSdkError {
+export function toOmsSdkError(
+    error: unknown,
+    operation: OmsSdkOperation,
+    upstreamService: OmsUpstreamError["service"] = "waas",
+): OmsSdkError {
     if (isOmsSdkError(error)) {
         return error
     }
@@ -104,6 +120,7 @@ export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSd
     const status = statusFromError(error)
     const name = error instanceof Error ? error.name : undefined
     const generatedCode = generatedCodeFromError(error)
+    const upstreamError = upstreamErrorFromError(error, upstreamService)
 
     if (name === "CommitmentConsumed" || generatedCode === 7008) {
         return new OmsRequestError({
@@ -111,6 +128,7 @@ export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSd
             operation,
             status,
             retryable: false,
+            upstreamError,
             cause: error,
             message: errorMessage(error),
         })
@@ -123,6 +141,7 @@ export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSd
                 operation,
                 status,
                 retryable: status >= 500,
+                upstreamError,
                 cause: error,
                 message: errorMessage(error),
             })
@@ -131,6 +150,7 @@ export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSd
         return new OmsResponseError({
             operation,
             status,
+            upstreamError,
             cause: error,
             message: errorMessage(error),
         })
@@ -142,6 +162,7 @@ export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSd
             operation,
             status,
             retryable: status >= 500,
+            upstreamError,
             cause: error,
             message: errorMessage(error),
         })
@@ -159,6 +180,7 @@ export function toOmsSdkError(error: unknown, operation: OmsSdkOperation): OmsSd
         operation,
         status,
         retryable: name === "WebrpcRequestFailed" || status === undefined || status >= 500,
+        upstreamError,
         cause: error,
         message: errorMessage(error),
     })
@@ -170,6 +192,11 @@ export function errorMessage(error: unknown): string {
 
 function statusFromError(error: unknown): number | undefined {
     const status = (error as {status?: unknown} | undefined)?.status
+    const code = generatedCodeFromError(error)
+    const name = error instanceof Error ? error.name : undefined
+    if (name === "WebrpcRequestFailed" && code === -1 && status === 400) {
+        return undefined
+    }
     return typeof status === "number" ? status : undefined
 }
 
@@ -180,4 +207,25 @@ function generatedCodeFromError(error: unknown): number | undefined {
 
 function isHttpStatus(status: number | undefined): status is number {
     return status !== undefined && status >= 400
+}
+
+function upstreamErrorFromError(
+    error: unknown,
+    service: OmsUpstreamError["service"],
+): OmsUpstreamError | undefined {
+    const name = error instanceof Error ? error.name : undefined
+    const code = generatedCodeFromError(error)
+    const status = statusFromError(error)
+
+    if (!name?.startsWith("Webrpc") && code === undefined && status === undefined) {
+        return undefined
+    }
+
+    return {
+        service,
+        name,
+        code,
+        message: errorMessage(error),
+        status,
+    }
 }

@@ -255,6 +255,24 @@ To end the session, call:
 await oms.wallet.signOut()
 ```
 
+## Errors
+
+Public methods throw `OmsSdkError` subclasses with stable SDK fields such as `code`, `operation`, `status`, and `retryable`. When a failure comes from a remote OMS service response or transport failure, the error also includes `upstreamError` with normalized WaaS or indexer details for logging and service-specific troubleshooting. Application logic should usually branch on the SDK-level `code`.
+
+For transaction writes, `OMS_TRANSACTION_EXECUTION_UNCONFIRMED` means the SDK has a `txnId` from preparation, but the execute request failed before the SDK could confirm whether the transaction was submitted; do not blindly resend the same write. `OMS_TRANSACTION_STATUS_LOOKUP_FAILED` means the transaction was submitted but status polling failed, so retry status lookup with the returned `txnId`. `retryable` describes the failed SDK operation, not the whole user intent.
+
+```typescript
+import { OmsSdkError } from '@0xsequence/typescript-sdk'
+
+try {
+  await oms.wallet.startEmailAuth({ email: 'user@example.com' })
+} catch (err) {
+  if (err instanceof OmsSdkError) {
+    console.log(err.code, err.operation, err.upstreamError)
+  }
+}
+```
+
 ## Networks
 
 The SDK exports `Networks`, `supportedNetworks`, `findNetworkById(id)`, and `findNetworkByName(name)` for the networks currently configured by OMS. Each network has `id`, `name`, `nativeTokenSymbol`, `explorerUrl`, and `displayName`. `name` is the registry/routing slug, while `displayName` is the user-facing label.
