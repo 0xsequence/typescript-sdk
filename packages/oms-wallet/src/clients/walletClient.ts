@@ -32,7 +32,7 @@ import type {
   FeeOption as GeneratedFeeOption,
   KeyOrigin as GeneratedKeyOrigin
 } from '../generated/waas.gen.js';
-import type { Network } from '../networks.js';
+import type { Network, SolanaNetwork } from '../networks.js';
 import type { ResolvedOidcProviderConfig } from '../oidc.js';
 import type { OMSWalletEnvironment } from '../omsEnvironment.js';
 import type { WalletImportConfig } from '../omsWallet.js';
@@ -1199,6 +1199,7 @@ export class WalletClient implements OMSWalletClient {
       const prepared = await this.client.prepareSolanaTransfer(request);
       return this.executePreparedTransaction({
         prepared,
+        network: params.network,
         selectFeeOption: params.selectFeeOption,
         waitForStatus: params.waitForStatus,
         statusPolling: params.statusPolling
@@ -2219,7 +2220,7 @@ export class WalletClient implements OMSWalletClient {
 
   private async executePreparedTransaction(params: {
     prepared: PrepareResponse;
-    network?: Network;
+    network?: Network | SolanaNetwork;
     selectFeeOption?: FeeOptionSelector;
     waitForStatus?: boolean;
     statusPolling?: TransactionStatusPollingOptions;
@@ -2294,7 +2295,7 @@ export class WalletClient implements OMSWalletClient {
   private async selectFeeOption(params: {
     feeOptions: GeneratedFeeOption[];
     sponsored: boolean;
-    network?: Network;
+    network?: Network | SolanaNetwork;
     selectFeeOption?: FeeOptionSelector;
   }): Promise<FeeOptionSelection | undefined> {
     if (params.sponsored) {
@@ -2325,9 +2326,13 @@ export class WalletClient implements OMSWalletClient {
   }
 
   private async enrichFeeOptionsWithBalances(
-    network: Network,
+    network: Network | SolanaNetwork,
     feeOptions: FeeOption[]
   ): Promise<FeeOptionWithBalance[]> {
+    if (typeof network === 'string') {
+      return this.enrichSolanaFeeOptionsWithBalances(network, feeOptions);
+    }
+
     const walletAddress = this.walletAddress;
     if (!walletAddress) {
       throw new Error('No active wallet session');
@@ -2370,6 +2375,57 @@ export class WalletClient implements OMSWalletClient {
         feeOption,
         selection: feeOptionSelection(feeOption, index),
         balance,
+        available: this.formatTokenAmount(balance?.balance, decimals),
+        availableRaw: balance?.balance,
+        decimals
+      };
+    });
+  }
+
+  private async enrichSolanaFeeOptionsWithBalances(
+    network: SolanaNetwork,
+    feeOptions: FeeOption[]
+  ): Promise<FeeOptionWithBalance[]> {
+    const walletAddress = this.walletAddress;
+    if (!walletAddress) {
+      throw new Error('No active wallet session');
+    }
+
+    const mintAddresses = Array.from(
+      new Set(
+        feeOptions
+          .filter((option) => !this.isNativeToken(option))
+          .map((option) => option.token.contractAddress?.trim())
+          .filter((address): address is string => Boolean(address))
+      )
+    );
+    const balances = await this.indexerClient
+      .getSolanaBalances({
+        networks: [network],
+        walletAddress,
+        mintAddresses,
+        includeMetadata: false,
+        omitNativeBalances: !feeOptions.some((option) => this.isNativeToken(option))
+      })
+      .catch(() => undefined);
+    const nativeBalance = balances?.balances.find(
+      (balance) => balance.network === network && balance.assetType === 'native'
+    );
+    const balancesByMint = new Map(
+      balances?.balances
+        .filter((balance) => balance.network === network && balance.assetType === 'fungible-token')
+        .map((balance) => [balance.mintAddress, balance]) ?? []
+    );
+
+    return feeOptions.map((feeOption, index) => {
+      const balance = this.isNativeToken(feeOption)
+        ? nativeBalance
+        : balancesByMint.get(feeOption.token.contractAddress?.trim() ?? '');
+      const decimals = balance?.decimals ?? feeOption.token.decimals;
+
+      return {
+        feeOption,
+        selection: feeOptionSelection(feeOption, index),
         available: this.formatTokenAmount(balance?.balance, decimals),
         availableRaw: balance?.balance,
         decimals

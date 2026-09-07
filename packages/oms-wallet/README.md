@@ -400,10 +400,10 @@ for (const b of result.balances) {
 
 ### Query Solana Balances
 
-Use `getSolanaBalances` for native SOL and fungible SPL-token balances. Solana balance queries use
-the SDK's supported Mainnet and Devnet network identifiers and return precision-safe raw and
-formatted balance strings. Individual network failures are reported in `errors` without discarding
-balances returned by the other requested network.
+Use `getSolanaBalances` for native SOL and fungible SPL-token balances. Omit `networks` to query both
+Solana Mainnet and Devnet, or pass either supported network explicitly. Results contain
+precision-safe raw and formatted balance strings. Individual network failures are reported in
+`errors` without discarding balances returned by the other requested network.
 
 ```typescript
 import { SolanaNetworks } from '@polygonlabs/oms-wallet'
@@ -617,15 +617,16 @@ await omsWallet.wallet.sendTransaction({
 ```
 
 If the wallet API returns fee options, pass a selector to choose one. The
-selector receives `FeeOptionWithBalance` values. `balance` is the selected
-wallet's raw indexer balance for that fee token when available, `available` is
-formatted with the token decimals, `availableRaw` keeps the raw integer value,
-and `decimals` is the token decimal count used for formatting. Use
+selector receives `FeeOptionWithBalance` values. For Ethereum fees, `balance`
+contains the matching `TokenBalance` when available. For both Ethereum and Solana fees,
+`available` is formatted with the token decimals, `availableRaw` keeps the raw integer
+value, and `decimals` is the token decimal count used for formatting. Use
 `FeeOptionSelector.firstAvailable` to choose the first option the wallet can
-pay, or return `option.selection` from a custom selector. A sponsored transaction
-invokes the selector with an empty array. Resolve with `undefined` after acknowledging
-the free fee, or throw to stop execution. `FeeOptionSelector.firstAvailable` returns
-`undefined` for that empty array and continues execution as before.
+pay on Ethereum or Solana, or return `option.selection` from a custom selector. A
+sponsored transaction invokes the selector with an empty array. Resolve with `undefined`
+after acknowledging the free fee, or throw to stop execution.
+`FeeOptionSelector.firstAvailable` returns `undefined` for that empty array and continues
+execution as before.
 
 ```typescript
 const tx = await omsWallet.wallet.sendTransaction({

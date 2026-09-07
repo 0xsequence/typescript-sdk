@@ -16,4 +16,5 @@ reject an active Solana wallet explicitly.
 
 Sponsored transactions now invoke an optional fee selector with an empty list before execution, so
 applications can acknowledge the free fee or stop the transaction. `FeeOptionSelector.firstAvailable`
-continues sponsored execution without sending a fee option.
+continues sponsored execution without sending a fee option and uses Solana indexer balances to pick
+an affordable option for non-sponsored Solana transfers.

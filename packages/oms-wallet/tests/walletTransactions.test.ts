@@ -371,8 +371,121 @@ describe('WalletClient transactions', () => {
       txnHash: 'solana-signature',
       statusResolution: 'resolved'
     });
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(selectFeeOption).toHaveBeenCalledOnce();
+  });
+
+  it('firstAvailable selects an affordable Solana fee option using indexer balances', async () => {
+    const usdcMint = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU';
+    const walletAddress = '4Nd1mYQbqjVU2aR7cJNPyqW9XjHnBYvWQd7ZxYxvT6uP';
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const body = JSON.parse(init?.body as string);
+
+      if (url.endsWith('/PrepareSolanaTransfer')) {
+        return jsonResponse({
+          txnId: 'txn-sol-first-available',
+          status: 'quoted',
+          feeOptions: [
+            {
+              token: {
+                network: 'solana:devnet',
+                name: 'SOL',
+                symbol: 'SOL',
+                type: 'NATIVE'
+              },
+              value: '5000',
+              displayValue: '0.000005'
+            },
+            {
+              token: {
+                network: 'solana:devnet',
+                name: 'USD Coin',
+                symbol: 'USDC',
+                type: 'SPL',
+                contractAddress: usdcMint
+              },
+              value: '10000',
+              displayValue: '0.01'
+            }
+          ],
+          sponsored: false,
+          expiresAt: '2099-01-01T00:00:00Z'
+        });
+      }
+
+      if (url.startsWith('https://solana-indexer.example')) {
+        expect(body).toEqual({
+          networks: ['solana:devnet'],
+          filter: {
+            accountAddresses: [walletAddress],
+            omitNativeBalances: false,
+            contractWhitelist: [usdcMint]
+          },
+          omitMetadata: true
+        });
+        return jsonResponse({
+          balances: [
+            {
+              network: 'solana:devnet',
+              accountAddress: walletAddress,
+              assetType: 'native',
+              name: 'Solana',
+              symbol: 'SOL',
+              decimals: 9,
+              balance: '1000',
+              formattedBalance: '0.000001',
+              verificationStatus: 'unknown',
+              verificationSource: 'none'
+            },
+            {
+              network: 'solana:devnet',
+              accountAddress: walletAddress,
+              assetType: 'fungible-token',
+              tokenProgram: 'spl-token',
+              mintAddress: usdcMint,
+              name: 'USD Coin',
+              symbol: 'USDC',
+              decimals: 6,
+              balance: '20000',
+              formattedBalance: '0.02',
+              verificationStatus: 'verified',
+              verificationSource: 'jupiter'
+            }
+          ],
+          errors: []
+        });
+      }
+
+      if (url.endsWith('/Execute')) {
+        expect(body).toEqual({
+          txnId: 'txn-sol-first-available',
+          feeOption: { token: 'USDC', index: 1 }
+        });
+        return jsonResponse({ status: 'pending' });
+      }
+
+      throw new Error(`Unexpected request: ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const wallet = createWalletWithSession(new MemoryStorageManager(), walletAddress);
+
+    await expect(
+      wallet.sendSolanaTransfer({
+        network: SolanaNetworks.devnet,
+        asset: 'SOL',
+        to: '3gFktQX6vki5M2DzN8Y1ESPUJ4fJ8o6hVQWf8vYvPypD',
+        amount: 1_000_000n,
+        selectFeeOption: FeeOptionSelector.firstAvailable,
+        waitForStatus: false
+      })
+    ).resolves.toEqual({
+      txnId: 'txn-sol-first-available',
+      status: TransactionStatus.Pending,
+      statusResolution: 'not-requested'
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it('selects a rent fee option for a relayed SPL-token transfer', async () => {
@@ -459,7 +572,7 @@ describe('WalletClient transactions', () => {
       status: TransactionStatus.Pending,
       statusResolution: 'not-requested'
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(selectFeeOption).toHaveBeenCalledOnce();
   });
 

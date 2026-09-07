@@ -182,7 +182,10 @@ independent RAC. It cannot access another browser's RAC without that browser's r
 but an untrusted visitor can still consume D1 storage and WaaS API quota by creating its own RAC and
 approval requests. Add Cloudflare Access later if that operational exposure becomes undesirable.
 The plaintext RAC storage is appropriate only for this demo; a production backend must use
-encrypted key storage or a managed secret store.
+encrypted key storage or a managed secret store. Approval-request tokens are bearer credentials,
+and this demo also stores them in plaintext so the dashboard can redisplay approval links. A
+production backend should store only their hashes and return each link once, or encrypt the tokens
+at rest and strictly limit access to them.
 See Cloudflare's official
 [static assets](https://developers.cloudflare.com/workers/static-assets/),
 [D1](https://developers.cloudflare.com/d1/), and deployment documentation for account and
