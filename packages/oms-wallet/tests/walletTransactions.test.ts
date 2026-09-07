@@ -526,10 +526,7 @@ describe('WalletClient transactions', () => {
     });
   });
 
-  it('executes a sponsored relayed Solana transfer without fee selection', async () => {
-    const selectFeeOption = vi.fn(() => {
-      throw new Error('sponsored transactions should not ask for fee selection');
-    });
+  it('executes a sponsored relayed Solana transfer with firstAvailable', async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const body = JSON.parse(init?.body as string);
@@ -572,7 +569,7 @@ describe('WalletClient transactions', () => {
         asset: 'SOL',
         to: '3gFktQX6vki5M2DzN8Y1ESPUJ4fJ8o6hVQWf8vYvPypD',
         amount: 1_000_000n,
-        selectFeeOption,
+        selectFeeOption: FeeOptionSelector.firstAvailable,
         waitForStatus: false
       })
     ).resolves.toEqual({
@@ -581,7 +578,6 @@ describe('WalletClient transactions', () => {
       statusResolution: 'not-requested'
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(selectFeeOption).not.toHaveBeenCalled();
   });
 
   it('rejects Solana transfers for an active Ethereum wallet', async () => {
@@ -645,9 +641,10 @@ describe('WalletClient transactions', () => {
     });
   });
 
-  it('skips fee selection for sponsored transactions', async () => {
-    const selectFeeOption = vi.fn(() => {
-      throw new Error('sponsored transactions should not ask for fee selection');
+  it('lets a custom fee selector acknowledge a sponsored transaction', async () => {
+    const selectFeeOption = vi.fn((feeOptions: Parameters<FeeOptionSelector>[0]) => {
+      expect(feeOptions).toEqual([]);
+      return undefined;
     });
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -704,7 +701,45 @@ describe('WalletClient transactions', () => {
       status: TransactionStatus.Pending,
       statusResolution: 'not-requested'
     });
-    expect(selectFeeOption).not.toHaveBeenCalled();
+    expect(selectFeeOption).toHaveBeenCalledOnce();
+  });
+
+  it('does not execute when sponsored transaction acknowledgement throws', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (input.toString().endsWith('/PrepareEthereumTransaction')) {
+        return jsonResponse({
+          txnId: 'txn-cancelled-sponsored',
+          status: 'quoted',
+          feeOptions: [],
+          sponsored: true,
+          expiresAt: '2099-01-01T00:00:00Z'
+        });
+      }
+      throw new Error(`Unexpected request: ${input.toString()}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const wallet = createWalletWithSession(
+      new MemoryStorageManager(),
+      '0x9999999999999999999999999999999999999999'
+    );
+
+    await expect(
+      wallet.sendTransaction({
+        network: Networks.polygon,
+        to: '0x1111111111111111111111111111111111111111',
+        value: 0n,
+        selectFeeOption: async (feeOptions) => {
+          expect(feeOptions).toEqual([]);
+          throw new Error('Transaction cancelled');
+        }
+      })
+    ).rejects.toMatchObject({
+      code: 'OMS_VALIDATION_ERROR',
+      operation: 'wallet.sendTransaction',
+      message: 'Transaction cancelled'
+    });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('firstAvailable selects the first affordable fee option', async () => {

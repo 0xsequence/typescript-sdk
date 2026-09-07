@@ -622,7 +622,10 @@ wallet's raw indexer balance for that fee token when available, `available` is
 formatted with the token decimals, `availableRaw` keeps the raw integer value,
 and `decimals` is the token decimal count used for formatting. Use
 `FeeOptionSelector.firstAvailable` to choose the first option the wallet can
-pay, or return `option.selection` from a custom selector.
+pay, or return `option.selection` from a custom selector. A sponsored transaction
+invokes the selector with an empty array. Resolve with `undefined` after acknowledging
+the free fee, or throw to stop execution. `FeeOptionSelector.firstAvailable` returns
+`undefined` for that empty array and continues execution as before.
 
 ```typescript
 const tx = await omsWallet.wallet.sendTransaction({
@@ -630,6 +633,10 @@ const tx = await omsWallet.wallet.sendTransaction({
   to: '0x3333333333333333333333333333333333333333',
   data: '0x12345678',
   selectFeeOption: async (feeOptions) => {
+    if (feeOptions.length === 0) {
+      // Present the sponsored transaction for confirmation here.
+      return undefined
+    }
     const selected = feeOptions.find(option => option.feeOption.token.symbol === 'USDC')
     return selected?.selection
   },

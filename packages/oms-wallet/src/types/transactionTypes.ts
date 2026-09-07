@@ -14,6 +14,10 @@ export type FeeOptionWithBalance = {
 };
 
 export interface FeeOptionSelector {
+  /**
+   * Sponsored transactions pass an empty array. Resolving acknowledges the free fee;
+   * throw or reject to stop execution.
+   */
   (
     feeOptions: FeeOptionWithBalance[]
   ): FeeOptionSelection | undefined | Promise<FeeOptionSelection | undefined>;

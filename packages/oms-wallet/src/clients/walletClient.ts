@@ -2298,6 +2298,7 @@ export class WalletClient implements OMSWalletClient {
     selectFeeOption?: FeeOptionSelector;
   }): Promise<FeeOptionSelection | undefined> {
     if (params.sponsored) {
+      await params.selectFeeOption?.([]);
       return undefined;
     }
 

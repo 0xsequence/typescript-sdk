@@ -13,3 +13,7 @@ type discriminator before applying Ethereum-specific address handling.
 
 Ethereum-specific signing, transactions, smart-session authorization, and the wagmi connector now
 reject an active Solana wallet explicitly.
+
+Sponsored transactions now invoke an optional fee selector with an empty list before execution, so
+applications can acknowledge the free fee or stop the transaction. `FeeOptionSelector.firstAvailable`
+continues sponsored execution without sending a fee option.
