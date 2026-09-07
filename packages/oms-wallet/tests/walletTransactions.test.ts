@@ -414,7 +414,7 @@ describe('WalletClient transactions', () => {
         });
       }
 
-      if (url.startsWith('https://solana-indexer.example')) {
+      if (url === 'https://solana-indexer.example/GetTokenBalancesDetails') {
         expect(body).toEqual({
           networks: ['solana:devnet'],
           filter: {
