@@ -546,20 +546,20 @@ function App() {
       const remoteAccess = access.filter(
         (grant): grant is RemoteAccessGrant => grant.type === 'remote'
       );
-      const sessionResults = await Promise.allSettled(
-        remoteAccess.map(async (grant) => {
+      const sessions: ApprovedSession[] = [];
+      let missingChainDetails = 0;
+      // These signed wallet reads share one credential nonce and must remain ordered.
+      for (const grant of remoteAccess) {
+        try {
           const session = await wallet.wallet.getRemoteAccessSession({
             sessionId: grant.sessionId
           });
-          return { ...grant, chainId: session.chainId };
-        })
-      );
-      const sessions = sessionResults.map((result, index) =>
-        result.status === 'fulfilled' ? result.value : remoteAccess[index]
-      );
-      const missingChainDetails = sessionResults.filter(
-        (result) => result.status === 'rejected'
-      ).length;
+          sessions.push({ ...grant, chainId: session.chainId });
+        } catch {
+          sessions.push(grant);
+          missingChainDetails += 1;
+        }
+      }
       setApprovedSessions(sessions);
       setApprovedSessionsStatus(
         missingChainDetails

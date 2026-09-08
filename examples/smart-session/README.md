@@ -120,6 +120,9 @@ Google, Apple, or an email verification code, matching the main React example.
 The RAC registration lasts 30 days. Session requests cannot extend beyond that credential expiry.
 The Worker registers the persisted RAC key again after its current credential expires. Existing
 sessions remain bound to the previous credential and are no longer shown as usable.
+Credential-signed WaaS requests are issued sequentially in the example because WaaS requires their
+nonces to arrive in strictly increasing order. Keep session reconciliation and transaction-status
+lookups sequential even though the D1-backed allocator makes nonce allocation itself atomic.
 Use **Rotate backend RAC** in the dashboard to revoke that dashboard's current credential and
 immediately generate and register a new one. Rotation makes sessions authorized for the previous
 credential unusable and clears only that RAC's stored approval requests, smart sessions,

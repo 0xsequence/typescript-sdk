@@ -2,7 +2,11 @@ import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
-import type { RemoteAccessSession, SmartSessionGrantUsage } from '@polygonlabs/oms-wallet';
+import {
+  OMSWalletRequestError,
+  type RemoteAccessSession,
+  type SmartSessionGrantUsage
+} from '@polygonlabs/oms-wallet';
 
 import type {
   AdminOverview,
@@ -29,6 +33,8 @@ interface MockSession {
 }
 
 const mockedWaas = vi.hoisted(() => ({
+  activeSessionReads: 0,
+  rejectConcurrentSessionReads: false,
   nextTransaction: 0,
   revokedCredentialIds: [] as string[],
   sessions: new Map<string, MockSession>(),
@@ -48,6 +54,32 @@ vi.mock('../worker/rac.js', () => ({
       }
       return entry;
     };
+    const sessionRead = async <T>(operation: string, read: () => T): Promise<T> => {
+      if (!mockedWaas.rejectConcurrentSessionReads) return read();
+      mockedWaas.activeSessionReads += 1;
+      try {
+        if (mockedWaas.activeSessionReads > 1) {
+          throw new OMSWalletRequestError({
+            operation,
+            message: 'Precondition failed; try again with a higher nonce value',
+            status: 412,
+            retryable: false,
+            cause: 'nonce replay detected',
+            upstreamError: {
+              service: 'waas',
+              name: 'PreconditionFailed',
+              code: 7206,
+              message: 'Precondition failed; try again with a higher nonce value',
+              status: 412
+            }
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        return read();
+      } finally {
+        mockedWaas.activeSessionReads -= 1;
+      }
+    };
     return {
       signerId: `signer-${racSuffix}`,
       client: {
@@ -62,9 +94,10 @@ vi.mock('../worker/rac.js', () => ({
           Array.from(mockedWaas.sessions.values())
             .filter((entry) => entry.credentialId === credentialId && entry.active && entry.listed)
             .map((entry) => entry.session),
-        getSession: async ({ sessionId }: { sessionId: string }) => findSession(sessionId).session,
+        getSession: async ({ sessionId }: { sessionId: string }) =>
+          sessionRead('remoteAccess.getSession', () => findSession(sessionId).session),
         getSessionUsage: async ({ sessionId }: { sessionId: string }) =>
-          findSession(sessionId).usage,
+          sessionRead('remoteAccess.getSessionUsage', () => findSession(sessionId).usage),
         prepareTransaction: async (params: Record<string, unknown>) => {
           mockedWaas.preparedTransactions.push(params);
           mockedWaas.nextTransaction += 1;
@@ -107,6 +140,8 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
+  mockedWaas.activeSessionReads = 0;
+  mockedWaas.rejectConcurrentSessionReads = false;
   mockedWaas.revokedCredentialIds.length = 0;
   mockedWaas.sessions.clear();
   mockedWaas.preparedTransactions.length = 0;
@@ -310,6 +345,21 @@ test('reconciles list, session fallback, usage, and revocation from WaaS', async
     .bind(new Date(Date.now() - 1_000).toISOString(), created.approvalId)
     .run();
   expect((await overview(token)).sessions[0]?.status).toBe('expired');
+});
+
+test('reconciles multiple sessions without racing RAC request nonces', async () => {
+  const token = 'admin-serial-session-reads-token-at-least-32-characters';
+  await createApprovedNativeSession(token, recipientA, walletA, 'session-serial-a');
+  await createApprovedNativeSession(token, recipientB, walletB, 'session-serial-b');
+  for (const entry of mockedWaas.sessions.values()) entry.listed = false;
+  mockedWaas.rejectConcurrentSessionReads = true;
+
+  await expect(overview(token)).resolves.toMatchObject({
+    sessions: expect.arrayContaining([
+      expect.objectContaining({ sessionId: 'session-serial-a', status: 'usable' }),
+      expect.objectContaining({ sessionId: 'session-serial-b', status: 'usable' })
+    ])
+  });
 });
 
 test('dismisses only inactive session records owned by the backend RAC', async () => {

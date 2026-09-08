@@ -565,34 +565,37 @@ async function resolveSessionRecords(
   listedSessions: RemoteAccessSession[]
 ): Promise<ResolvedSessionRecord[]> {
   const listedById = new Map(listedSessions.map((session) => [session.sessionId, session]));
-  return Promise.all(
-    rows.map(async (row) => {
-      if (Date.parse(row.expires_at) <= Date.now()) {
-        return { row, usage: [], status: 'expired' as const };
-      }
+  const resolved: ResolvedSessionRecord[] = [];
+  // WaaS requires signed requests to arrive in nonce order, so keep this RAC's reads sequential.
+  for (const row of rows) {
+    if (Date.parse(row.expires_at) <= Date.now()) {
+      resolved.push({ row, usage: [], status: 'expired' });
+      continue;
+    }
 
-      let remote = listedById.get(row.session_id);
-      if (!remote) {
-        try {
-          remote = await rac.client.getSession({ sessionId: row.session_id });
-        } catch (error) {
-          if (isMissingSessionError(error)) {
-            return { row, usage: [], status: 'revoked' as const };
-          }
-          throw waasError('Unable to reconcile a smart session', error);
-        }
-      }
-      validateAuthorizedSession(row, remote);
-      const network = getSmartSessionNetwork(row.network_id).network;
-      let usage: SmartSessionGrantUsage[];
+    let remote = listedById.get(row.session_id);
+    if (!remote) {
       try {
-        usage = await rac.client.getSessionUsage({ sessionId: remote.sessionId, network });
+        remote = await rac.client.getSession({ sessionId: row.session_id });
       } catch (error) {
-        throw waasError('Unable to load smart-session usage', error);
+        if (isMissingSessionError(error)) {
+          resolved.push({ row, usage: [], status: 'revoked' });
+          continue;
+        }
+        throw waasError('Unable to reconcile a smart session', error);
       }
-      return { row, remote, usage, status: 'usable' as const };
-    })
-  );
+    }
+    validateAuthorizedSession(row, remote);
+    const network = getSmartSessionNetwork(row.network_id).network;
+    let usage: SmartSessionGrantUsage[];
+    try {
+      usage = await rac.client.getSessionUsage({ sessionId: remote.sessionId, network });
+    } catch (error) {
+      throw waasError('Unable to load smart-session usage', error);
+    }
+    resolved.push({ row, remote, usage, status: 'usable' });
+  }
+  return resolved;
 }
 
 async function getSessionBalances(

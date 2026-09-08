@@ -323,11 +323,14 @@ function App() {
   async function refreshPendingTransactions() {
     if (!overview) return;
     const pending = overview.transactions.filter(shouldAutoRefreshTransaction);
-    await Promise.allSettled(
-      pending.map((transaction) =>
-        adminApi(`/api/admin/transactions/${encodeURIComponent(transaction.id)}`, adminToken)
-      )
-    );
+    // Each route uses this dashboard's RAC, whose signed WaaS requests must remain ordered.
+    for (const transaction of pending) {
+      try {
+        await adminApi(`/api/admin/transactions/${encodeURIComponent(transaction.id)}`, adminToken);
+      } catch {
+        // Keep refreshing the remaining transactions when one status lookup fails.
+      }
+    }
     await loadOverview();
   }
 
