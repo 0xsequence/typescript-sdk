@@ -71,10 +71,6 @@ import {
 const configuredOmsWallet = new OMSWallet({
   publishableKey: 'pk_dev_sdbx_project_key'
 });
-const importConfiguredOmsWallet = new OMSWallet({
-  publishableKey: 'pk_dev_sdbx_project_key',
-  walletImport: { trustedPcr0s: ['00'.repeat(48)] }
-});
 
 declare const backendCredentialSigner: CredentialSigner;
 const remoteAccessClient = new RemoteAccessClient({
@@ -270,14 +266,14 @@ if (false) {
       network: Networks.polygon
     });
 
-    const imported = await importConfiguredOmsWallet.wallet.importWallet({
+    const imported = await configuredOmsWallet.wallet.importWallet({
       type: WalletType.Ethereum,
       privateKey: `0x${'01'.repeat(32)}`,
       reference: 'imported'
     });
     const importedOrigin: WalletKeyOrigin = imported.wallet.keyOrigin;
     void importedOrigin;
-    const recipient = await importConfiguredOmsWallet.wallet.getWalletImportRecipientKey({
+    const recipient = await configuredOmsWallet.wallet.getWalletImportRecipientKey({
       cipherSuite: WalletImportCipherSuite.P256Sha256Aes256Gcm
     });
     const encryptedKey: EncryptedWalletImportKeyMaterial = {
@@ -286,12 +282,12 @@ if (false) {
       encapsulatedKey: 'base64',
       ciphertext: 'base64'
     };
-    void importConfiguredOmsWallet.wallet.importEncryptedWallet({
+    void configuredOmsWallet.wallet.importEncryptedWallet({
       type: WalletType.Solana,
       keyMaterial: encryptedKey
     });
     // @ts-expect-error privateKey is required for the high-level import method.
-    void importConfiguredOmsWallet.wallet.importWallet({ type: WalletType.Ethereum });
+    void configuredOmsWallet.wallet.importWallet({ type: WalletType.Ethereum });
   });
 }
 

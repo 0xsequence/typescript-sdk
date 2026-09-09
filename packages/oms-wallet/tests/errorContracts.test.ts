@@ -89,9 +89,7 @@ describe('public API error contracts', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    const oms = createOmsClientWithSession({
-      walletImport: { trustedPcr0s: ['1'.repeat(96)] }
-    });
+    const oms = createOmsClientWithSession();
 
     await expect(
       publicError(() =>
@@ -1902,15 +1900,13 @@ function serializeUpstreamError(error: unknown): SerializedUpstreamError | null 
 type CreateOmsClientParams = {
   credentialSigner?: CredentialSigner;
   redirectAuthStorage?: StorageManager | null;
-  walletImport?: ConstructorParameters<typeof OMSWallet>[0]['walletImport'];
 };
 
 function createOmsClient(params: CreateOmsClientParams = {}): OMSWallet {
   const clientParams: ConstructorParameters<typeof OMSWallet>[0] = {
     publishableKey: 'pk_dev_sdbx_project_key',
     storage: new MemoryStorageManager(),
-    credentialSigner: params.credentialSigner ?? new MockSigner(),
-    walletImport: params.walletImport
+    credentialSigner: params.credentialSigner ?? new MockSigner()
   };
 
   if (params.redirectAuthStorage !== null) {

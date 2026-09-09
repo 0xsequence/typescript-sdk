@@ -12,20 +12,41 @@ afterEach(() => {
 
 describe('OMSWallet publishable key routing', () => {
   it.each([
-    ['pk_local_sdbx_project_key', 'https://sandbox-api.local.polygon-dev.technology'],
-    ['pk_local_live_project_key', 'https://api.local.polygon-dev.technology'],
-    ['pk_dev_sdbx_project_key', 'https://sandbox-api.dev.polygon-dev.technology'],
-    ['pk_dev_live_project_key', 'https://api.dev.polygon-dev.technology'],
-    ['pk_stg_sdbx_project_key', 'https://sandbox-api.stg.polygon-dev.technology'],
-    ['pk_stg_live_project_key', 'https://api.stg.polygon-dev.technology'],
-    ['pk_sdbx_project_key', 'https://sandbox-api.polygon.technology'],
-    ['pk_live_project_key', 'https://api.polygon.technology']
-  ])('derives service URLs from %s', (publishableKey, apiUrl) => {
+    [
+      'pk_local_sdbx_project_key',
+      'https://sandbox-api.local.polygon-dev.technology',
+      '0'.repeat(96)
+    ],
+    ['pk_local_live_project_key', 'https://api.local.polygon-dev.technology', '0'.repeat(96)],
+    ['pk_dev_sdbx_project_key', 'https://sandbox-api.dev.polygon-dev.technology', '0'.repeat(96)],
+    ['pk_dev_live_project_key', 'https://api.dev.polygon-dev.technology', '0'.repeat(96)],
+    [
+      'pk_stg_sdbx_project_key',
+      'https://sandbox-api.stg.polygon-dev.technology',
+      'e4da1f70f6e781d7196dff36d21e57bb5603ec4bcacefb7061493049292b76b620b0ad23b82e280d6130f67384051e9f'
+    ],
+    [
+      'pk_stg_live_project_key',
+      'https://api.stg.polygon-dev.technology',
+      'e4da1f70f6e781d7196dff36d21e57bb5603ec4bcacefb7061493049292b76b620b0ad23b82e280d6130f67384051e9f'
+    ],
+    [
+      'pk_sdbx_project_key',
+      'https://sandbox-api.polygon.technology',
+      '671f22183eed852f4051a50ee54b45153499501538cbd64a277b8ff22a012b37f1905ebfcf7a6be8ce00ec0c8db7bbd2'
+    ],
+    [
+      'pk_live_project_key',
+      'https://api.polygon.technology',
+      '671f22183eed852f4051a50ee54b45153499501538cbd64a277b8ff22a012b37f1905ebfcf7a6be8ce00ec0c8db7bbd2'
+    ]
+  ])('derives managed environment configuration from %s', (publishableKey, apiUrl, pcr0) => {
     expect(parsePublishableKey(publishableKey)).toEqual({
       projectId: 'prj_project',
       walletApiUrl: apiUrl,
       indexerGatewayUrl: `${apiUrl}/v1/IndexerGateway/`,
-      solanaIndexerGatewayUrl: `${apiUrl}/v1/SolanaIndexerGateway/`
+      solanaIndexerGatewayUrl: `${apiUrl}/v1/SolanaIndexerGateway/`,
+      walletImportTrustedPcr0s: [pcr0]
     });
   });
 

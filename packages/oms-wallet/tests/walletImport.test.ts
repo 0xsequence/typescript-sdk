@@ -157,34 +157,20 @@ describe('wallet import', () => {
     expect(importWallet).toHaveBeenCalledOnce();
   });
 
-  it('requires trusted attestation measurements before making import requests', async () => {
+  it('configures managed Development attestation without caller-supplied PCRs', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const wallet = createWalletWithSession();
 
-    await expect(
-      wallet.importWallet({ type: 'ethereum', privateKey: `0x${'01'.repeat(32)}` })
-    ).rejects.toMatchObject({
-      code: 'OMS_VALIDATION_ERROR',
-      operation: 'wallet.importWallet'
-    });
+    expect(
+      () =>
+        new OMSWallet({
+          publishableKey: 'pk_dev_sdbx_project_key',
+          storage: new MemoryStorageManager(),
+          credentialSigner: new MockSigner()
+        })
+    ).not.toThrow();
     expect(fetchMock).not.toHaveBeenCalled();
   });
-
-  it.each([[[]], [['0'.repeat(95)]], [['0'.repeat(96)]], [['z'.repeat(96)]]])(
-    'rejects invalid trusted PCR0 configuration %#',
-    (trustedPcr0s) => {
-      expect(
-        () =>
-          new OMSWallet({
-            publishableKey: 'pk_dev_sdbx_project_key',
-            storage: new MemoryStorageManager(),
-            credentialSigner: new MockSigner(),
-            walletImport: { trustedPcr0s }
-          })
-      ).toThrow('walletImport.trustedPcr0s must contain at least one nonzero 48-byte hex PCR0');
-    }
-  );
 
   it('activates an imported first wallet during manual wallet selection', async () => {
     const wallet = new WalletClient({
@@ -197,7 +183,7 @@ describe('wallet import', () => {
       },
       storage: new MemoryStorageManager(),
       credentialSigner: new MockSigner(),
-      walletImport: { trustedPcr0s: ['1'.repeat(96)] }
+      walletImportTrustedPcr0s: ['1'.repeat(96)]
     });
     (wallet as any).activePendingWalletSelection = {
       id: 'pending-1',

@@ -35,7 +35,6 @@ import type {
 import type { Network, SolanaNetwork } from '../networks.js';
 import type { ResolvedOidcProviderConfig } from '../oidc.js';
 import type { OMSWalletEnvironment } from '../omsEnvironment.js';
-import type { WalletImportConfig } from '../omsWallet.js';
 import type { StorageManager } from '../storageManager.js';
 import type {
   AccessGrant,
@@ -114,7 +113,6 @@ import {
   OMSWalletStorageError,
   OMSWalletTransactionError,
   OMSWalletSelectionError,
-  OMSWalletValidationError,
   toOMSWalletError
 } from '../errors.js';
 import {
@@ -374,7 +372,7 @@ export class WalletClient implements OMSWalletClient {
     storage?: StorageManager;
     redirectAuthStorage?: StorageManager;
     credentialSigner?: CredentialSigner;
-    walletImport?: WalletImportConfig;
+    walletImportTrustedPcr0s?: ReadonlyArray<string>;
   }) {
     this.environment = params.environment;
     this.storage = params.storage ?? createDefaultStorage();
@@ -425,19 +423,12 @@ export class WalletClient implements OMSWalletClient {
       this.projectId
     );
     this.client = new WaasClient(params.environment.walletApiUrl, signedFetch);
-    try {
-      this.walletImportClient = params.walletImport
-        ? new WaasClient(
-            params.environment.walletApiUrl,
-            createAttestedFetch(signedFetch, params.walletImport.trustedPcr0s)
-          )
-        : undefined;
-    } catch (error) {
-      throw new OMSWalletValidationError({
-        message: error instanceof Error ? error.message : String(error),
-        cause: error
-      });
-    }
+    this.walletImportClient = params.walletImportTrustedPcr0s
+      ? new WaasClient(
+          params.environment.walletApiUrl,
+          createAttestedFetch(signedFetch, params.walletImportTrustedPcr0s)
+        )
+      : undefined;
     this.publicClient = new WaasPublicClient(
       params.environment.walletApiUrl,
       createApiKeyFetch(params.publishableKey)
@@ -1410,7 +1401,7 @@ export class WalletClient implements OMSWalletClient {
 
   private requireWalletImportClient(): WaasClient {
     if (!this.walletImportClient) {
-      throw new Error('Wallet import requires walletImport.trustedPcr0s configuration');
+      throw new Error('Wallet import is unavailable for this WaaS environment');
     }
     return this.walletImportClient;
   }

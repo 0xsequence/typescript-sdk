@@ -1,24 +1,18 @@
-// Wallet-import PCR0 pins must be updated when an audited WaaS enclave image is deployed.
-// Development intentionally runs Nitro in debug mode: its all-zero PCR0 enables import testing
-// but does not attest to a specific enclave image. Never use that value for staging or production.
 export const DEMO_ENVIRONMENTS = [
   {
     id: 'production',
     label: 'Production sandbox',
-    publishableKey: 'pk_sdbx_01kqfw9zaykks_01kwetq606fv699qb9bhfmb45s',
-    trustedWalletImportPcr0s: undefined
+    publishableKey: 'pk_sdbx_01kqfw9zaykks_01kwetq606fv699qb9bhfmb45s'
   },
   {
     id: 'development',
     label: 'Development sandbox',
-    publishableKey: 'pk_dev_sdbx_01kqa06hyyetj_01kv5zt5s3eke9038q8y67jdvj',
-    trustedWalletImportPcr0s: ['0'.repeat(96)]
+    publishableKey: 'pk_dev_sdbx_01kqa06hyyetj_01kv5zt5s3eke9038q8y67jdvj'
   },
   {
     id: 'staging',
     label: 'Staging sandbox',
-    publishableKey: 'pk_stg_sdbx_01kqab7as5htf_01kxgdcajtfcgv9e6f56xm3rc2',
-    trustedWalletImportPcr0s: undefined
+    publishableKey: 'pk_stg_sdbx_01kqab7as5htf_01kxgdcajtfcgv9e6f56xm3rc2'
   }
 ] as const;
 

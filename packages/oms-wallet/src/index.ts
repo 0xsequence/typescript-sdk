@@ -1,5 +1,5 @@
 export { OMSWallet } from './omsWallet.js';
-export type { OMSWalletParams, WalletImportConfig } from './omsWallet.js';
+export type { OMSWalletParams } from './omsWallet.js';
 export { RemoteAccessClient } from './clients/remoteAccessClient.js';
 export type { RemoteAccessClientParams } from './clients/remoteAccessClient.js';
 export {

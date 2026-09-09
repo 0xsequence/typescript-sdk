@@ -9,16 +9,11 @@ import { environmentFromPublishableKey } from './omsEnvironment.js';
 import { parsePublishableKey } from './publishableKey.js';
 import { createDefaultStorage } from './storageManager.js';
 
-export interface WalletImportConfig {
-  readonly trustedPcr0s: ReadonlyArray<string>;
-}
-
 export interface OMSWalletParams {
   publishableKey: string;
   storage?: StorageManager;
   redirectAuthStorage?: StorageManager;
   credentialSigner?: CredentialSigner;
-  walletImport?: WalletImportConfig;
 }
 
 export class OMSWallet {
@@ -37,7 +32,7 @@ export class OMSWallet {
       storage,
       redirectAuthStorage: params.redirectAuthStorage,
       credentialSigner: params.credentialSigner,
-      walletImport: params.walletImport
+      walletImportTrustedPcr0s: parsedKey.walletImportTrustedPcr0s
     });
 
     this.indexer = new IndexerClient({

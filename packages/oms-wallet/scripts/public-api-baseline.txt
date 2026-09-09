@@ -400,7 +400,7 @@ export {};
 
 ## index.d.ts
 export { OMSWallet } from './omsWallet.js';
-export type { OMSWalletParams, WalletImportConfig } from './omsWallet.js';
+export type { OMSWalletParams } from './omsWallet.js';
 export { RemoteAccessClient } from './clients/remoteAccessClient.js';
 export type { RemoteAccessClientParams } from './clients/remoteAccessClient.js';
 export { OmsRelayOidcProviders, type CustomOidcProviderConfig, type OmsRelayOidcProvider } from './oidc.js';
@@ -597,15 +597,11 @@ import type { OMSWalletIndexerClient } from './clients/indexerClient.js';
 import type { CredentialSigner } from './credentialSigner.js';
 import type { StorageManager } from './storageManager.js';
 import type { OMSWalletClient } from './wallet.js';
-export interface WalletImportConfig {
-    readonly trustedPcr0s: ReadonlyArray<string>;
-}
 export interface OMSWalletParams {
     publishableKey: string;
     storage?: StorageManager;
     redirectAuthStorage?: StorageManager;
     credentialSigner?: CredentialSigner;
-    walletImport?: WalletImportConfig;
 }
 export declare class OMSWallet {
     readonly wallet: OMSWalletClient;

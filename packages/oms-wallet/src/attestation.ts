@@ -285,11 +285,8 @@ async function attestationUserData(params: {
 
 function normalizeTrustedPcr0s(pcr0s: ReadonlyArray<string>): ReadonlySet<string> {
   const normalized = pcr0s.map((value) => value.trim().toLowerCase().replace(/^0x/, ''));
-  if (
-    normalized.length === 0 ||
-    normalized.some((value) => !/^[0-9a-f]{96}$/.test(value) || /^0+$/.test(value))
-  ) {
-    throw new Error('walletImport.trustedPcr0s must contain at least one nonzero 48-byte hex PCR0');
+  if (normalized.length === 0 || normalized.some((value) => !/^[0-9a-f]{96}$/.test(value))) {
+    throw new Error('trustedPcr0s must contain at least one 48-byte hex PCR0');
   }
   return new Set(normalized);
 }

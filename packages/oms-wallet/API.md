@@ -22,15 +22,6 @@ export interface OMSWalletParams {
     storage?: StorageManager;
     redirectAuthStorage?: StorageManager;
     credentialSigner?: CredentialSigner;
-    walletImport?: WalletImportConfig;
-}
-```
-
-### `WalletImportConfig`
-
-```typescript
-export interface WalletImportConfig {
-    readonly trustedPcr0s: ReadonlyArray<string>;
 }
 ```
 

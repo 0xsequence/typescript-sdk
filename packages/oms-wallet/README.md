@@ -250,10 +250,10 @@ await omsWallet.wallet.signOut()
 account. Every returned wallet includes `keyOrigin`, which is `WalletKeyOrigin.Enclave` for a key
 created by WaaS and `WalletKeyOrigin.Imported` for an imported key.
 
-Wallet import must be enabled with one or more trusted AWS Nitro enclave PCR0 measurements. Source
-these measurements from an audited release channel; do not bootstrap trust from the API status
-response that the measurement is intended to verify. All-zero measurements from debug-mode
-enclaves are rejected because they do not establish an enclave identity.
+Wallet import verifies AWS Nitro enclave attestations against the measurements managed by each OMS
+environment. Development uses Nitro debug mode, whose all-zero PCR0 does not identify a specific
+enclave image; use only disposable test keys there. Staging and Production accept only the release
+measurements shipped by the SDK.
 
 ```typescript
 import {
@@ -265,9 +265,6 @@ import {
 
 const omsWallet = new OMSWallet({
   publishableKey: 'your-publishable-key',
-  walletImport: {
-    trustedPcr0s: ['your-audited-48-byte-pcr0-hex'],
-  },
 })
 
 const { wallet } = await omsWallet.wallet.importWallet({

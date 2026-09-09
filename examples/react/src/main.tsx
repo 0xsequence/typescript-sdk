@@ -99,7 +99,6 @@ function App() {
   const selectedNetwork =
     supportedNetworks.find((network) => network.id === selectedNetworkId) ?? Networks.amoy;
   const activeWalletType = isAddress(walletAddress) ? WalletType.Ethereum : WalletType.Solana;
-  const walletImportEnabled = SELECTED_DEMO_ENVIRONMENT.trustedWalletImportPcr0s !== undefined;
   const hasEvmWallet = managedWallets.some((wallet) => wallet.type === WalletType.Ethereum);
   const hasSolanaWallet = managedWallets.some((wallet) => wallet.type === WalletType.Solana);
   const session = omsWallet.wallet.session;
@@ -957,61 +956,55 @@ function App() {
                   </button>
                 </div>
 
-                {walletImportEnabled ? (
-                  <>
-                    <div className="inline-field-action wallet-import-fields">
-                      <label>
-                        Import wallet type
-                        <span className="select-control">
-                          <select
-                            value={importWalletType}
-                            onChange={(event) =>
-                              setImportWalletType(event.target.value as WalletType)
-                            }
-                            disabled={isBusy}
-                          >
-                            <option value={WalletType.Ethereum}>Ethereum</option>
-                            <option value={WalletType.Solana}>Solana</option>
-                          </select>
-                        </span>
-                      </label>
-                      <label>
-                        Private key
-                        <input
-                          type="password"
-                          value={importPrivateKey}
-                          onChange={(event) => setImportPrivateKey(event.target.value)}
-                          placeholder="Hex or base58 private key"
-                          autoComplete="off"
-                        />
-                      </label>
-                      <label>
-                        Imported wallet reference
-                        <input
-                          value={importWalletReference}
-                          onChange={(event) => setImportWalletReference(event.target.value)}
-                          placeholder="Optional label"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => void importManagedWallet()}
-                        disabled={isBusy || !importPrivateKey.trim()}
-                      >
-                        Import wallet
-                      </button>
-                    </div>
-                    <p className="field-hint">
-                      The SDK encrypts the key to an attested WaaS enclave before sending it. Use a
-                      test key in this example.
-                    </p>
-                  </>
-                ) : (
+                <>
+                  <div className="inline-field-action wallet-import-fields">
+                    <label>
+                      Import wallet type
+                      <span className="select-control">
+                        <select
+                          value={importWalletType}
+                          onChange={(event) =>
+                            setImportWalletType(event.target.value as WalletType)
+                          }
+                          disabled={isBusy}
+                        >
+                          <option value={WalletType.Ethereum}>Ethereum</option>
+                          <option value={WalletType.Solana}>Solana</option>
+                        </select>
+                      </span>
+                    </label>
+                    <label>
+                      Private key
+                      <input
+                        type="password"
+                        value={importPrivateKey}
+                        onChange={(event) => setImportPrivateKey(event.target.value)}
+                        placeholder="Hex or base58 private key"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <label>
+                      Imported wallet reference
+                      <input
+                        value={importWalletReference}
+                        onChange={(event) => setImportWalletReference(event.target.value)}
+                        placeholder="Optional label"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => void importManagedWallet()}
+                      disabled={isBusy || !importPrivateKey.trim()}
+                    >
+                      Import wallet
+                    </button>
+                  </div>
                   <p className="field-hint">
-                    Wallet import is not enabled for this demo environment.
+                    The SDK encrypts the key to an attested WaaS enclave before sending it. Use a
+                    test key in this example.
                   </p>
-                )}
+                </>
 
                 {managedWallets.length > 0 ? (
                   <div className="management-list">
