@@ -16,7 +16,7 @@
   "scripts": {
     "build": "pnpm -r --if-present run build",
     "test": "pnpm run test:release && pnpm -r --if-present run test",
-    "test:release": "node --test scripts/stage-npm-packages.test.mjs",
+    "test:release": "node --test scripts/*.test.mjs",
     "typecheck": "tsc -b",
     "check:exports": "pnpm --filter @polygonlabs/oms-wallet exec publint && pnpm --filter @polygonlabs/oms-wallet-wagmi-connector exec publint",
     "lint": "concurrently --group --prefix-colors auto 'pnpm:lint:md' 'pnpm:lint:ts' 'pnpm:typecheck' 'prettier --check .'",

@@ -101,9 +101,11 @@ still CI, not a local release:
 1. GitHub → **Actions** → **Release** → **Run workflow**.
 2. Set the **`snapshot_tag`** input to a non-semver dist-tag (e.g. `canary`, `pre-0.3.0`).
 
-The workflow runs `changeset version --snapshot <tag>` on the runner (never committed), then packs
-and stages both temporary versions. The snapshot path skips git tags and GitHub Releases, so
-**`snapshot_tag` must not be a semver-shaped value** (`0.3.0`, `v0.3.0`, `0.3.0-beta.1`, …). The
-workflow validates the input and aborts on a semver-shaped value. An npm maintainer must approve
-both stages before consumers can install the result with
+The workflow versions the fixed package group with `changeset version --snapshot <tag>` on the
+runner (never committed), then packs and stages both temporary versions. If the branch has no
+versioned changeset, the workflow creates a temporary patch changeset so the snapshot cannot
+succeed without producing packages. The snapshot path skips git tags and GitHub Releases, so
+**`snapshot_tag` must be a lowercase, non-version tag other than `latest`**. The workflow validates
+the input and aborts before versioning if the tag is unsafe. An npm maintainer must approve both
+stages before consumers can install the result with
 `pnpm add @polygonlabs/oms-wallet@<tag>`.
