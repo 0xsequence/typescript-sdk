@@ -10,7 +10,7 @@
   "dependencies": {
     "@polygonlabs/oms-wallet": "workspace:*",
     "dotenv": "^17.4.2",
-    "solc": "^0.8.35",
+    "solc": "^0.8.36",
     "viem": "^2.48.4"
   },
   "devDependencies": {
