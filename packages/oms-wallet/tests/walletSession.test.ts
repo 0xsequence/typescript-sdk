@@ -862,7 +862,8 @@ describe('WalletClient session storage', () => {
           wallets: [
             {
               id: 'wallet-id',
-              type: WalletType.Ethereum,
+              networkFamily: 'evm',
+              keyOrigin: 'enclave',
               address: '0x1111111111111111111111111111111111111111'
             }
           ],
@@ -874,7 +875,8 @@ describe('WalletClient session storage', () => {
         return jsonResponse({
           wallet: {
             id: 'wallet-id',
-            type: WalletType.Ethereum,
+            networkFamily: 'evm',
+            keyOrigin: 'enclave',
             address: '0x1111111111111111111111111111111111111111'
           }
         });
@@ -1196,7 +1198,7 @@ describe('WalletClient session storage', () => {
   });
 
   it('loads remaining auth wallet pages before creating a wallet', async () => {
-    const requestedType = 'future-wallet' as WalletType;
+    const requestedType = WalletType.Solana;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const body = JSON.parse(init?.body as string);
@@ -1242,15 +1244,15 @@ describe('WalletClient session storage', () => {
 
     const result = await wallet.completeEmailAuth({ code: '123456', walletType: requestedType });
 
-    expect(result.walletAddress).toBe('0x2222222222222222222222222222222222222222');
+    expect(result.walletAddress).toBe(testWalletAddress(requestedType, '22'));
     expect(result.wallets).toEqual([
-      testWallet('wallet-1', WalletType.Ethereum, '11'),
-      testWallet('wallet-2', requestedType, '22')
+      expectedWallet('wallet-1', WalletType.Ethereum, '11'),
+      expectedWallet('wallet-2', requestedType, '22')
     ]);
   });
 
   it('returns a pending wallet selection with filtered wallets when wallet selection is manual', async () => {
-    const otherType = 'future-wallet' as WalletType;
+    const otherType = WalletType.Solana;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const body = JSON.parse(init?.body as string);
@@ -1304,8 +1306,8 @@ describe('WalletClient session storage', () => {
     expect(result).toMatchObject({
       walletType: WalletType.Ethereum,
       wallets: [
-        testWallet('wallet-1', WalletType.Ethereum, '11'),
-        testWallet('wallet-2', WalletType.Ethereum, '22')
+        expectedWallet('wallet-1', WalletType.Ethereum, '11'),
+        expectedWallet('wallet-2', WalletType.Ethereum, '22')
       ],
       credential: testCredential()
     });
@@ -1313,7 +1315,7 @@ describe('WalletClient session storage', () => {
     expect(result.createAndSelectWallet).toEqual(expect.any(Function));
     expect(wallet.walletAddress).toBeUndefined();
 
-    (result.wallets as Array<any>).push(testWallet('wallet-forged', WalletType.Ethereum, '44'));
+    (result.wallets as Array<any>).push(expectedWallet('wallet-forged', WalletType.Ethereum, '44'));
     (result.wallets[0] as any).id = 'wallet-forged';
     (result.credential as any).credentialId = '0x' + 'ff'.repeat(32);
 
@@ -1340,7 +1342,7 @@ describe('WalletClient session storage', () => {
   });
 
   it('pending create uses the requested wallet type', async () => {
-    const requestedType = 'future-wallet' as WalletType;
+    const requestedType = WalletType.Solana;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const body = JSON.parse(init?.body as string);
@@ -1356,7 +1358,7 @@ describe('WalletClient session storage', () => {
 
       if (url.endsWith('/CreateWallet')) {
         expect(body).toEqual({
-          type: requestedType,
+          networkFamily: 'solana',
           reference: 'fresh'
         });
         return jsonResponse({ wallet: testWallet('wallet-new', requestedType, '33', 'fresh') });
@@ -1384,10 +1386,10 @@ describe('WalletClient session storage', () => {
     const result = await selection.createAndSelectWallet({ reference: 'fresh' });
 
     expect(result).toEqual({
-      walletAddress: '0x3333333333333333333333333333333333333333',
-      wallet: testWallet('wallet-new', requestedType, '33', 'fresh')
+      walletAddress: testWalletAddress(requestedType, '33'),
+      wallet: expectedWallet('wallet-new', requestedType, '33', 'fresh')
     });
-    expect(wallet.walletAddress).toBe('0x3333333333333333333333333333333333333333');
+    expect(wallet.walletAddress).toBe(testWalletAddress(requestedType, '33'));
   });
 
   it('stale pending wallet selections fail before network after newer manual auth', async () => {
@@ -1566,7 +1568,7 @@ describe('WalletClient session storage', () => {
       }
 
       if (url.endsWith('/CreateWallet')) {
-        expect(body).toEqual({ type: WalletType.Ethereum, reference: 'fresh' });
+        expect(body).toEqual({ networkFamily: 'evm', reference: 'fresh' });
         return new Promise<Response>((resolve) => {
           resolveCreate = resolve;
         });
@@ -1748,7 +1750,7 @@ describe('WalletClient session storage', () => {
     await wallet.completeEmailAuth({ code: '111111', walletSelection: 'manual' });
 
     await expect(wallet.listWallets()).resolves.toEqual([
-      testWallet('wallet-1', WalletType.Ethereum, '11')
+      expectedWallet('wallet-1', WalletType.Ethereum, '11')
     ]);
     await expect(wallet.useWallet({ walletId: 'wallet-1' })).rejects.toMatchObject({
       code: 'OMS_SESSION_MISSING',
@@ -1885,7 +1887,7 @@ describe('WalletClient session storage', () => {
 
     expect(result).toEqual({
       walletAddress: '0x2222222222222222222222222222222222222222',
-      wallet: testWallet('wallet-2', WalletType.Ethereum, '22')
+      wallet: expectedWallet('wallet-2', WalletType.Ethereum, '22')
     });
     expect(wallet.walletAddress).toBe('0x2222222222222222222222222222222222222222');
     expect(storedSession(storage)).toMatchObject({
@@ -1907,7 +1909,7 @@ describe('WalletClient session storage', () => {
 
       if (url.endsWith('/CreateWallet')) {
         expect(body).toEqual({
-          type: WalletType.Ethereum,
+          networkFamily: 'evm',
           reference: 'fresh'
         });
         return jsonResponse({
@@ -1937,7 +1939,7 @@ describe('WalletClient session storage', () => {
 
     expect(result).toEqual({
       walletAddress: '0x3333333333333333333333333333333333333333',
-      wallet: testWallet('wallet-new', WalletType.Ethereum, '33', 'fresh')
+      wallet: expectedWallet('wallet-new', WalletType.Ethereum, '33', 'fresh')
     });
     expect(wallet.walletAddress).toBe('0x3333333333333333333333333333333333333333');
   });
@@ -1946,7 +1948,8 @@ describe('WalletClient session storage', () => {
 function testEnvironment() {
   return {
     walletApiUrl: 'https://wallet.example',
-    indexerGatewayUrl: 'https://indexer.example'
+    indexerGatewayUrl: 'https://indexer.example',
+    solanaIndexerGatewayUrl: 'https://solana-indexer.example'
   };
 }
 
@@ -1959,6 +1962,7 @@ function jsonResponse(body: unknown): Response {
 
 function testCredential() {
   return {
+    type: 'direct',
     credentialId: '0x' + '11'.repeat(32),
     expiresAt: '2099-01-01T00:00:00Z',
     isCaller: true
@@ -1968,10 +1972,36 @@ function testCredential() {
 function testWallet(id: string, type: WalletType, seed: string, reference?: string) {
   return {
     id,
-    type,
-    address: '0x' + seed.repeat(20),
+    networkFamily: type === WalletType.Ethereum ? 'evm' : 'solana',
+    keyOrigin: 'enclave',
+    address: testWalletAddress(type, seed),
     ...(reference ? { reference } : {})
   };
+}
+
+function expectedWallet(id: string, type: WalletType, seed: string, reference?: string) {
+  return {
+    id,
+    type,
+    address: testWalletAddress(type, seed),
+    reference,
+    keyOrigin: 'enclave'
+  };
+}
+
+function testWalletAddress(type: WalletType, seed: string): string {
+  if (type === WalletType.Ethereum) {
+    return '0x' + seed.repeat(20);
+  }
+
+  switch (seed) {
+    case '22':
+      return '3gFktQX6vki5M2DzN8Y1ESPUJ4fJ8o6hVQWf8vYvPypD';
+    case '33':
+      return '4Nd1mYQbqjVU2aR7cJNPyqW9XjHnBYvWQd7ZxYxvT6uP';
+    default:
+      throw new Error(`Missing Solana test address for seed ${seed}`);
+  }
 }
 
 function requestCount(fetchMock: ReturnType<typeof vi.fn>, endpoint: string): number {

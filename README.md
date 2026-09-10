@@ -36,7 +36,20 @@ pnpm test                     # SDK + connector test suites (pnpm -r)
 pnpm build                    # build packages (dual CJS+ESM) + all examples (pnpm -r)
 pnpm check:exports            # publint on the publishable packages
 pnpm dev:example              # run a browser example
+pnpm build:privy-import-worker # validate the Privy test-wallet Worker
+pnpm dev:smart-session-example # run the Worker + approval app + admin dashboard
 ```
+
+The React example uses the deployed
+[`examples/helpers/privy-import-worker`](examples/helpers/privy-import-worker)
+Cloudflare Worker to create and HPKE-export disposable Privy wallets from both localhost and GitHub
+Pages. Privy credentials remain in Worker secrets and generated wallet authorization keys are never
+persisted.
+
+The Cloudflare-deployable [`examples/smart-session`](examples/smart-session) workspace demonstrates
+independently administered backend-owned RACs serving smart sessions approved by multiple owner
+wallets. It supports native POL transfers on Polygon Amoy and POL, USDC, and USDT transfers on
+Polygon mainnet, with recipient-scoped permissions, indexed balances, and a Trails conversion.
 
 Workspace packages resolve each other from **source** (via the `@polygonlabs/source` export
 condition), so no package needs to be built before its consumers — `pnpm test` and `pnpm build` run

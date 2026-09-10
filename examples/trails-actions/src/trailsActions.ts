@@ -20,6 +20,7 @@ import { Networks } from '@polygonlabs/oms-wallet';
 import {
   encodeFunctionData,
   formatUnits,
+  isAddress,
   parseEther,
   parseUnits,
   type Address,
@@ -159,10 +160,10 @@ export function normalizeAmountInput(value: string): string {
 }
 
 export function requireWalletAddress(address: string | undefined): Address {
-  if (!address?.startsWith('0x')) {
-    throw new Error('Sign in before preparing a Trails action.');
+  if (!address || !isAddress(address)) {
+    throw new Error('An Ethereum wallet is required to prepare a Trails action.');
   }
-  return address as Address;
+  return address;
 }
 
 export function requirePreparedTransaction(

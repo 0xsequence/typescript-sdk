@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { isAddress } from 'viem';
 import {
   Networks,
+  WalletType,
+  WalletImportCipherSuite,
   OmsRelayOidcProviders,
   type FeeOptionSelection,
   type FeeOptionWithBalance,
@@ -42,17 +45,39 @@ import {
 } from './config';
 import { TEST_SESSION_LIFETIME_SECONDS, omsWallet } from './omsWallet';
 import { WalletKitDollarExample } from './WalletKitDollarExample';
+import { SolanaExample } from './SolanaExample';
 
 type Step = 'email' | 'code' | 'wallet-selection' | 'wallet';
+type WalletTab = 'ethereum' | 'solana';
 type FeeSelectionController = {
   resolve: (selection: FeeOptionSelection) => void;
   reject: (error: Error) => void;
 };
+type PrivyBackendStatus = 'checking' | 'ready' | 'unavailable';
+type PrivyImportStepStatus = 'pending' | 'active' | 'complete' | 'error';
+type PrivyImportStep = 'recipient' | 'export' | 'import';
+type PrivyImportProgress = Record<PrivyImportStep, PrivyImportStepStatus>;
+
+interface PrivyWalletExportResponse {
+  walletId: string;
+  address: string;
+  ciphertext: string;
+  encapsulatedKey: string;
+}
 
 const DEFAULT_MESSAGE = 'test';
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99';
 const MANUAL_WALLET_SELECTION_KEY = 'oms-demo-manual-wallet-selection';
 const SESSION_LIFETIME_SECONDS_KEY = 'oms-demo-session-lifetime-seconds-v2';
+const PRIVY_BACKEND_URL = 'https://oms-privy-import-example.0xsequence.workers.dev';
+const PRIVY_EXPORT_URL = `${PRIVY_BACKEND_URL}/v1/disposable-wallets/export`;
+const PRIVY_STATUS_URL = `${PRIVY_BACKEND_URL}/health`;
+const PRIVY_IMPORT_STEP_MINIMUM_MS = 600;
+const INITIAL_PRIVY_IMPORT_PROGRESS: PrivyImportProgress = {
+  recipient: 'pending',
+  export: 'pending',
+  import: 'pending'
+};
 const supportedNetworks = Object.values(Networks);
 
 function App() {
@@ -64,13 +89,27 @@ function App() {
   const [transactionTo, setTransactionTo] = useState(DEFAULT_TX_TO);
   const [transactionValue, setTransactionValue] = useState('0');
   const [walletAddress, setWalletAddress] = useState('');
+  const [walletTab, setWalletTab] = useState<WalletTab>('ethereum');
   const [lastSignature, setLastSignature] = useState('');
   const [lastIdToken, setLastIdToken] = useState('');
   const [lastTransactionHash, setLastTransactionHash] = useState('');
   const [lastTransactionExplorerUrl, setLastTransactionExplorerUrl] = useState('');
   const [feeOptions, setFeeOptions] = useState<FeeOptionWithBalance[]>([]);
   const [managedWallets, setManagedWallets] = useState<WalletAccount[]>([]);
+  const [walletInventoryLoaded, setWalletInventoryLoaded] = useState(false);
+  const [walletInventoryError, setWalletInventoryError] = useState('');
+  const [newWalletType, setNewWalletType] = useState<WalletType>(WalletType.Ethereum);
   const [newWalletReference, setNewWalletReference] = useState('');
+  const [importWalletType, setImportWalletType] = useState<WalletType>(WalletType.Ethereum);
+  const [importWalletReference, setImportWalletReference] = useState('');
+  const [importPrivateKey, setImportPrivateKey] = useState('');
+  const [privyWalletReference, setPrivyWalletReference] = useState('');
+  const [privyWalletSetupStatus, setPrivyWalletSetupStatus] = useState('');
+  const [privyBackendStatus, setPrivyBackendStatus] = useState<PrivyBackendStatus>('checking');
+  const [privyImportProgress, setPrivyImportProgress] = useState<PrivyImportProgress>(
+    INITIAL_PRIVY_IMPORT_PROGRESS
+  );
+  const [privyImportError, setPrivyImportError] = useState('');
   const [accessGrants, setAccessGrants] = useState<AccessGrant[]>([]);
   const [pendingWalletSelection, setPendingWalletSelection] =
     useState<PendingWalletSelection | null>(null);
@@ -87,6 +126,9 @@ function App() {
 
   const selectedNetwork =
     supportedNetworks.find((network) => network.id === selectedNetworkId) ?? Networks.amoy;
+  const activeWalletType = isAddress(walletAddress) ? WalletType.Ethereum : WalletType.Solana;
+  const hasEvmWallet = managedWallets.some((wallet) => wallet.type === WalletType.Ethereum);
+  const hasSolanaWallet = managedWallets.some((wallet) => wallet.type === WalletType.Solana);
   const session = omsWallet.wallet.session;
   const {
     useManualWalletSelection,
@@ -106,8 +148,25 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const controller = new AbortController();
+    void fetch(PRIVY_STATUS_URL, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Privy export endpoint unavailable');
+        const body = (await response.json()) as { ready?: unknown };
+        setPrivyBackendStatus(body.ready === true ? 'ready' : 'unavailable');
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setPrivyBackendStatus('unavailable');
+      });
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
     if (omsWallet.wallet.walletAddress) {
       setWalletAddress(omsWallet.wallet.walletAddress);
+      setWalletTab(isAddress(omsWallet.wallet.walletAddress) ? 'ethereum' : 'solana');
       setStep('wallet');
       setWalletStatus('Wallet session restored.');
       return;
@@ -119,6 +178,35 @@ function App() {
       void completeOidcRedirect();
     }
   }, [omsWallet]);
+
+  useEffect(() => {
+    if (step !== 'wallet' || !walletAddress) {
+      setWalletInventoryLoaded(false);
+      setWalletInventoryError('');
+      return;
+    }
+
+    let cancelled = false;
+    setWalletInventoryLoaded(false);
+    setWalletInventoryError('');
+    void omsWallet.wallet
+      .listWallets()
+      .then((wallets) => {
+        if (cancelled) return;
+        setManagedWallets(wallets);
+        setWalletInventoryLoaded(true);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setWalletInventoryError(message);
+        setActiveWalletStatus(message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [step, walletAddress]);
 
   useEffect(() => {
     feeSelection.current?.reject(new Error('Network changed'));
@@ -197,6 +285,9 @@ function App() {
 
       const restoredAddress = omsWallet.wallet.walletAddress ?? '';
       setWalletAddress(restoredAddress);
+      if (restoredAddress) {
+        setWalletTab(isAddress(restoredAddress) ? 'ethereum' : 'solana');
+      }
       setStep(restoredAddress ? 'wallet' : 'email');
       setWalletStatus(restoredAddress ? 'Wallet ready.' : '');
     });
@@ -218,6 +309,7 @@ function App() {
     setLastIdToken('');
     clearManagementState();
     setWalletAddress(result.walletAddress);
+    setWalletTab(result.wallet.type);
     setStep('wallet');
     setWalletStatus(status);
   }
@@ -372,10 +464,17 @@ function App() {
   }
 
   async function loadManagedWallets() {
+    setWalletInventoryError('');
     await run('Loading wallets...', setActiveWalletStatus, async () => {
-      const wallets = await omsWallet.wallet.listWallets();
-      setManagedWallets(wallets);
-      setActiveWalletStatus(`Loaded ${formatCount(wallets.length, 'wallet')}.`);
+      try {
+        const wallets = await omsWallet.wallet.listWallets();
+        setManagedWallets(wallets);
+        setWalletInventoryLoaded(true);
+        setActiveWalletStatus(`Loaded ${formatCount(wallets.length, 'wallet')}.`);
+      } catch (error) {
+        setWalletInventoryError(error instanceof Error ? error.message : String(error));
+        throw error;
+      }
     });
   }
 
@@ -383,6 +482,7 @@ function App() {
     await run('Switching wallet...', setActiveWalletStatus, async () => {
       const result = await omsWallet.wallet.useWallet({ walletId: wallet.id });
       setWalletAddress(result.walletAddress);
+      setWalletTab(result.wallet.type);
       clearWalletOperationResults();
       setAccessGrants([]);
       setAccessStatus('');
@@ -395,13 +495,15 @@ function App() {
     });
   }
 
-  async function createManagedWallet() {
-    await run('Creating wallet...', setActiveWalletStatus, async () => {
+  async function createManagedWallet(type: WalletType) {
+    await run(`Creating ${formatWalletType(type)} wallet...`, setActiveWalletStatus, async () => {
       const reference = newWalletReference.trim();
       const result = await omsWallet.wallet.createWallet({
+        type,
         reference: reference || undefined
       });
       setWalletAddress(result.walletAddress);
+      setWalletTab(result.wallet.type);
       clearWalletOperationResults();
       setAccessGrants([]);
       setAccessStatus('');
@@ -409,11 +511,156 @@ function App() {
         const withoutCreated = current.filter((wallet) => wallet.id !== result.wallet.id);
         return [...withoutCreated, result.wallet];
       });
+      setWalletInventoryLoaded(true);
       setNewWalletReference('');
       setActiveWalletStatus(
         `Created and activated ${result.wallet.reference ?? formatWalletType(result.wallet.type)}.`
       );
     });
+  }
+
+  async function importManagedWallet() {
+    if (!importPrivateKey.trim()) return;
+    await run(
+      `Importing ${formatWalletType(importWalletType)} wallet...`,
+      setActiveWalletStatus,
+      async () => {
+        const result = await omsWallet.wallet.importWallet({
+          type: importWalletType,
+          privateKey: importPrivateKey.trim(),
+          reference: importWalletReference.trim() || undefined
+        });
+        setWalletAddress(result.walletAddress);
+        setWalletTab(result.wallet.type);
+        clearWalletOperationResults();
+        setAccessGrants([]);
+        setAccessStatus('');
+        setManagedWallets((current) => [
+          ...current.filter((wallet) => wallet.id !== result.wallet.id),
+          result.wallet
+        ]);
+        setWalletInventoryLoaded(true);
+        setImportPrivateKey('');
+        setImportWalletReference('');
+        setActiveWalletStatus(
+          `Imported and activated ${result.wallet.reference ?? formatWalletType(result.wallet.type)}.`
+        );
+      }
+    );
+  }
+
+  async function importPrivyWallet() {
+    if (privyBackendStatus !== 'ready') return;
+
+    let activeStep: PrivyImportStep = 'recipient';
+    setPrivyImportError('');
+    setPrivyWalletSetupStatus('');
+    setPrivyImportProgress({
+      recipient: 'active',
+      export: 'pending',
+      import: 'pending'
+    });
+    const progressTimeline = createPrivyImportProgressTimeline(setPrivyImportProgress);
+
+    await run('Importing Privy wallet...', setActiveWalletStatus, async () => {
+      try {
+        const recipient = await omsWallet.wallet.getWalletImportRecipientKey({
+          cipherSuite: WalletImportCipherSuite.P256Sha256ChaCha20Poly1305
+        });
+        activeStep = 'export';
+        progressTimeline.show({
+          recipient: 'complete',
+          export: 'active',
+          import: 'pending'
+        });
+
+        const encryptedWallet = await createAndExportPrivyWallet(recipient.publicKey);
+        activeStep = 'import';
+        progressTimeline.show(
+          {
+            recipient: 'complete',
+            export: 'complete',
+            import: 'active'
+          },
+          () =>
+            setPrivyWalletSetupStatus(
+              `Created ${encryptedWallet.address} in Privy and received its encrypted export.`
+            )
+        );
+
+        const result = await omsWallet.wallet.importEncryptedWallet({
+          type: WalletType.Ethereum,
+          reference: privyWalletReference.trim() || undefined,
+          keyMaterial: {
+            keyId: recipient.keyId,
+            cipherSuite: recipient.cipherSuite,
+            encapsulatedKey: encryptedWallet.encapsulatedKey,
+            ciphertext: encryptedWallet.ciphertext
+          }
+        });
+        if (!sameAddress(result.walletAddress, encryptedWallet.address)) {
+          throw new Error('The imported OMS wallet address does not match the Privy wallet.');
+        }
+        progressTimeline.show({
+          recipient: 'complete',
+          export: 'complete',
+          import: 'complete'
+        });
+        await progressTimeline.finished();
+        setWalletAddress(result.walletAddress);
+        setWalletTab('ethereum');
+        clearWalletOperationResults();
+        setAccessGrants([]);
+        setAccessStatus('');
+        setManagedWallets((current) => [
+          ...current.filter((wallet) => wallet.id !== result.wallet.id),
+          result.wallet
+        ]);
+        setWalletInventoryLoaded(true);
+        setPrivyWalletReference('');
+        setActiveWalletStatus(
+          `Imported and activated ${result.wallet.reference ?? 'Privy wallet'}.`
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        progressTimeline.show((current) => ({ ...current, [activeStep]: 'error' }));
+        await progressTimeline.finished();
+        setPrivyImportError(message);
+        throw error;
+      }
+    });
+  }
+
+  async function activateWalletType(type: WalletType) {
+    await run(`Activating ${formatWalletType(type)} wallet...`, setActiveWalletStatus, async () => {
+      const wallets = await omsWallet.wallet.listWallets();
+      const existing = wallets.find((wallet) => wallet.type === type);
+      const result = existing
+        ? await omsWallet.wallet.useWallet({ walletId: existing.id })
+        : await omsWallet.wallet.createWallet({ type });
+
+      setWalletAddress(result.walletAddress);
+      setWalletTab(result.wallet.type);
+      clearWalletOperationResults();
+      setAccessGrants([]);
+      setAccessStatus('');
+      setManagedWallets(
+        existing
+          ? wallets
+          : [...wallets.filter((wallet) => wallet.id !== result.wallet.id), result.wallet]
+      );
+      setWalletInventoryLoaded(true);
+      setActiveWalletStatus(
+        existing
+          ? `Using ${existing.reference ?? formatWalletType(existing.type)}.`
+          : `Created and activated ${formatWalletType(result.wallet.type)} wallet.`
+      );
+    });
+  }
+
+  function selectWalletTab(tab: WalletTab) {
+    setWalletTab(tab);
+    setActiveWalletStatus('');
   }
 
   async function loadAccess() {
@@ -431,7 +678,7 @@ function App() {
     }
 
     await run('Revoking access...', setAccessStatus, async () => {
-      await omsWallet.wallet.revokeAccess({ targetCredentialId: grant.credentialId });
+      await omsWallet.wallet.revokeAccess({ credentialId: grant.credentialId });
       setAccessGrants((current) =>
         current.filter((item) => item.credentialId !== grant.credentialId)
       );
@@ -447,7 +694,14 @@ function App() {
     });
   }
 
-  function waitForFeeOptionSelection(options: FeeOptionWithBalance[]): Promise<FeeOptionSelection> {
+  function waitForFeeOptionSelection(
+    options: FeeOptionWithBalance[]
+  ): Promise<FeeOptionSelection | undefined> {
+    if (options.length === 0) {
+      setWalletStatus('Transaction fee sponsored. Sending transaction...');
+      return Promise.resolve(undefined);
+    }
+
     setFeeOptions(options);
     setWalletStatus('Choose a fee token to continue.');
     return new Promise((resolve, reject) => {
@@ -500,6 +754,8 @@ function App() {
 
   function clearManagementState() {
     setManagedWallets([]);
+    setWalletInventoryLoaded(false);
+    setWalletInventoryError('');
     setAccessGrants([]);
     setActiveWalletStatus('');
     setAccessStatus('');
@@ -610,90 +866,187 @@ function App() {
               </div>
             </div>
 
-            <section className="tool network-tool">
-              <div className="tool-header">
-                <h2>Network</h2>
-                <span className="network-meta">{selectedNetwork.nativeTokenSymbol}</span>
-              </div>
-              <select
-                aria-label="Network"
-                value={selectedNetworkId}
-                onChange={(event) => setSelectedNetworkId(Number(event.target.value))}
-                disabled={isBusy}
-              >
-                {supportedNetworks.map((network) => (
-                  <option key={network.id} value={network.id}>
-                    {network.displayName} ({network.id})
-                  </option>
-                ))}
-              </select>
-            </section>
-
-            <section className="tool">
-              <h2>Sign message</h2>
-              <label>
-                Message
-                <input value={message} onChange={(event) => setMessage(event.target.value)} />
-              </label>
-              <button type="button" onClick={signMessage} disabled={isBusy || !message.trim()}>
-                Sign message
-              </button>
-              {lastSignature && (
-                <p className="result labeled-result">
-                  <span className="result-label">Signature</span>
-                  <code className="result-value">{lastSignature}</code>
-                </p>
-              )}
-            </section>
-
-            <section className="tool">
-              <h2>Send transaction</h2>
-              <label>
-                To
-                <input
-                  value={transactionTo}
-                  onChange={(event) => setTransactionTo(event.target.value)}
-                />
-              </label>
-              <label>
-                Value
-                <input
-                  inputMode="numeric"
-                  value={transactionValue}
-                  onChange={(event) => setTransactionValue(event.target.value)}
-                />
-              </label>
+            <div className="wallet-tabs" role="tablist" aria-label="Wallet operations">
               <button
                 type="button"
-                onClick={sendTransaction}
-                disabled={isBusy || !transactionTo.trim()}
+                role="tab"
+                aria-selected={walletTab === 'ethereum'}
+                className={walletTab === 'ethereum' ? 'wallet-tab wallet-tab-active' : 'wallet-tab'}
+                onClick={() => selectWalletTab('ethereum')}
+                disabled={isBusy}
               >
-                Send transaction
+                EVM
               </button>
-              {lastTransactionHash && (
-                <div className="result-block">
-                  <p className="result labeled-result">
-                    <span className="result-label">
-                      {lastTransactionExplorerUrl ? 'Transaction hash' : 'Transaction ID'}
-                    </span>
-                    <code className="result-value">{lastTransactionHash}</code>
-                  </p>
-                  {lastTransactionExplorerUrl && (
-                    <a href={lastTransactionExplorerUrl} target="_blank" rel="noreferrer">
-                      View on explorer
-                    </a>
-                  )}
-                </div>
-              )}
-            </section>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={walletTab === 'solana'}
+                className={walletTab === 'solana' ? 'wallet-tab wallet-tab-active' : 'wallet-tab'}
+                onClick={() => selectWalletTab('solana')}
+                disabled={isBusy}
+              >
+                Solana
+              </button>
+            </div>
 
-            {selectedNetwork.id === Networks.amoy.id && (
-              <details className="tool collapsible-tool">
-                <summary>ERC20 example</summary>
-                <div className="collapsible-content">
-                  <WalletKitDollarExample key={walletAddress} />
-                </div>
-              </details>
+            {walletTab === 'ethereum' && activeWalletType !== WalletType.Ethereum && (
+              <section className="tool wallet-type-prompt">
+                <h2>
+                  {!walletInventoryLoaded
+                    ? walletInventoryError
+                      ? 'Unable to load wallets'
+                      : 'Loading wallets'
+                    : hasEvmWallet
+                      ? 'Use an EVM wallet'
+                      : 'Create an EVM wallet'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void (walletInventoryLoaded
+                      ? activateWalletType(WalletType.Ethereum)
+                      : loadManagedWallets())
+                  }
+                  disabled={isBusy || (!walletInventoryLoaded && !walletInventoryError)}
+                >
+                  {!walletInventoryLoaded
+                    ? walletInventoryError
+                      ? 'Retry loading wallets'
+                      : 'Loading wallets...'
+                    : hasEvmWallet
+                      ? 'Use EVM wallet'
+                      : 'Create EVM wallet'}
+                </button>
+                {activeWalletStatus && <output>{activeWalletStatus}</output>}
+              </section>
+            )}
+
+            {walletTab === 'ethereum' && activeWalletType === WalletType.Ethereum && (
+              <>
+                <section className="tool network-tool">
+                  <div className="tool-header">
+                    <h2>Network</h2>
+                    <span className="network-meta">{selectedNetwork.nativeTokenSymbol}</span>
+                  </div>
+                  <span className="select-control">
+                    <select
+                      aria-label="Network"
+                      value={selectedNetworkId}
+                      onChange={(event) => setSelectedNetworkId(Number(event.target.value))}
+                      disabled={isBusy}
+                    >
+                      {supportedNetworks.map((network) => (
+                        <option key={network.id} value={network.id}>
+                          {network.displayName} ({network.id})
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </section>
+
+                <section className="tool">
+                  <h2>Sign message</h2>
+                  <label>
+                    Message
+                    <input value={message} onChange={(event) => setMessage(event.target.value)} />
+                  </label>
+                  <button type="button" onClick={signMessage} disabled={isBusy || !message.trim()}>
+                    Sign message
+                  </button>
+                  {lastSignature && (
+                    <p className="result labeled-result">
+                      <span className="result-label">Signature</span>
+                      <code className="result-value">{lastSignature}</code>
+                    </p>
+                  )}
+                </section>
+
+                <section className="tool">
+                  <h2>Send transaction</h2>
+                  <label>
+                    To
+                    <input
+                      value={transactionTo}
+                      onChange={(event) => setTransactionTo(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Value
+                    <input
+                      inputMode="numeric"
+                      value={transactionValue}
+                      onChange={(event) => setTransactionValue(event.target.value)}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={sendTransaction}
+                    disabled={isBusy || !transactionTo.trim()}
+                  >
+                    Send transaction
+                  </button>
+                  {lastTransactionHash && (
+                    <div className="result-block">
+                      <p className="result labeled-result">
+                        <span className="result-label">
+                          {lastTransactionExplorerUrl ? 'Transaction hash' : 'Transaction ID'}
+                        </span>
+                        <code className="result-value">{lastTransactionHash}</code>
+                      </p>
+                      {lastTransactionExplorerUrl && (
+                        <a href={lastTransactionExplorerUrl} target="_blank" rel="noreferrer">
+                          View on explorer
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                {selectedNetwork.id === Networks.amoy.id && (
+                  <details className="tool collapsible-tool">
+                    <summary>ERC20 example</summary>
+                    <div className="collapsible-content">
+                      <WalletKitDollarExample key={walletAddress} />
+                    </div>
+                  </details>
+                )}
+              </>
+            )}
+
+            {walletTab === 'solana' && activeWalletType !== WalletType.Solana && (
+              <section className="tool wallet-type-prompt">
+                <h2>
+                  {!walletInventoryLoaded
+                    ? walletInventoryError
+                      ? 'Unable to load wallets'
+                      : 'Loading wallets'
+                    : hasSolanaWallet
+                      ? 'Use a Solana wallet'
+                      : 'Create a Solana wallet'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void (walletInventoryLoaded
+                      ? activateWalletType(WalletType.Solana)
+                      : loadManagedWallets())
+                  }
+                  disabled={isBusy || (!walletInventoryLoaded && !walletInventoryError)}
+                >
+                  {!walletInventoryLoaded
+                    ? walletInventoryError
+                      ? 'Retry loading wallets'
+                      : 'Loading wallets...'
+                    : hasSolanaWallet
+                      ? 'Use Solana wallet'
+                      : 'Create Solana wallet'}
+                </button>
+                {activeWalletStatus && <output>{activeWalletStatus}</output>}
+              </section>
+            )}
+
+            {walletTab === 'solana' && activeWalletType === WalletType.Solana && (
+              <SolanaExample key={walletAddress} walletAddress={walletAddress} />
             )}
 
             <details className="tool collapsible-tool">
@@ -702,24 +1055,6 @@ function App() {
                 <div className="actions">
                   <button type="button" onClick={loadManagedWallets} disabled={isBusy}>
                     Load wallets
-                  </button>
-                </div>
-                <div className="inline-field-action">
-                  <label>
-                    New wallet reference
-                    <input
-                      value={newWalletReference}
-                      onChange={(event) => setNewWalletReference(event.target.value)}
-                      placeholder="Optional label"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={createManagedWallet}
-                    disabled={isBusy}
-                  >
-                    Create wallet
                   </button>
                 </div>
 
@@ -739,10 +1074,11 @@ function App() {
                         >
                           <div className="management-card-header">
                             <span>
-                              <strong>
-                                {wallet.reference ?? `${formatWalletType(wallet.type)} wallet`}
-                              </strong>
-                              <small>{wallet.id}</small>
+                              <strong>{wallet.reference ?? 'Unlabeled wallet'}</strong>
+                              <small>
+                                {formatWalletType(wallet.type)} · {formatWalletKeyOrigin(wallet)} ·{' '}
+                                {wallet.id}
+                              </small>
                             </span>
                             {isActiveWallet ? (
                               <span className="metadata-pill">Active</span>
@@ -766,6 +1102,170 @@ function App() {
                     Load wallets to switch or create another wallet for this account.
                   </p>
                 )}
+
+                <section className="management-action-card">
+                  <div className="management-action-copy">
+                    <h3>Create wallet</h3>
+                    <p>Create and activate another wallet for the signed-in account.</p>
+                  </div>
+                  <div className="management-form-grid">
+                    <label>
+                      Wallet type
+                      <span className="select-control">
+                        <select
+                          value={newWalletType}
+                          onChange={(event) => setNewWalletType(event.target.value as WalletType)}
+                          disabled={isBusy}
+                        >
+                          <option value={WalletType.Ethereum}>Ethereum</option>
+                          <option value={WalletType.Solana}>Solana</option>
+                        </select>
+                      </span>
+                    </label>
+                    <label>
+                      Wallet reference
+                      <input
+                        value={newWalletReference}
+                        onChange={(event) => setNewWalletReference(event.target.value)}
+                        placeholder="Optional label"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary management-form-action"
+                      onClick={() => void createManagedWallet(newWalletType)}
+                      disabled={isBusy}
+                    >
+                      Create wallet
+                    </button>
+                  </div>
+                </section>
+
+                <section className="management-action-card">
+                  <div className="management-action-copy">
+                    <h3>Import a private key</h3>
+                    <p>The SDK verifies the OMS enclave and encrypts the key before sending it.</p>
+                  </div>
+                  <div className="management-form-grid">
+                    <label>
+                      Wallet type
+                      <span className="select-control">
+                        <select
+                          value={importWalletType}
+                          onChange={(event) =>
+                            setImportWalletType(event.target.value as WalletType)
+                          }
+                          disabled={isBusy}
+                        >
+                          <option value={WalletType.Ethereum}>Ethereum</option>
+                          <option value={WalletType.Solana}>Solana</option>
+                        </select>
+                      </span>
+                    </label>
+                    <label>
+                      Wallet reference
+                      <input
+                        value={importWalletReference}
+                        onChange={(event) => setImportWalletReference(event.target.value)}
+                        placeholder="Optional label"
+                      />
+                    </label>
+                    <label className="management-form-wide">
+                      Test private key
+                      <input
+                        type="password"
+                        value={importPrivateKey}
+                        onChange={(event) => setImportPrivateKey(event.target.value)}
+                        placeholder="Hex or base58 private key"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary management-form-action"
+                      onClick={() => void importManagedWallet()}
+                      disabled={isBusy || !importPrivateKey.trim()}
+                    >
+                      Import private key
+                    </button>
+                  </div>
+                  <p className="field-hint">
+                    Development trusts a debug enclave measurement. Use only a disposable test key.
+                  </p>
+                </section>
+
+                <section className="management-action-card privy-import-card">
+                  <div className="management-action-heading">
+                    <div className="management-action-copy">
+                      <h3>Import from Privy</h3>
+                      <p>
+                        Create a disposable Ethereum server wallet and import it without exposing
+                        its private key to the browser.
+                      </p>
+                    </div>
+                    <span className="metadata-pill">{privyBackendLabel(privyBackendStatus)}</span>
+                  </div>
+
+                  <div className="management-form-grid">
+                    <label className="management-form-wide">
+                      OMS wallet reference
+                      <input
+                        value={privyWalletReference}
+                        onChange={(event) => setPrivyWalletReference(event.target.value)}
+                        placeholder="Optional label"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="management-form-action"
+                      onClick={() => void importPrivyWallet()}
+                      disabled={isBusy || privyBackendStatus !== 'ready'}
+                    >
+                      Create and import test wallet
+                    </button>
+                  </div>
+
+                  {privyWalletSetupStatus && <output>{privyWalletSetupStatus}</output>}
+
+                  {privyBackendStatus === 'unavailable' && (
+                    <p className="field-hint">
+                      The deployed Privy test backend is unavailable. Try again later.
+                    </p>
+                  )}
+
+                  <ol className="import-progress" aria-label="Privy wallet import progress">
+                    <PrivyImportProgressItem
+                      number="1"
+                      title="Verify OMS recipient key"
+                      detail="The SDK checks the enclave attestation before accepting its public key."
+                      status={privyImportProgress.recipient}
+                    />
+                    <PrivyImportProgressItem
+                      number="2"
+                      title="Create and export Privy wallet"
+                      detail="The test backend creates a disposable wallet and asks Privy to encrypt it to that public key."
+                      status={privyImportProgress.export}
+                    />
+                    <PrivyImportProgressItem
+                      number="3"
+                      title="Import and activate in OMS"
+                      detail="The browser sends only Privy's HPKE ciphertext to OMS."
+                      status={privyImportProgress.import}
+                    />
+                  </ol>
+
+                  {privyImportError && <output className="import-error">{privyImportError}</output>}
+
+                  <details className="technical-details">
+                    <summary>Technical details</summary>
+                    <p>
+                      Uses P-256, SHA-256, and ChaCha20-Poly1305. Privy credentials stay in the
+                      Cloudflare Worker; the browser receives only ciphertext and the encapsulated
+                      key.
+                    </p>
+                  </details>
+                </section>
+
                 {activeWalletStatus && <output>{activeWalletStatus}</output>}
               </div>
             </details>
@@ -865,6 +1365,115 @@ function App() {
       )}
     </main>
   );
+}
+
+function formatWalletKeyOrigin(wallet: WalletAccount): string {
+  return wallet.keyOrigin === 'imported' ? 'Imported key' : 'Enclave key';
+}
+
+function PrivyImportProgressItem(props: {
+  number: string;
+  title: string;
+  detail: string;
+  status: PrivyImportStepStatus;
+}) {
+  return (
+    <li data-status={props.status} aria-current={props.status === 'active' ? 'step' : undefined}>
+      <span className="import-progress-marker" aria-hidden="true">
+        {props.status === 'complete' ? (
+          '✓'
+        ) : props.status === 'error' ? (
+          '!'
+        ) : props.status === 'active' ? (
+          <span className="import-progress-spinner" />
+        ) : (
+          props.number
+        )}
+      </span>
+      <span>
+        <strong>{props.title}</strong>
+        <small>{props.detail}</small>
+      </span>
+    </li>
+  );
+}
+
+function createPrivyImportProgressTimeline(
+  setProgress: React.Dispatch<React.SetStateAction<PrivyImportProgress>>
+) {
+  let activeSince = Date.now();
+  let timeline = Promise.resolve();
+
+  return {
+    show(
+      progress: PrivyImportProgress | ((current: PrivyImportProgress) => PrivyImportProgress),
+      onShown?: () => void
+    ) {
+      timeline = timeline.then(async () => {
+        const remaining = PRIVY_IMPORT_STEP_MINIMUM_MS - (Date.now() - activeSince);
+        if (remaining > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+        }
+        setProgress(progress);
+        onShown?.();
+        activeSince = Date.now();
+      });
+    },
+    finished() {
+      return timeline;
+    }
+  };
+}
+
+function privyBackendLabel(status: PrivyBackendStatus): string {
+  switch (status) {
+    case 'ready':
+      return 'Test backend ready';
+    case 'unavailable':
+      return 'Backend unavailable';
+    default:
+      return 'Checking backend';
+  }
+}
+
+async function createAndExportPrivyWallet(
+  recipientPublicKey: string
+): Promise<PrivyWalletExportResponse> {
+  const response = await fetch(PRIVY_EXPORT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recipientPublicKey })
+  });
+  const body: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      isRecord(body) && typeof body.error === 'string'
+        ? body.error
+        : `Privy test wallet export failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  if (
+    !isRecord(body) ||
+    typeof body.walletId !== 'string' ||
+    typeof body.address !== 'string' ||
+    typeof body.ciphertext !== 'string' ||
+    typeof body.encapsulatedKey !== 'string'
+  ) {
+    throw new Error('The Privy test backend returned an invalid encrypted wallet.');
+  }
+
+  return {
+    walletId: body.walletId,
+    address: body.address,
+    ciphertext: body.ciphertext,
+    encapsulatedKey: body.encapsulatedKey
+  };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 createRoot(document.getElementById('root')!).render(

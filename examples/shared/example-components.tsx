@@ -270,11 +270,13 @@ export function WalletSelectionPanel({
 export function FeeOptionsPanel({
   feeOptions,
   panelClassName = 'fee-options',
+  allowUnknownBalance = false,
   onCancel,
   onChoose
 }: {
   feeOptions: FeeOptionWithBalance[];
   panelClassName?: string;
+  allowUnknownBalance?: boolean;
   onCancel: () => void;
   onChoose: (option: FeeOptionWithBalance) => void;
 }) {
@@ -289,7 +291,9 @@ export function FeeOptionsPanel({
         <h2 id="fee-options-title">Fee option</h2>
         <div className="fee-option-list">
           {feeOptions.map((option) => {
-            const canAfford = canAffordFeeOption(option);
+            const canAfford =
+              (allowUnknownBalance && option.availableRaw === undefined) ||
+              canAffordFeeOption(option);
 
             return (
               <button

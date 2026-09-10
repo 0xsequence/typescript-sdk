@@ -9,9 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@polygonlabs/oms-wallet": "workspace:*",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "@polygonlabs/oms-wallet": "workspace:*",
     "viem": "^2.48.4"
   },
   "devDependencies": {

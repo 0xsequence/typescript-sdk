@@ -8,6 +8,12 @@ yarn-error.log*
 *.tsbuildinfo
 .env.local
 .env.*.local
+examples/smart-session/.dev.vars
+examples/helpers/privy-import-worker/.dev.vars
+examples/helpers/privy-import-worker/.wrangler/
+examples/smart-session/.wrangler/
+examples/smart-session/.env.cloudflare.local
+examples/smart-session/wrangler.deploy.generated.json
 /.pnp
 .pnp.js
 

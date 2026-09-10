@@ -37,12 +37,18 @@ export function createSignedFetch(
 
     const signatureHeader = await buildWalletSignatureHeader(endpoint, signer, body, projectId);
 
-    const existingHeaders = (init?.headers ?? {}) as Record<string, string>;
-    const headers: Record<string, string> = {
-      ...existingHeaders,
-      'Api-Key': publishableKey,
-      'OMS-Wallet-Signature': signatureHeader
-    };
+    const headers: Record<string, string> = {};
+    if (init?.headers instanceof Headers) {
+      init.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+    } else if (Array.isArray(init?.headers)) {
+      Object.assign(headers, Object.fromEntries(init.headers));
+    } else if (init?.headers) {
+      Object.assign(headers, init.headers);
+    }
+    headers['Api-Key'] = publishableKey;
+    headers['OMS-Wallet-Signature'] = signatureHeader;
 
     return globalThis.fetch(input, { ...init, headers });
   };

@@ -305,30 +305,34 @@ function memberDeclarationTexts(declarations, checker, exportsByName, displayNam
 function declarationTexts(symbol, checker, exportsByName) {
   const seen = new Set();
   const declarations = [];
-  const exportedSymbols = new Set(exportsByName.values());
 
   for (const declaration of symbol.declarations || []) {
+    const sourceFile = declaration.getSourceFile();
     const printable = ts.isVariableDeclaration(declaration)
-      ? declaration.parent.parent
+      ? ts.factory.updateVariableStatement(
+          declaration.parent.parent,
+          declaration.parent.parent.modifiers,
+          ts.factory.updateVariableDeclarationList(declaration.parent, [declaration])
+        )
       : declaration;
-    const sourceFile = printable.getSourceFile();
     const key = `${sourceFile.fileName}:${printable.pos}:${printable.end}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
-    const text =
-      ts.isClassDeclaration(printable) ||
-      ts.isInterfaceDeclaration(printable) ||
-      ts.isTypeAliasDeclaration(printable)
-        ? transformedNodeText(printable, checker, exportsByName, symbol.name)
-        : printable.getText(sourceFile);
+    const text = transformedNodeText(printable, checker, exportsByName, symbol.name, sourceFile);
     declarations.push(text.trim());
   }
 
   return declarations;
 }
 
-function transformedNodeText(node, checker, exportsByName, displayName) {
+function transformedNodeText(
+  node,
+  checker,
+  exportsByName,
+  displayName,
+  sourceFile = node.getSourceFile()
+) {
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed, removeComments: true });
   const { node: transformed, removedSupportNames } = transformPublicNode(
     node,
@@ -336,7 +340,7 @@ function transformedNodeText(node, checker, exportsByName, displayName) {
     new Set(exportsByName.values()),
     displayName
   );
-  const text = printer.printNode(ts.EmitHint.Unspecified, transformed, node.getSourceFile());
+  const text = printer.printNode(ts.EmitHint.Unspecified, transformed, sourceFile);
   const leaked = [...removedSupportNames].filter((name) =>
     new RegExp(`\\b${escapeRegExp(name)}\\b`).test(text)
   );

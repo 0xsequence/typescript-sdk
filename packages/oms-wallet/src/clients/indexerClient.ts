@@ -1,13 +1,16 @@
-// Minimal hand-written IndexerGateway adapter for the SDK surface we expose.
+// Minimal hand-written indexer gateway adapters for the SDK surface we expose.
 
 import type { OMSWalletUpstreamError } from '../errors.js';
-import type { Network } from '../networks.js';
+import type { Network, SolanaNetwork } from '../networks.js';
 
 import { errorMessage, OMSWalletRequestError, OMSWalletResponseError } from '../errors.js';
 import { HttpClient } from '../httpClient.js';
+import { SolanaNetworks } from '../networks.js';
 import { IndexerOperation } from '../operations.js';
 
-const WebrpcHeaderValue = 'webrpc@v0.31.2;gen-typescript@v0.23.1;sequence-indexer@v0.4.0';
+const IndexerWebrpcHeaderValue = 'webrpc@v0.31.2;gen-typescript@v0.23.1;sequence-indexer@v0.4.0';
+const SolanaIndexerWebrpcHeaderValue =
+  'webrpc@v0.31.2;gen-typescript@v0.23.1;solana-indexer-gateway@v1';
 
 export type IndexerNetworkType = 'MAINNETS' | 'TESTNETS' | 'ALL';
 export type ContractVerificationStatus = 'VERIFIED' | 'UNVERIFIED' | 'ALL';
@@ -146,6 +149,59 @@ export interface BalancesResult {
   page?: TokenBalancesPage;
   nativeBalances: NativeTokenBalance[];
   balances: ContractTokenBalance[];
+}
+
+export interface GetSolanaBalancesParams {
+  walletAddress: string;
+  networks?: SolanaNetwork[];
+  includeMetadata?: boolean;
+  omitNativeBalances?: boolean;
+  mintAddresses?: string[];
+  excludedMintAddresses?: string[];
+}
+
+export type SolanaVerificationStatus = 'verified' | 'unverified' | 'unknown';
+export type SolanaVerificationSource = 'jupiter' | 'solflare-utl' | 'none';
+
+export interface SolanaBalanceBase {
+  network: SolanaNetwork;
+  accountAddress: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+  balance: string;
+  formattedBalance: string;
+  imageUrl?: string;
+  metadataUri?: string;
+  verificationStatus: SolanaVerificationStatus;
+  verificationSource: SolanaVerificationSource;
+  priceUSD?: string;
+  balanceUSD?: string;
+}
+
+export interface SolanaNativeBalance extends SolanaBalanceBase {
+  assetType: 'native';
+  tokenProgram?: undefined;
+  mintAddress?: undefined;
+}
+
+export interface SolanaFungibleTokenBalance extends SolanaBalanceBase {
+  assetType: 'fungible-token';
+  tokenProgram: 'spl-token' | 'token-2022';
+  mintAddress: string;
+}
+
+export type SolanaBalance = SolanaNativeBalance | SolanaFungibleTokenBalance;
+
+export interface SolanaNetworkError {
+  network: SolanaNetwork;
+  reason: string;
+}
+
+export interface SolanaBalancesResult {
+  status: number;
+  balances: SolanaBalance[];
+  errors: SolanaNetworkError[];
 }
 
 export interface TransactionTransfer {
@@ -352,6 +408,46 @@ interface GetTokenBalancesDetailsResponse {
   balances?: GatewayTokenBalance[];
 }
 
+interface GetSolanaTokenBalancesDetailsRequest {
+  networks: SolanaNetwork[];
+  filter: {
+    accountAddresses: string[];
+    omitNativeBalances?: boolean;
+    contractWhitelist?: string[];
+    contractBlacklist?: string[];
+  };
+  omitMetadata: boolean;
+}
+
+interface GetSolanaTokenBalancesDetailsResponse {
+  balances?: unknown;
+  errors?: unknown;
+}
+
+interface SolanaBalanceRaw {
+  network?: unknown;
+  accountAddress?: unknown;
+  assetType?: unknown;
+  tokenProgram?: unknown;
+  mintAddress?: unknown;
+  name?: unknown;
+  symbol?: unknown;
+  decimals?: unknown;
+  balance?: unknown;
+  formattedBalance?: unknown;
+  imageUrl?: unknown;
+  metadataUri?: unknown;
+  verificationStatus?: unknown;
+  verificationSource?: unknown;
+  priceUSD?: unknown;
+  balanceUSD?: unknown;
+}
+
+interface SolanaNetworkErrorRaw {
+  network?: unknown;
+  reason?: unknown;
+}
+
 interface TransactionHistoryFilter {
   accountAddresses: string[];
   contractAddresses?: string[];
@@ -379,10 +475,12 @@ interface GetTransactionHistoryResponse {
 
 interface IndexerClientEnvironment {
   indexerGatewayUrl: string;
+  solanaIndexerGatewayUrl: string;
 }
 
 export interface OMSWalletIndexerClient {
   getBalances(params: GetBalancesParams): Promise<BalancesResult>;
+  getSolanaBalances(params: GetSolanaBalancesParams): Promise<SolanaBalancesResult>;
   getTransactionHistory(params: GetTransactionHistoryParams): Promise<TransactionHistoryResult>;
 }
 
@@ -429,6 +527,35 @@ export class IndexerClient implements OMSWalletIndexerClient {
         mapNativeTokenBalance
       ),
       balances: flattenGatewayResults(response.payload.balances).map(mapContractTokenBalance)
+    }));
+  }
+
+  async getSolanaBalances(params: GetSolanaBalancesParams): Promise<SolanaBalancesResult> {
+    const request: GetSolanaTokenBalancesDetailsRequest = {
+      networks: params.networks ?? [SolanaNetworks.mainnet, SolanaNetworks.devnet],
+      filter: {
+        accountAddresses: [params.walletAddress],
+        omitNativeBalances: params.omitNativeBalances,
+        contractWhitelist: nonEmpty(params.mintAddresses),
+        contractBlacklist: nonEmpty(params.excludedMintAddresses)
+      },
+      omitMetadata: params.includeMetadata === false
+    };
+
+    const response = await this.postJson<GetSolanaTokenBalancesDetailsResponse>(
+      IndexerOperation.getSolanaBalances,
+      {
+        baseUrl: this.environment.solanaIndexerGatewayUrl,
+        path: '/GetTokenBalancesDetails',
+        body: JSON.stringify(request),
+        headers: this.defaultHeaders(SolanaIndexerWebrpcHeaderValue)
+      }
+    );
+
+    return this.decodeResponse(IndexerOperation.getSolanaBalances, response.statusCode, () => ({
+      status: response.statusCode,
+      balances: requiredArray(response.payload.balances, 'balances').map(mapSolanaBalance),
+      errors: requiredArray(response.payload.errors, 'errors').map(mapSolanaNetworkError)
     }));
   }
 
@@ -562,11 +689,11 @@ export class IndexerClient implements OMSWalletIndexerClient {
     return this.environment.indexerGatewayUrl;
   }
 
-  private defaultHeaders(): Record<string, string> {
+  private defaultHeaders(webrpcHeaderValue = IndexerWebrpcHeaderValue): Record<string, string> {
     const headers: Record<string, string> = {
       'Api-Key': this.publishableKey,
       Accept: 'application/json',
-      Webrpc: WebrpcHeaderValue
+      Webrpc: webrpcHeaderValue
     };
 
     return headers;
@@ -579,6 +706,66 @@ function flattenGatewayResults<T>(groups: Array<{ results?: T[] }> | undefined):
 
 function nonEmpty<T>(values: T[] | undefined): T[] | undefined {
   return values && values.length > 0 ? values : undefined;
+}
+
+function mapSolanaBalance(value: unknown): SolanaBalance {
+  const raw = asObject(value, 'balances[]') as SolanaBalanceRaw;
+  const assetType = requiredStringUnion(raw.assetType, 'balances[].assetType', [
+    'native',
+    'fungible-token'
+  ] as const);
+  const base: SolanaBalanceBase = {
+    network: mapSolanaNetwork(raw.network, 'balances[].network'),
+    accountAddress: requiredString(raw.accountAddress, 'balances[].accountAddress'),
+    name: requiredString(raw.name, 'balances[].name'),
+    symbol: requiredString(raw.symbol, 'balances[].symbol'),
+    decimals: requiredNumber(raw.decimals, 'balances[].decimals'),
+    balance: requiredString(raw.balance, 'balances[].balance'),
+    formattedBalance: requiredString(raw.formattedBalance, 'balances[].formattedBalance'),
+    imageUrl: optionalNonEmptyString(raw.imageUrl, 'balances[].imageUrl'),
+    metadataUri: optionalNonEmptyString(raw.metadataUri, 'balances[].metadataUri'),
+    verificationStatus: requiredStringUnion(
+      raw.verificationStatus,
+      'balances[].verificationStatus',
+      ['verified', 'unverified', 'unknown'] as const
+    ),
+    verificationSource: requiredStringUnion(
+      raw.verificationSource,
+      'balances[].verificationSource',
+      ['jupiter', 'solflare-utl', 'none'] as const
+    ),
+    priceUSD: optionalString(raw.priceUSD, 'balances[].priceUSD'),
+    balanceUSD: optionalString(raw.balanceUSD, 'balances[].balanceUSD')
+  };
+
+  if (assetType === 'native') {
+    if (raw.tokenProgram != null || raw.mintAddress != null) {
+      throw new TypeError('native balances must not include tokenProgram or mintAddress');
+    }
+    return { ...base, assetType };
+  }
+
+  return {
+    ...base,
+    assetType,
+    tokenProgram: requiredStringUnion(raw.tokenProgram, 'balances[].tokenProgram', [
+      'spl-token',
+      'token-2022'
+    ] as const),
+    mintAddress: requiredString(raw.mintAddress, 'balances[].mintAddress')
+  };
+}
+
+function mapSolanaNetworkError(value: unknown): SolanaNetworkError {
+  const raw = asObject(value, 'errors[]') as SolanaNetworkErrorRaw;
+  return {
+    network: mapSolanaNetwork(raw.network, 'errors[].network'),
+    reason: requiredString(raw.reason, 'errors[].reason')
+  };
+}
+
+function mapSolanaNetwork(value: unknown, path: string): SolanaNetwork {
+  return requiredStringUnion(value, path, [SolanaNetworks.mainnet, SolanaNetworks.devnet] as const);
 }
 
 function mapNativeTokenBalance(raw: NativeTokenBalanceRaw): NativeTokenBalance {
@@ -773,6 +960,23 @@ function requiredString(value: unknown, path: string): string {
 
 function optionalString(value: unknown, path: string): string | undefined {
   return value == null ? undefined : requiredString(value, path);
+}
+
+function optionalNonEmptyString(value: unknown, path: string): string | undefined {
+  const stringValue = optionalString(value, path);
+  return stringValue === '' ? undefined : stringValue;
+}
+
+function requiredStringUnion<const Value extends string>(
+  value: unknown,
+  path: string,
+  allowed: readonly Value[]
+): Value {
+  const stringValue = requiredString(value, path);
+  if (!allowed.includes(stringValue as Value)) {
+    throw new TypeError(`${path} must be one of ${allowed.join(', ')}`);
+  }
+  return stringValue as Value;
 }
 
 function requiredNumber(value: unknown, path: string): number {

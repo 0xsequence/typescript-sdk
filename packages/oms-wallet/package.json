@@ -72,6 +72,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@hpke/core": "^1.9.0",
+    "@peculiar/x509": "^1.14.3",
+    "cbor-x": "^1.6.5",
     "viem": "^2.48.4"
   },
   "devDependencies": {

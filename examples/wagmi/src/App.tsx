@@ -579,20 +579,22 @@ export function App() {
                   <h2>Network</h2>
                   <span className="network-meta">{selectedNetwork.nativeTokenSymbol}</span>
                 </div>
-                <select
-                  aria-label="Network"
-                  value={selectedChainId}
-                  onChange={(event) =>
-                    void selectNetwork(Number(event.target.value) as OMSWalletChainId)
-                  }
-                  disabled={isBusy}
-                >
-                  {selectableNetworkOptions.map(({ chain, network }) => (
-                    <option key={chain.id} value={chain.id}>
-                      {network.displayName} ({chain.id})
-                    </option>
-                  ))}
-                </select>
+                <span className="select-control">
+                  <select
+                    aria-label="Network"
+                    value={selectedChainId}
+                    onChange={(event) =>
+                      void selectNetwork(Number(event.target.value) as OMSWalletChainId)
+                    }
+                    disabled={isBusy}
+                  >
+                    {selectableNetworkOptions.map(({ chain, network }) => (
+                      <option key={chain.id} value={chain.id}>
+                        {network.displayName} ({chain.id})
+                      </option>
+                    ))}
+                  </select>
+                </span>
               </div>
             </section>
 

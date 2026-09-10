@@ -4,6 +4,10 @@
       "label": "Fixture API",
       "symbols": [
         "ConfiguredClient.run",
+        "configure",
+        "DefaultConfiguration",
+        "PrimaryConfiguration",
+        "SecondaryConfiguration",
         "PublicClient",
         "PublicError",
         "RunParams",

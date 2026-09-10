@@ -9,6 +9,7 @@ import {
   OMSWalletError,
   OmsRelayOidcProviders,
   SessionStorageManager,
+  WalletImportCipherSuite,
   WalletType,
   WebCryptoP256CredentialSigner,
   isOMSWalletError,
@@ -77,6 +78,40 @@ describe('public API error contracts', () => {
             },
           }
         `);
+  });
+
+  it('snapshots wallet-import attestation failures without upstream details', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).get('X-Attestation-Nonce')).toMatch(
+        /^[A-Za-z0-9./+_=-]{24}$/
+      );
+      return jsonResponse({ keyId: 'key-1', publicKey: 'AQID' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const oms = createOmsClientWithSession({
+      publishableKey: 'pk_stg_sdbx_project_key'
+    });
+
+    await expect(
+      publicError(() =>
+        oms.wallet.getWalletImportRecipientKey({
+          cipherSuite: WalletImportCipherSuite.P256Sha256Aes256Gcm
+        })
+      )
+    ).resolves.toMatchInlineSnapshot(`
+          {
+            "code": "OMS_ATTESTATION_VERIFICATION_FAILED",
+            "message": "WaaS response is missing its attestation document",
+            "name": "OMSWalletResponseError",
+            "operation": "wallet.getWalletImportRecipientKey",
+            "retryable": false,
+            "status": null,
+            "txnId": null,
+            "upstreamError": null,
+          }
+        `);
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('snapshots WaaS domain errors with upstream details', async () => {
@@ -446,10 +481,7 @@ describe('public API error contracts', () => {
         ],
         ['wallet.listAccess', () => oms.wallet.listAccess()],
         ['wallet.listAccessPages', () => iterateAccessPages(oms.wallet.listAccessPages())],
-        [
-          'wallet.revokeAccess',
-          () => oms.wallet.revokeAccess({ targetCredentialId: 'credential-1' })
-        ]
+        ['wallet.revokeAccess', () => oms.wallet.revokeAccess({ credentialId: 'credential-1' })]
       ])
     ).resolves.toMatchInlineSnapshot(`
           [
@@ -931,6 +963,15 @@ describe('public API error contracts', () => {
             })
         ],
         [
+          'wallet.isValidSolanaMessageSignature',
+          () =>
+            oms.wallet.isValidSolanaMessageSignature({
+              walletAddress: '9xQeWvG816bUx9EPjHmaT23yvVMuZwHngkQF5JC9YjCy',
+              message: 'hello',
+              signature: 'base58-signature'
+            })
+        ],
+        [
           'wallet.isValidTypedDataSignature',
           () =>
             oms.wallet.isValidTypedDataSignature({
@@ -966,6 +1007,25 @@ describe('public API error contracts', () => {
                 },
               },
               "label": "wallet.isValidMessageSignature",
+            },
+            {
+              "error": {
+                "code": "OMS_REQUEST_FAILED",
+                "message": "request failed",
+                "name": "OMSWalletRequestError",
+                "operation": "wallet.isValidSolanaMessageSignature",
+                "retryable": true,
+                "status": null,
+                "txnId": null,
+                "upstreamError": {
+                  "code": -1,
+                  "message": "request failed",
+                  "name": "WebrpcRequestFailed",
+                  "service": "waas",
+                  "status": null,
+                },
+              },
+              "label": "wallet.isValidSolanaMessageSignature",
             },
             {
               "error": {
@@ -1275,10 +1335,7 @@ describe('public API error contracts', () => {
       publicErrors([
         ['wallet.listAccess', () => oms.wallet.listAccess()],
         ['wallet.listAccessPages', () => iterateAccessPages(oms.wallet.listAccessPages())],
-        [
-          'wallet.revokeAccess',
-          () => oms.wallet.revokeAccess({ targetCredentialId: 'credential-1' })
-        ]
+        ['wallet.revokeAccess', () => oms.wallet.revokeAccess({ credentialId: 'credential-1' })]
       ])
     ).resolves.toMatchInlineSnapshot(`
           [
@@ -1380,6 +1437,49 @@ describe('public API error contracts', () => {
             "upstreamError": {
               "code": "INDEXER_UNAVAILABLE",
               "message": "Indexer is unavailable",
+              "name": "Unavailable",
+              "service": "indexer",
+              "status": 503,
+            },
+          }
+        `);
+  });
+
+  it('snapshots Solana indexer backend errors with upstream details', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        jsonResponse(
+          {
+            error: 'Unavailable',
+            code: 'SOLANA_INDEXER_UNAVAILABLE',
+            message: 'Solana indexer is unavailable'
+          },
+          503
+        )
+      )
+    );
+
+    const oms = createOmsClient();
+
+    await expect(
+      publicError(() =>
+        oms.indexer.getSolanaBalances({
+          walletAddress: 'solana-wallet'
+        })
+      )
+    ).resolves.toMatchInlineSnapshot(`
+          {
+            "code": "OMS_HTTP_ERROR",
+            "message": "Solana indexer is unavailable",
+            "name": "OMSWalletRequestError",
+            "operation": "indexer.getSolanaBalances",
+            "retryable": true,
+            "status": 503,
+            "txnId": null,
+            "upstreamError": {
+              "code": "SOLANA_INDEXER_UNAVAILABLE",
+              "message": "Solana indexer is unavailable",
               "name": "Unavailable",
               "service": "indexer",
               "status": 503,
@@ -1799,14 +1899,15 @@ function serializeUpstreamError(error: unknown): SerializedUpstreamError | null 
   };
 }
 
-function createOmsClient(
-  params: {
-    credentialSigner?: CredentialSigner;
-    redirectAuthStorage?: StorageManager | null;
-  } = {}
-): OMSWallet {
+type CreateOmsClientParams = {
+  credentialSigner?: CredentialSigner;
+  publishableKey?: string;
+  redirectAuthStorage?: StorageManager | null;
+};
+
+function createOmsClient(params: CreateOmsClientParams = {}): OMSWallet {
   const clientParams: ConstructorParameters<typeof OMSWallet>[0] = {
-    publishableKey: 'pk_dev_sdbx_project_key',
+    publishableKey: params.publishableKey ?? 'pk_dev_sdbx_project_key',
     storage: new MemoryStorageManager(),
     credentialSigner: params.credentialSigner ?? new MockSigner()
   };
@@ -1830,8 +1931,8 @@ class ThrowingSetStorage implements StorageManager {
   delete(): void {}
 }
 
-function createOmsClientWithSession(): OMSWallet {
-  const oms = createOmsClient();
+function createOmsClientWithSession(params: CreateOmsClientParams = {}): OMSWallet {
+  const oms = createOmsClient(params);
   (oms.wallet as any).persistSession('wallet-id', '0x9999999999999999999999999999999999999999', {
     expiresAt: '2099-01-01T00:00:00Z',
     auth: { type: 'email', email: 'user@example.com' },
@@ -1868,13 +1969,15 @@ function completeAuthResponse() {
 function testWallet(id = 'wallet-1', addressByte = '11') {
   return {
     id,
-    type: WalletType.Ethereum,
+    networkFamily: 'evm',
+    keyOrigin: 'enclave',
     address: `0x${addressByte.repeat(20)}`
   };
 }
 
 function testCredential() {
   return {
+    type: 'direct',
     credentialId: '0x04' + '11'.repeat(64),
     expiresAt: '2099-01-01T00:00:00Z',
     isCaller: true

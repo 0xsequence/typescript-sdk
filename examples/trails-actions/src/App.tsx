@@ -225,10 +225,11 @@ function App() {
         positions: null
       };
     }
+    const ethereumWalletAddress = requireWalletAddress(walletAddress);
 
     const [nextBalances, nextPositions] = await Promise.all([
-      refreshBalances(walletAddress, 'Refreshing Polygon balances...'),
-      refreshEarnPositions(walletAddress, 'Refreshing Polygon earn positions...')
+      refreshBalances(ethereumWalletAddress, 'Refreshing Polygon balances...'),
+      refreshEarnPositions(ethereumWalletAddress, 'Refreshing Polygon earn positions...')
     ]);
 
     return {
@@ -273,9 +274,10 @@ function App() {
       setLastWithdrawTransactions({});
       return;
     }
+    const ethereumWalletAddress = requireWalletAddress(walletAddress);
 
-    void refreshBalances(walletAddress);
-    void refreshEarnPositions(walletAddress);
+    void refreshBalances(ethereumWalletAddress);
+    void refreshEarnPositions(ethereumWalletAddress);
   }, [refreshBalances, refreshEarnPositions, walletAddress]);
 
   const sessionDetails = useMemo(
@@ -837,7 +839,14 @@ function App() {
     );
   }
 
-  function waitForFeeOptionSelection(options: FeeOptionWithBalance[]): Promise<FeeOptionSelection> {
+  function waitForFeeOptionSelection(
+    options: FeeOptionWithBalance[]
+  ): Promise<FeeOptionSelection | undefined> {
+    if (options.length === 0) {
+      appendLog('Transaction fee is sponsored.');
+      return Promise.resolve(undefined);
+    }
+
     setFeeOptions(options);
     appendLog('Choose a fee token to continue.');
     return new Promise((resolve, reject) => {
@@ -847,7 +856,13 @@ function App() {
 
   async function selectFirstAvailableFeeOption(
     options: FeeOptionWithBalance[]
-  ): Promise<FeeOptionSelection> {
+  ): Promise<FeeOptionSelection | undefined> {
+    if (options.length === 0) {
+      selectedFeeOption.current = null;
+      appendLog('Transaction fee is sponsored.');
+      return undefined;
+    }
+
     const selection = await FeeOptionSelector.firstAvailable(options);
     if (!selection) {
       throw new Error('No fee option has enough balance.');

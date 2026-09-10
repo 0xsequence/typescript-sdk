@@ -101,7 +101,13 @@ export class OMSWalletProvider {
       return [];
     }
     const address = (await this.getOmsWallet()).wallet.walletAddress;
-    return address ? [getAddress(address)] : [];
+    if (!address) {
+      return [];
+    }
+    if (!isAddress(address)) {
+      throw new OMSWalletProviderRpcError(4100, 'The active OMS wallet is not an Ethereum wallet.');
+    }
+    return [getAddress(address)];
   }
 
   private async requireAccount(): Promise<Address> {

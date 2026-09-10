@@ -244,9 +244,98 @@ await omsWallet.wallet.signOut()
 
 ## Core Workflows
 
-### Sign and Verify Messages
+### Manage and Import Wallets
+
+`listWallets`, `useWallet`, and `createWallet` manage the wallets attached to the authenticated
+account. Every returned wallet includes `keyOrigin`, which is `WalletKeyOrigin.Enclave` for a key
+created by WaaS and `WalletKeyOrigin.Imported` for an imported key.
+
+Wallet import verifies AWS Nitro enclave attestations against the measurements managed by each OMS
+environment. Development uses Nitro debug mode, whose all-zero PCR0 does not identify a specific
+enclave image; use only disposable test keys there. Staging and Production accept only the release
+measurements shipped by the SDK.
 
 ```typescript
+import {
+  OMSWallet,
+  WalletImportCipherSuite,
+  WalletKeyOrigin,
+  WalletType,
+} from '@polygonlabs/oms-wallet'
+
+const omsWallet = new OMSWallet({
+  publishableKey: 'your-publishable-key',
+})
+
+const { wallet } = await omsWallet.wallet.importWallet({
+  type: WalletType.Ethereum,
+  privateKey: process.env.TEST_EVM_PRIVATE_KEY!,
+  reference: 'Imported test wallet',
+})
+
+console.log(wallet.keyOrigin === WalletKeyOrigin.Imported)
+```
+
+The high-level method validates the key locally, fetches an attested recipient key, verifies the
+Nitro certificate chain, PCR0, freshness, nonce, signature, and request/response binding, and HPKE
+encrypts the private key before sending it. EVM keys can be 32 raw bytes or hexadecimal text;
+Solana keys can be a 32-byte seed, 64-byte keypair, or base58 text. Imported keys are never stored
+by the SDK. Import also works while a manual wallet selection is pending, provided its wallet type
+matches the pending selection.
+
+Custody systems that perform HPKE themselves can call `getWalletImportRecipientKey` followed by
+`importEncryptedWallet`. These advanced methods expose base64 key material and all WaaS-supported
+`WalletImportCipherSuite` values; the SDK still verifies attestation on both requests.
+
+For a Privy server-wallet migration, request Privy's supported suite and send the returned public
+key to an application-backend endpoint that calls Privy's wallet export API. Never call Privy with
+an app secret from browser code.
+
+```typescript
+const recipient = await omsWallet.wallet.getWalletImportRecipientKey({
+  cipherSuite: WalletImportCipherSuite.P256Sha256ChaCha20Poly1305,
+})
+
+// The application backend sends this value to Privy as `recipient_public_key`.
+const privyExport: {
+  encapsulated_key: string
+  ciphertext: string
+} = await exportPrivyWalletOnYourBackend(recipient.publicKey)
+
+await omsWallet.wallet.importEncryptedWallet({
+  type: WalletType.Ethereum,
+  keyMaterial: {
+    keyId: recipient.keyId,
+    cipherSuite: recipient.cipherSuite,
+    encapsulatedKey: privyExport.encapsulated_key,
+    ciphertext: privyExport.ciphertext,
+  },
+})
+```
+
+The backend's Privy export request uses `encryption_type: "HPKE"` and
+`recipient_public_key: recipient.publicKey`. Privy exports an individual wallet private key; derive
+the intended child key before import when migrating from a mnemonic or HD root.
+
+For cross-origin browser use, the WaaS deployment must include `X-Attestation-Document` in
+`Access-Control-Expose-Headers` so the SDK can read and verify it.
+
+### Sign and Verify EVM Messages
+
+EVM message signing and verification require an Ethereum wallet. Signing requires a network;
+verification can omit it for EOA signatures but requires it for smart-wallet signatures. Narrow the
+active wallet account before passing its address to the verification method:
+
+```typescript
+import { Networks, WalletType } from '@polygonlabs/oms-wallet'
+
+const activeWallet = (await omsWallet.wallet.listWallets()).find(
+  (wallet) => wallet.address === omsWallet.wallet.walletAddress,
+)
+if (activeWallet?.type !== WalletType.Ethereum) {
+  throw new Error('An Ethereum wallet is required')
+}
+
 const signature = await omsWallet.wallet.signMessage({
   network: Networks.amoy,
   message: 'some message to sign',
@@ -254,7 +343,7 @@ const signature = await omsWallet.wallet.signMessage({
 
 const isValid = await omsWallet.wallet.isValidMessageSignature({
   network: Networks.amoy,
-  walletAddress: omsWallet.wallet.walletAddress,
+  walletAddress: activeWallet.address,
   message: 'some message to sign',
   signature,
 })
@@ -263,6 +352,15 @@ const isValid = await omsWallet.wallet.isValidMessageSignature({
 ### Sign and Verify Typed Data
 
 ```typescript
+import { Networks, WalletType } from '@polygonlabs/oms-wallet'
+
+const activeWallet = (await omsWallet.wallet.listWallets()).find(
+  (wallet) => wallet.address === omsWallet.wallet.walletAddress,
+)
+if (activeWallet?.type !== WalletType.Ethereum) {
+  throw new Error('An Ethereum wallet is required')
+}
+
 const signature = await omsWallet.wallet.signTypedData({
   network: Networks.amoy,
   typedData,
@@ -270,7 +368,7 @@ const signature = await omsWallet.wallet.signTypedData({
 
 const isValid = await omsWallet.wallet.isValidTypedDataSignature({
   network: Networks.amoy,
-  walletAddress: omsWallet.wallet.walletAddress,
+  walletAddress: activeWallet.address,
   typedData,
   signature,
 })
@@ -296,6 +394,83 @@ for (const b of result.balances) {
   console.log(b.contractInfo?.symbol, b.balance, b.contractInfo?.decimals)
 }
 ```
+
+### Query Solana Balances
+
+Use `getSolanaBalances` for native SOL and fungible SPL-token balances. Omit `networks` to query both
+Solana Mainnet and Devnet, or pass either supported network explicitly. Results contain
+precision-safe raw and formatted balance strings. Individual network failures are reported in
+`errors` without discarding balances returned by the other requested network.
+
+```typescript
+import { SolanaNetworks } from '@polygonlabs/oms-wallet'
+
+const result = await omsWallet.indexer.getSolanaBalances({
+  walletAddress: 'vn3YnndV3gGu7DrHSQAPfywmba7QPq18SvA7PSiytAV',
+  networks: [SolanaNetworks.mainnet, SolanaNetworks.devnet],
+  includeMetadata: true,
+})
+
+for (const balance of result.balances) {
+  console.log(balance.network, balance.symbol, balance.formattedBalance)
+}
+
+for (const error of result.errors) {
+  console.warn(error.network, error.reason)
+}
+```
+
+Solana wallets support off-chain message signing and verification without a network argument because
+off-chain messages are not cluster-specific. Solana verification has a separate method from EVM
+message verification:
+
+```typescript
+import { WalletType } from '@polygonlabs/oms-wallet'
+
+const { wallet } = await omsWallet.wallet.createWallet({ type: WalletType.Solana })
+
+const signature = await omsWallet.wallet.signSolanaMessage({
+  message: 'some message to sign',
+})
+
+const isValid = await omsWallet.wallet.isValidSolanaMessageSignature({
+  walletAddress: wallet.address,
+  message: 'some message to sign',
+  signature,
+})
+```
+
+Use `sendSolanaTransfer` for native SOL or SPL-token transfers. Amounts use the asset's smallest
+unit: lamports for SOL and base units for SPL tokens. Transfers use relayer mode by default, so the
+network fee is sponsored. If an SPL transfer must create the recipient's associated token account,
+WaaS returns fee options for the account rent; the SDK uses a supplied fee selector or the first
+option by default. Pass `mode: TransactionMode.Native` to explicitly prepare a self-funded transfer
+instead.
+
+```typescript
+import { SolanaNetworks } from '@polygonlabs/oms-wallet'
+
+const solTransfer = await omsWallet.wallet.sendSolanaTransfer({
+  network: SolanaNetworks.devnet,
+  asset: 'SOL',
+  to: '3gFktQX6vki5M2DzN8Y1ESPUJ4fJ8o6hVQWf8vYvPypD',
+  amount: 1_000_000n, // 0.001 SOL
+})
+
+const splTransfer = await omsWallet.wallet.sendSolanaTransfer({
+  network: SolanaNetworks.devnet,
+  asset: 'So11111111111111111111111111111111111111112',
+  to: '3gFktQX6vki5M2DzN8Y1ESPUJ4fJ8o6hVQWf8vYvPypD',
+  amount: 1n,
+})
+
+console.log(solTransfer.txnHash ?? solTransfer.txnId)
+console.log(splTransfer.txnHash ?? splTransfer.txnId)
+```
+
+For SPL transfers, the recipient is a wallet address rather than an associated token account. WaaS
+uses the recipient's existing associated token account or creates it when necessary. In relayer mode,
+only the rent for a newly created token account is paid through the returned fee options.
 
 Pass `contractAddresses` to filter balances to specific token contracts. Omit `networks` to query mainnets by default, or pass `networkType: 'TESTNETS'` / `'ALL'`. With `includeMetadata: true`, ERC-20 decimals are available as `contractInfo.decimals`. The response is paginated; pass `page` when requesting later pages.
 
@@ -439,12 +614,16 @@ await omsWallet.wallet.sendTransaction({
 ```
 
 If the wallet API returns fee options, pass a selector to choose one. The
-selector receives `FeeOptionWithBalance` values. `balance` is the selected
-wallet's raw indexer balance for that fee token when available, `available` is
-formatted with the token decimals, `availableRaw` keeps the raw integer value,
-and `decimals` is the token decimal count used for formatting. Use
+selector receives `FeeOptionWithBalance` values. For Ethereum fees, `balance`
+contains the matching `TokenBalance` when available. For both Ethereum and Solana fees,
+`available` is formatted with the token decimals, `availableRaw` keeps the raw integer
+value, and `decimals` is the token decimal count used for formatting. Use
 `FeeOptionSelector.firstAvailable` to choose the first option the wallet can
-pay, or return `option.selection` from a custom selector.
+pay on Ethereum or Solana, or return `option.selection` from a custom selector. A
+sponsored transaction invokes the selector with an empty array. Resolve with `undefined`
+after acknowledging the free fee, or throw to stop execution.
+`FeeOptionSelector.firstAvailable` returns `undefined` for that empty array and continues
+execution as before.
 
 ```typescript
 const tx = await omsWallet.wallet.sendTransaction({
@@ -452,6 +631,10 @@ const tx = await omsWallet.wallet.sendTransaction({
   to: '0x3333333333333333333333333333333333333333',
   data: '0x12345678',
   selectFeeOption: async (feeOptions) => {
+    if (feeOptions.length === 0) {
+      // Present the sponsored transaction for confirmation here.
+      return undefined
+    }
     const selected = feeOptions.find(option => option.feeOption.token.symbol === 'USDC')
     return selected?.selection
   },
@@ -579,8 +762,109 @@ for await (const page of omsWallet.wallet.listAccessPages({ pageSize: 25 })) {
   console.log('Page:', page.grants)
 }
 
-await omsWallet.wallet.revokeAccess({ targetCredentialId: grants[0].credentialId })
+await omsWallet.wallet.revokeAccess({ credentialId: grants[0].credentialId })
 ```
+
+### Smart Sessions
+
+The wallet owner can inspect a remote credential and authorize a bounded Ethereum session. The
+authorization result (`walletId`, `sessionId`) is sent to the remote application, which uses it to
+operate within the granted limits.
+
+```typescript
+const credentialId = 'remote-credential-id'
+const metadata = await omsWallet.wallet.inspectRemoteCredential({ credentialId })
+showConsentScreen(metadata)
+
+const session = await omsWallet.wallet.authorizeRemoteAccess({
+  credentialId,
+  network: Networks.polygon,
+  expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  grants: [
+    { kind: 'nativeTransfer', to: '0x1111111111111111111111111111111111111111', limit: 1_000_000_000_000_000n },
+    { kind: 'erc20Transfer', token: '0x2222222222222222222222222222222222222222', limit: 10_000_000n, cumulative: true },
+  ],
+})
+
+const sessionDetails = await omsWallet.wallet.getRemoteAccessSession({
+  sessionId: session.sessionId,
+})
+const usage = await omsWallet.wallet.getRemoteAccessSessionUsage({
+  sessionId: session.sessionId,
+  network: Networks.polygon,
+})
+
+await omsWallet.wallet.revokeAccess({
+  credentialId,
+  sessionId: session.sessionId,
+})
+```
+
+A backend uses `RemoteAccessClient` with its own persistent credential signer. Registration returns
+the WaaS credential ID that the owner authorizes; it is distinct from the signer's public address.
+The backend must store the owner's returned `walletId` and `sessionId` out of band.
+
+```typescript
+import {
+  EthereumPrivateKeyCredentialSigner,
+  Networks,
+  RemoteAccessClient,
+  feeOptionSelection,
+} from '@polygonlabs/oms-wallet'
+import { hexToBytes } from 'viem'
+
+const signer = new EthereumPrivateKeyCredentialSigner(
+  hexToBytes(process.env.RAC_PRIVATE_KEY as `0x${string}`),
+)
+const remoteAccess = new RemoteAccessClient({
+  publishableKey: process.env.OMS_PUBLISHABLE_KEY!,
+  credentialSigner: signer,
+})
+
+const registered = await remoteAccess.registerCredential({
+  lifetimeSeconds: 7 * 24 * 60 * 60,
+  metadata: {
+    appName: 'Example admin',
+    appUrl: 'https://admin.example',
+    appLogoUrl: '',
+    custom: {},
+  },
+})
+
+// Send registered.credentialId to the owner, then receive and persist the
+// walletId and sessionId returned by authorizeRemoteAccess.
+// These reads are scoped by the backend credential: one RAC can only see
+// sessions that owners authorized for that RAC.
+const sessions = await remoteAccess.listSessions()
+for await (const page of remoteAccess.listSessionPages({ pageSize: 25 })) {
+  console.log(page.sessions)
+}
+const sessionDetails = await remoteAccess.getSession({ sessionId })
+const usage = await remoteAccess.getSessionUsage({ sessionId, network: Networks.amoy })
+
+const prepared = await remoteAccess.prepareTransaction({
+  walletId,
+  sessionId,
+  network: Networks.amoy,
+  to: '0x1111111111111111111111111111111111111111',
+  value: 1_000_000_000_000_000n,
+})
+
+const feeOption = prepared.sponsored ? undefined : prepared.feeOptions[0]
+if (!prepared.sponsored && !feeOption) throw new Error('No fee option available')
+
+await remoteAccess.executeTransaction({
+  txnId: prepared.txnId,
+  feeOption: feeOption ? feeOptionSelection(feeOption, 0) : undefined,
+})
+
+const status = await remoteAccess.getTransactionStatus({ txnId: prepared.txnId })
+```
+
+The signer must allocate strictly increasing nonces across concurrent backend instances. A
+long-running single process can reuse `EthereumPrivateKeyCredentialSigner`; distributed runtimes
+should wrap `CredentialSigner` with a shared atomic nonce store. The
+[`examples/smart-session`](../../examples/smart-session) Cloudflare example uses D1 for this.
 
 ## React Example
 

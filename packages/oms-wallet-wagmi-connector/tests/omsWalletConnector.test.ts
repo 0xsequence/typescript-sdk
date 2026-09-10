@@ -72,6 +72,20 @@ describe('omsWalletConnector', () => {
     ).rejects.toThrow('Authenticate with the OMS Wallet SDK before connecting through wagmi.');
   });
 
+  it('rejects connect when the active OMS wallet is not an Ethereum wallet', async () => {
+    const omsWallet = createOmsWallet({
+      walletAddress: '9xQeWvG816bUx9EPjHmaT23yvVMuZwHngkQF5JC9YjCy'
+    });
+    const config = createWagmiConfig(omsWallet);
+
+    await expect(
+      connect(config, {
+        connector: config.connectors[0],
+        chainId: polygon.id
+      })
+    ).rejects.toThrow('The active OMS wallet is not an Ethereum wallet.');
+  });
+
   it('rejects connect when initialChainId is not configured in wagmi', async () => {
     const omsWallet = createOmsWallet({
       walletAddress: '0x9999999999999999999999999999999999999999'

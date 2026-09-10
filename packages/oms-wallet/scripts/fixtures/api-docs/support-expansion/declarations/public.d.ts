@@ -28,6 +28,13 @@ export interface ConfiguredClient {
   run(params: ManualSelection<RunParams>): void;
 }
 
+export declare function configure(params: ConstructorParams<string>): void;
+
+export declare const DefaultConfiguration: ConstructorParams<boolean>;
+
+export declare const PrimaryConfiguration: ConstructorParams<string>,
+  SecondaryConfiguration: ConstructorParams<number>;
+
 export declare class PublicClient {
   private readonly hiddenState;
   constructor(params: ConstructorParams<number>);

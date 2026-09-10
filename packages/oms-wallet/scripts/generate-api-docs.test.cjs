@@ -9,7 +9,7 @@ const projectRoot = path.resolve(__dirname, '..');
 const generator = path.join(__dirname, 'generate-api-docs.cjs');
 const fixturesRoot = path.join(__dirname, 'fixtures', 'api-docs');
 
-test('expands generic support types in configured members and public classes', () => {
+test('expands generic support types in configured members and exported declarations', () => {
   const result = runFixture('support-expansion');
   assert.equal(result.status, 0, result.stderr);
 
@@ -26,6 +26,16 @@ test('expands generic support types in configured members and public classes', (
     api,
     /execute\(params: Omit<RunParams, "walletSelection"> & \{\s+walletSelection\?: "automatic";\s+\}\): void;/
   );
+  assert.match(
+    api,
+    /configure\(params: \{\s+value: string;\s+provider: BrandedProvider;\s+\}\): void;/
+  );
+  assert.match(
+    api,
+    /DefaultConfiguration: \{\s+value: boolean;\s+provider: BrandedProvider;\s+\};/
+  );
+  assert.equal(api.match(/\bPrimaryConfiguration\b/g)?.length, 2);
+  assert.equal(api.match(/\bSecondaryConfiguration\b/g)?.length, 2);
   assert.match(api, /code\?: "FIXTURE_ONE" \| "FIXTURE_TWO";/);
 
   for (const inaccessibleName of [

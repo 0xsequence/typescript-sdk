@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { MemoryStorageManager, Networks, OMSWallet } from '@polygonlabs/oms-wallet';
+import { MemoryStorageManager, Networks, OMSWallet, WalletType } from '@polygonlabs/oms-wallet';
 import { config as loadDotenv } from 'dotenv';
 import solc from 'solc';
 import { encodeDeployData, getContractAddress, isAddress, parseAbi } from 'viem';
@@ -59,7 +59,11 @@ async function main() {
 
   console.log(`[auth] completeEmailAuth("${mask(code)}")`);
   const authResult = await omsWallet.wallet.completeEmailAuth({ code });
-  console.log(`[auth] logged in as ${authResult.walletAddress}`);
+  if (authResult.wallet.type !== WalletType.Ethereum) {
+    throw new Error('The contract deployment example requires an Ethereum wallet.');
+  }
+  const walletAddress = authResult.wallet.address;
+  console.log(`[auth] logged in as ${walletAddress}`);
   console.log();
 
   const tokenConfig = await promptTokenConfig();
@@ -100,7 +104,7 @@ async function main() {
 
   const artifactPath = writeDeployArtifact({
     tokenConfig,
-    walletAddress: authResult.walletAddress,
+    walletAddress,
     deployerAddress,
     contractAddress,
     salt,

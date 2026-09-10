@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { IndexerClient } from '../src/clients/indexerClient';
-import { Networks } from '../src/networks';
+import { Networks, SolanaNetworks } from '../src/networks';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -187,6 +187,188 @@ describe('IndexerClient', () => {
       },
       omitMetadata: false,
       page: { page: 0, pageSize: 40 }
+    });
+  });
+
+  it('requests Solana balances through SolanaIndexerGateway and normalizes metadata', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            balances: [
+              {
+                network: 'solana:mainnet',
+                accountAddress: 'solana-wallet',
+                assetType: 'native',
+                tokenProgram: null,
+                mintAddress: null,
+                name: 'Solana',
+                symbol: 'SOL',
+                decimals: 9,
+                balance: '4679287',
+                formattedBalance: '0.004679287',
+                imageUrl: null,
+                metadataUri: null,
+                verificationStatus: 'unknown',
+                verificationSource: 'none',
+                priceUSD: '105.00',
+                balanceUSD: '0.49'
+              },
+              {
+                network: 'solana:mainnet',
+                accountAddress: 'solana-wallet',
+                assetType: 'fungible-token',
+                tokenProgram: 'spl-token',
+                mintAddress: 'usdc-mint',
+                name: 'USD Coin',
+                symbol: 'USDC',
+                decimals: 6,
+                balance: '4208117429',
+                formattedBalance: '4208.117429',
+                imageUrl: 'https://example.com/usdc.png',
+                metadataUri: '',
+                verificationStatus: 'verified',
+                verificationSource: 'jupiter',
+                priceUSD: '0.9999',
+                balanceUSD: '4208.05'
+              }
+            ],
+            errors: [{ network: 'solana:devnet', reason: 'RPC unavailable' }]
+          }),
+          { status: 200 }
+        )
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const indexer = new IndexerClient({
+      publishableKey: 'publishable-key',
+      environment: testEnvironment()
+    });
+
+    const result = await indexer.getSolanaBalances({
+      walletAddress: 'solana-wallet',
+      networks: [SolanaNetworks.mainnet, SolanaNetworks.devnet],
+      includeMetadata: false,
+      omitNativeBalances: false,
+      mintAddresses: ['usdc-mint'],
+      excludedMintAddresses: ['spam-mint']
+    });
+
+    expect(result).toEqual({
+      status: 200,
+      balances: [
+        {
+          network: SolanaNetworks.mainnet,
+          accountAddress: 'solana-wallet',
+          assetType: 'native',
+          name: 'Solana',
+          symbol: 'SOL',
+          decimals: 9,
+          balance: '4679287',
+          formattedBalance: '0.004679287',
+          verificationStatus: 'unknown',
+          verificationSource: 'none',
+          priceUSD: '105.00',
+          balanceUSD: '0.49'
+        },
+        {
+          network: SolanaNetworks.mainnet,
+          accountAddress: 'solana-wallet',
+          assetType: 'fungible-token',
+          tokenProgram: 'spl-token',
+          mintAddress: 'usdc-mint',
+          name: 'USD Coin',
+          symbol: 'USDC',
+          decimals: 6,
+          balance: '4208117429',
+          formattedBalance: '4208.117429',
+          imageUrl: 'https://example.com/usdc.png',
+          verificationStatus: 'verified',
+          verificationSource: 'jupiter',
+          priceUSD: '0.9999',
+          balanceUSD: '4208.05'
+        }
+      ],
+      errors: [{ network: SolanaNetworks.devnet, reason: 'RPC unavailable' }]
+    });
+    expect(fetchMock.mock.calls[0][0].toString()).toBe(
+      'https://solana-indexer.example/GetTokenBalancesDetails'
+    );
+    expect(fetchMock.mock.calls[0][1]?.headers).toMatchObject({
+      'Api-Key': 'publishable-key',
+      Webrpc: 'webrpc@v0.31.2;gen-typescript@v0.23.1;solana-indexer-gateway@v1'
+    });
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      networks: [SolanaNetworks.mainnet, SolanaNetworks.devnet],
+      filter: {
+        accountAddresses: ['solana-wallet'],
+        omitNativeBalances: false,
+        contractWhitelist: ['usdc-mint'],
+        contractBlacklist: ['spam-mint']
+      },
+      omitMetadata: true
+    });
+  });
+
+  it('defaults Solana balance queries to the SDK-supported networks', async () => {
+    const fetchMock = vi.fn(
+      async () => new Response(JSON.stringify({ balances: [], errors: [] }), { status: 200 })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const indexer = new IndexerClient({
+      publishableKey: 'publishable-key',
+      environment: testEnvironment()
+    });
+
+    await indexer.getSolanaBalances({ walletAddress: 'solana-wallet' });
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1]?.body as string)).toEqual({
+      networks: [SolanaNetworks.mainnet, SolanaNetworks.devnet],
+      filter: { accountAddresses: ['solana-wallet'] },
+      omitMetadata: false
+    });
+  });
+
+  it('rejects Solana balance responses for unsupported networks', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              balances: [
+                {
+                  network: 'solana:testnet',
+                  accountAddress: 'solana-wallet',
+                  assetType: 'native',
+                  name: 'Solana',
+                  symbol: 'SOL',
+                  decimals: 9,
+                  balance: '0',
+                  formattedBalance: '0',
+                  verificationStatus: 'unknown',
+                  verificationSource: 'none'
+                }
+              ],
+              errors: []
+            }),
+            { status: 200 }
+          )
+      )
+    );
+
+    const indexer = new IndexerClient({
+      publishableKey: 'publishable-key',
+      environment: testEnvironment()
+    });
+
+    await expect(
+      indexer.getSolanaBalances({ walletAddress: 'solana-wallet' })
+    ).rejects.toMatchObject({
+      code: 'OMS_INVALID_RESPONSE',
+      operation: 'indexer.getSolanaBalances',
+      status: 200
     });
   });
 
@@ -522,6 +704,7 @@ function testEnvironment() {
   return {
     walletApiUrl: 'https://wallet.example',
     apiRpcUrl: 'https://api.example',
-    indexerGatewayUrl: 'https://indexer.example'
+    indexerGatewayUrl: 'https://indexer.example',
+    solanaIndexerGatewayUrl: 'https://solana-indexer.example'
   };
 }

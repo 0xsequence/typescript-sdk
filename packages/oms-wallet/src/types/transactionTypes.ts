@@ -1,7 +1,7 @@
 import type { Abi, Address, ContractFunctionName, EncodeFunctionDataParameters, Hex } from 'viem';
 
 import type { TokenBalance } from '../clients/indexerClient.js';
-import type { Network } from '../networks.js';
+import type { Network, SolanaNetwork } from '../networks.js';
 import type { FeeOption, FeeOptionSelection, TransactionMode, TransactionStatus } from './waas.js';
 
 export type FeeOptionWithBalance = {
@@ -14,6 +14,10 @@ export type FeeOptionWithBalance = {
 };
 
 export interface FeeOptionSelector {
+  /**
+   * Sponsored transactions pass an empty array. Resolving acknowledges the free fee;
+   * throw or reject to stop execution.
+   */
   (
     feeOptions: FeeOptionWithBalance[]
   ): FeeOptionSelection | undefined | Promise<FeeOptionSelection | undefined>;
@@ -27,10 +31,11 @@ export namespace FeeOptionSelector {
     feeOptions.find(canPayFeeOption)?.selection;
 }
 
-export function feeOptionSelection(feeOption: FeeOption): FeeOptionSelection {
+export function feeOptionSelection(feeOption: FeeOption, index?: number): FeeOptionSelection {
   const tokenIdentifier = feeOption.token.tokenID?.trim();
   return {
-    token: tokenIdentifier && tokenIdentifier.length > 0 ? tokenIdentifier : feeOption.token.symbol
+    token: tokenIdentifier && tokenIdentifier.length > 0 ? tokenIdentifier : feeOption.token.symbol,
+    ...(index === undefined ? {} : { index })
   };
 }
 
@@ -91,3 +96,14 @@ export type SendContractTransactionParams<
 
 export type SendTransactionParams =
   SendNativeTransactionParams | SendDataTransactionParams | SendContractTransactionParams;
+
+export type SendSolanaTransferParams = {
+  network: SolanaNetwork;
+  asset: string;
+  to: string;
+  amount: bigint;
+  mode?: TransactionMode;
+  selectFeeOption?: FeeOptionSelector;
+  waitForStatus?: boolean;
+  statusPolling?: TransactionStatusPollingOptions;
+};

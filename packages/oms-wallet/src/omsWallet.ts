@@ -31,7 +31,8 @@ export class OMSWallet {
       environment,
       storage,
       redirectAuthStorage: params.redirectAuthStorage,
-      credentialSigner: params.credentialSigner
+      credentialSigner: params.credentialSigner,
+      walletImportTrustedPcr0s: parsedKey.walletImportTrustedPcr0s
     });
 
     this.indexer = new IndexerClient({

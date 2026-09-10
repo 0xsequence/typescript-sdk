@@ -44,7 +44,7 @@ export type OMSWalletSendTransactionParams =
 export type OMSWalletSendTransactionResponse = SendTransactionResponse;
 
 export interface WalletLike {
-  walletAddress: Address | undefined;
+  walletAddress: string | undefined;
 
   signMessage(params: { network: OMSWalletNetwork; message: string }): Promise<string>;
   signTypedData(params: { network: OMSWalletNetwork; typedData: unknown }): Promise<string>;

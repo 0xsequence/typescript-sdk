@@ -1,7 +1,7 @@
 import type { Address } from 'viem';
 
 import { createConnector } from '@wagmi/core';
-import { getAddress, numberToHex, SwitchChainError } from 'viem';
+import { getAddress, isAddress, numberToHex, SwitchChainError } from 'viem';
 
 import { Networks } from '@polygonlabs/oms-wallet';
 
@@ -111,7 +111,16 @@ export function omsWalletConnector(parameters: OMSWalletConnectorParameters) {
         return [];
       }
       const address = (await resolveOmsWallet()).wallet.walletAddress;
-      return address ? [getAddress(address)] : [];
+      if (!address) {
+        return [];
+      }
+      if (!isAddress(address)) {
+        throw new OMSWalletProviderRpcError(
+          4100,
+          'The active OMS wallet is not an Ethereum wallet.'
+        );
+      }
+      return [getAddress(address)];
     };
 
     const subscribeSessionExpired = (omsWallet: OMSWalletLike): void => {

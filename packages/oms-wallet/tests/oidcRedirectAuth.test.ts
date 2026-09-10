@@ -618,7 +618,8 @@ describe('WalletClient OIDC redirect auth', () => {
           wallets: [
             {
               id: 'wallet-id',
-              type: WalletType.Ethereum,
+              networkFamily: 'evm',
+              keyOrigin: 'enclave',
               address: '0x1111111111111111111111111111111111111111'
             }
           ],
@@ -631,7 +632,8 @@ describe('WalletClient OIDC redirect auth', () => {
         return jsonResponse({
           wallet: {
             id: 'wallet-id',
-            type: WalletType.Ethereum,
+            networkFamily: 'evm',
+            keyOrigin: 'enclave',
             address: '0x1111111111111111111111111111111111111111'
           }
         });
@@ -716,7 +718,8 @@ describe('WalletClient OIDC redirect auth', () => {
           wallets: [
             {
               id: 'wallet-id',
-              type: WalletType.Ethereum,
+              networkFamily: 'evm',
+              keyOrigin: 'enclave',
               address: '0x1111111111111111111111111111111111111111'
             }
           ],
@@ -729,7 +732,8 @@ describe('WalletClient OIDC redirect auth', () => {
         return jsonResponse({
           wallet: {
             id: 'wallet-id',
-            type: WalletType.Ethereum,
+            networkFamily: 'evm',
+            keyOrigin: 'enclave',
             address: '0x1111111111111111111111111111111111111111'
           }
         });
@@ -782,7 +786,8 @@ describe('WalletClient OIDC redirect auth', () => {
           wallets: [
             {
               id: 'wallet-id',
-              type: WalletType.Ethereum,
+              networkFamily: 'evm',
+              keyOrigin: 'enclave',
               address: '0x1111111111111111111111111111111111111111'
             }
           ],
@@ -794,7 +799,8 @@ describe('WalletClient OIDC redirect auth', () => {
         return jsonResponse({
           wallet: {
             id: 'wallet-id',
-            type: WalletType.Ethereum,
+            networkFamily: 'evm',
+            keyOrigin: 'enclave',
             address: '0x1111111111111111111111111111111111111111'
           }
         });
@@ -857,7 +863,8 @@ describe('WalletClient OIDC redirect auth', () => {
           wallets: [
             {
               id: 'wallet-id',
-              type: WalletType.Ethereum,
+              networkFamily: 'evm',
+              keyOrigin: 'enclave',
               address: '0x1111111111111111111111111111111111111111'
             }
           ],
@@ -869,7 +876,8 @@ describe('WalletClient OIDC redirect auth', () => {
         return jsonResponse({
           wallet: {
             id: 'wallet-id',
-            type: WalletType.Ethereum,
+            networkFamily: 'evm',
+            keyOrigin: 'enclave',
             address: '0x1111111111111111111111111111111111111111'
           }
         });
@@ -895,7 +903,6 @@ describe('WalletClient OIDC redirect auth', () => {
 
   it('can complete an OIDC callback with a pending wallet selection', async () => {
     const redirectAuthStorage = new MemoryStorageManager();
-    const otherType = 'future-wallet' as WalletType;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const body = JSON.parse(init?.body as string);
@@ -920,13 +927,15 @@ describe('WalletClient OIDC redirect auth', () => {
           wallets: [
             {
               id: 'wallet-id',
-              type: WalletType.Ethereum,
+              networkFamily: 'evm',
+              keyOrigin: 'enclave',
               address: '0x1111111111111111111111111111111111111111'
             },
             {
               id: 'wallet-other',
-              type: otherType,
-              address: '0x2222222222222222222222222222222222222222'
+              networkFamily: 'solana',
+              keyOrigin: 'enclave',
+              address: '3gFktQX6vki5M2DzN8Y1ESPUJ4fJ8o6hVQWf8vYvPypD'
             }
           ],
           credential: testCredential()
@@ -1183,7 +1192,8 @@ describe('WalletClient OIDC redirect auth', () => {
         return jsonResponse({
           wallet: {
             id: 'wallet-id',
-            type: WalletType.Ethereum,
+            networkFamily: 'evm',
+            keyOrigin: 'enclave',
             address: '0x2222222222222222222222222222222222222222'
           }
         });
@@ -1328,7 +1338,8 @@ function createWalletClient(
 function testEnvironment() {
   return {
     walletApiUrl: 'https://wallet.example',
-    indexerGatewayUrl: 'https://indexer.example'
+    indexerGatewayUrl: 'https://indexer.example',
+    solanaIndexerGatewayUrl: 'https://solana-indexer.example'
   };
 }
 
@@ -1351,6 +1362,7 @@ function requestCount(fetchMock: ReturnType<typeof vi.fn>, endpoint: string): nu
 
 function testCredential() {
   return {
+    type: 'direct',
     credentialId: '0x' + '11'.repeat(32),
     expiresAt: '2099-01-01T00:00:00Z',
     isCaller: true

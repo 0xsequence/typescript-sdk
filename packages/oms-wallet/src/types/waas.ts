@@ -9,10 +9,28 @@ export type AuthMode = (typeof AuthMode)[keyof typeof AuthMode];
 export type OidcAuthMode = typeof AuthMode.AuthCode | typeof AuthMode.AuthCodePKCE;
 
 export const WalletType = Object.freeze({
-  Ethereum: 'ethereum'
+  Ethereum: 'ethereum',
+  Solana: 'solana'
 } as const);
 
 export type WalletType = (typeof WalletType)[keyof typeof WalletType];
+
+export const WalletKeyOrigin = Object.freeze({
+  Enclave: 'enclave',
+  Imported: 'imported'
+} as const);
+
+export type WalletKeyOrigin = (typeof WalletKeyOrigin)[keyof typeof WalletKeyOrigin];
+
+export const WalletImportCipherSuite = Object.freeze({
+  X25519Sha256Aes256Gcm: 'x25519-sha256-aes256gcm',
+  X25519Sha256ChaCha20Poly1305: 'x25519-sha256-chacha20poly1305',
+  P256Sha256Aes256Gcm: 'p256-sha256-aes256gcm',
+  P256Sha256ChaCha20Poly1305: 'p256-sha256-chacha20poly1305'
+} as const);
+
+export type WalletImportCipherSuite =
+  (typeof WalletImportCipherSuite)[keyof typeof WalletImportCipherSuite];
 
 export const TransactionMode = Object.freeze({
   Native: 'native',
@@ -60,4 +78,5 @@ export interface FeeOption {
 
 export interface FeeOptionSelection {
   token: string;
+  index?: number;
 }

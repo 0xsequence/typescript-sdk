@@ -1,0 +1,42 @@
+{
+  "name": "smart-session-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "pnpm db:migrate:local && pnpm build",
+    "dev": "concurrently --group --prefix-colors auto 'pnpm:dev:worker' 'pnpm:dev:client' 'pnpm:dev:dashboard'",
+    "dev:worker": "wrangler dev --port 8787",
+    "dev:client": "vite --config vite.client.config.ts",
+    "dev:dashboard": "vite --config vite.dashboard.config.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -b tsconfig.worker.json tsconfig.client.json tsconfig.dashboard.json",
+    "build": "pnpm typecheck && rm -rf dist && pnpm build:client && pnpm build:dashboard",
+    "build:client": "vite build --config vite.client.config.ts",
+    "build:dashboard": "vite build --config vite.dashboard.config.ts",
+    "db:migrate:local": "wrangler d1 migrations apply oms-smart-session-example --local",
+    "db:create:remote": "wrangler d1 create oms-smart-session-example",
+    "db:migrate:remote": "pnpm deploy:prepare && wrangler d1 migrations apply DB --remote --config wrangler.deploy.generated.json",
+    "deploy:prepare": "node scripts/prepare-cloudflare-deploy.mjs",
+    "deploy:dry-run": "pnpm deploy:prepare && pnpm build && wrangler deploy --dry-run --config wrangler.deploy.generated.json",
+    "deploy": "pnpm deploy:prepare && pnpm build && wrangler deploy --config wrangler.deploy.generated.json"
+  },
+  "dependencies": {
+    "@0xtrails/api": "0.17.1",
+    "@polygonlabs/oms-wallet": "workspace:*",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "viem": "^2.48.4"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.0",
+    "@cloudflare/workers-types": "5.20260811.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.10",
+    "vitest": "^4.1.5",
+    "wrangler": "4.120.1"
+  }
+}

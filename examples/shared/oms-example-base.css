@@ -223,6 +223,29 @@ select:disabled {
   background: var(--oms-slate-100);
 }
 
+.select-control {
+  position: relative;
+  display: block;
+}
+
+.select-control::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 16px;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--oms-muted-ink);
+  border-bottom: 2px solid var(--oms-muted-ink);
+  pointer-events: none;
+  transform: translateY(-70%) rotate(45deg);
+}
+
+.select-control select {
+  appearance: none;
+  padding-right: 44px;
+}
+
 button {
   min-height: 44px;
   border: 1px solid transparent;

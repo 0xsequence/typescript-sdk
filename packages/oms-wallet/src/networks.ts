@@ -9,6 +9,13 @@ export interface Network {
   readonly [networkBrand]: true;
 }
 
+export const SolanaNetworks = Object.freeze({
+  devnet: 'solana:devnet',
+  mainnet: 'solana:mainnet'
+} as const);
+
+export type SolanaNetwork = (typeof SolanaNetworks)[keyof typeof SolanaNetworks];
+
 interface NetworkDefinition {
   id: number;
   name: string;

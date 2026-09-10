@@ -1,15 +1,18 @@
 packages:
   - 'packages/*'
   - 'examples/*'
+  - 'examples/helpers/*'
 
 allowBuilds:
   '@reown/appkit': false
   browser-tabs-lock: false
   bufferutil: false
+  cbor-extract: false
   esbuild: true
   protobufjs: false
   unrs-resolver: false
   utf-8-validate: false
+  workerd: true
 
 # Supply chain security (team standard). blockExoticSubdeps refuses
 # non-registry transitive deps; minimumReleaseAge refuses packages
