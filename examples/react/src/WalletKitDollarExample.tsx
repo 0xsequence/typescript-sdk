@@ -5,7 +5,7 @@ import type { Address } from 'viem';
 import { omsWallet } from './omsWallet';
 import { walletKitDollarAbi } from './walletKitDollarContract';
 
-const AMOY_RPC_URL = 'https://rpc-amoy.polygon.technology';
+const AMOY_RPC_URL = 'https://polygon-amoy.drpc.org';
 const WKUSD_CONTRACT_ADDRESS =
   '0x4Ef29925C9C72b860447A6DA628cc78f785b27b5' as const satisfies Address;
 const BURN_ADDRESS = '0x000000000000000000000000000000000000dEaD' as const satisfies Address;
