@@ -2,4 +2,4 @@
 '@polygonlabs/oms-wallet': patch
 ---
 
-Temporarily allow Development sandbox wallet-import testing without attestation verification while browser CORS support is pending.
+Verify Development sandbox wallet imports against the managed debug enclave attestation.

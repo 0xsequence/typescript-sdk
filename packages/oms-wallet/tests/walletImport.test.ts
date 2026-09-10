@@ -157,9 +157,9 @@ describe('wallet import', () => {
     expect(importWallet).toHaveBeenCalledOnce();
   });
 
-  it('temporarily skips attestation only for Development sandbox imports', async () => {
+  it('requires attestation for Development sandbox imports', async () => {
     const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      expect(new Headers(init?.headers).has('X-Attestation-Nonce')).toBe(false);
+      expect(new Headers(init?.headers).has('X-Attestation-Nonce')).toBe(true);
       return jsonResponse({ keyId: 'key-1', publicKey: 'AQID' });
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -180,7 +180,7 @@ describe('wallet import', () => {
       oms.wallet.getWalletImportRecipientKey({
         cipherSuite: WalletImportCipherSuite.P256Sha256ChaCha20Poly1305
       })
-    ).resolves.toMatchObject({ keyId: 'key-1', publicKey: 'AQID' });
+    ).rejects.toMatchObject({ code: 'OMS_ATTESTATION_VERIFICATION_FAILED' });
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 

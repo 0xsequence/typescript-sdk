@@ -80,8 +80,6 @@ const INITIAL_PRIVY_IMPORT_PROGRESS: PrivyImportProgress = {
   export: 'pending',
   import: 'pending'
 };
-const IS_TEMPORARY_WALLET_IMPORT_ATTESTATION_BYPASS =
-  SELECTED_DEMO_ENVIRONMENT.id === 'development';
 const supportedNetworks = Object.values(Networks);
 
 function App() {
@@ -1207,14 +1205,6 @@ function App() {
                     <span className="metadata-pill">{privyBackendLabel(privyBackendStatus)}</span>
                   </div>
 
-                  {IS_TEMPORARY_WALLET_IMPORT_ATTESTATION_BYPASS && (
-                    <p className="temporary-test-warning">
-                      <strong>Temporary test mode:</strong> OMS attestation verification is disabled
-                      for the Development sandbox until the API CORS configuration is ready. This
-                      does not validate the final secure import flow.
-                    </p>
-                  )}
-
                   <div className="management-form-grid">
                     <label>
                       Privy wallet ID
@@ -1270,16 +1260,8 @@ function App() {
                   <ol className="import-progress" aria-label="Privy wallet import progress">
                     <PrivyImportProgressItem
                       number="1"
-                      title={
-                        IS_TEMPORARY_WALLET_IMPORT_ATTESTATION_BYPASS
-                          ? 'Request OMS recipient key'
-                          : 'Verify OMS recipient key'
-                      }
-                      detail={
-                        IS_TEMPORARY_WALLET_IMPORT_ATTESTATION_BYPASS
-                          ? 'Development temporarily skips attestation verification for this test.'
-                          : 'The SDK checks the enclave attestation before accepting its public key.'
-                      }
+                      title="Verify OMS recipient key"
+                      detail="The SDK checks the enclave attestation before accepting its public key."
                       status={privyImportProgress.recipient}
                     />
                     <PrivyImportProgressItem

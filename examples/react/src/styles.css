@@ -325,16 +325,6 @@ button.danger:active:not(:disabled) {
   gap: 10px;
 }
 
-.temporary-test-warning {
-  padding: 10px 12px;
-  border: 1px solid var(--oms-orange-200);
-  border-radius: var(--oms-radius-input);
-  color: var(--oms-amber-700);
-  background: var(--oms-orange-50);
-  font-size: 12px;
-  line-height: 1.45;
-}
-
 .import-progress {
   display: grid;
   gap: 8px;

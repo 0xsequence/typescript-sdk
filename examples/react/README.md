@@ -21,11 +21,6 @@ The dev server runs at `http://localhost:5173`.
 The wallet-management panel can migrate an Ethereum server wallet from Privy to OMS without
 returning its plaintext private key to the browser. Configure the local-only export middleware:
 
-> **Temporary Development test mode:** wallet imports using the checked-in Development sandbox key
-> skip OMS attestation verification while the Development API CORS configuration is being updated.
-> The UI labels this state explicitly. Remove the bypass in `publishableKey.ts` before treating this
-> as validation of the final secure import flow.
-
 ```bash
 cp examples/react/.env.example examples/react/.env.local
 ```
