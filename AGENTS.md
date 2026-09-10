@@ -69,6 +69,7 @@ Repo-local agent skills live under `.agents/skills/` (agent-neutral); `.claude/s
 - `packages/oms-wallet/scripts/write-esm-package.cjs`: Writes `dist/esm/package.json` during the SDK build.
 - `packages/oms-wallet/scripts/check-public-api.cjs`: Compares built public declarations with the committed baseline and rejects generated WaaS type leaks.
 - `.github/workflows/ci-trigger.yml`: CI on PRs — the shared `ci` composite (lint/typecheck/test), a build job (`pnpm build` + `pnpm check:exports`/publint), and a drift-check job (`codegen-drift-check`). Verification runs through standard named scripts, not a bespoke script.
+- `scripts/stage-npm-packages.mjs`: CI-only staged-publishing helper that validates the fixed package set, packs with pnpm, checks packed manifests, and stages tarballs with npm OIDC.
 - `.changeset/`: changesets config. The `fixed` group keeps `@polygonlabs/oms-wallet` and `@polygonlabs/oms-wallet-wagmi-connector` on the same version; releases are automated by the changesets release workflow.
 
 ## Commands
@@ -79,7 +80,8 @@ Repo-local agent skills live under `.agents/skills/` (agent-neutral); `.claude/s
 - `pnpm build`: Build both packages (dual CJS+ESM) and every example — the consumer-compatibility gate (examples resolve the workspace from source). Delegates via `pnpm -r --if-present run build`.
 - `pnpm check:exports`: Run `publint` against both publishable packages to validate their `exports`/`main`/`module`/`types` resolve and are correctly formatted for npm consumers.
 - `pnpm run typecheck` (or `pnpm --filter <pkg> typecheck`): Typecheck via `tsc -b` (source + SDK type-tests).
-- `pnpm test`: Run the SDK Vitest suite and type tests (delegates to `@polygonlabs/oms-wallet`).
+- `pnpm test`: Run the staged-publishing helper tests plus the SDK and connector test suites.
+- `pnpm test:release`: Run the staged-publishing helper's fixed-group and manifest-validation tests.
 - `pnpm --filter @polygonlabs/oms-wallet test:types`: Compile `type-tests/oidcProviderTypes.ts`; useful for public type/API changes.
 - `pnpm build`: Build CJS and ESM SDK output under `packages/oms-wallet/dist/` (delegates to `@polygonlabs/oms-wallet`).
 - `pnpm --filter @polygonlabs/oms-wallet-wagmi-connector build`: Build the wagmi connector package.
