@@ -373,6 +373,7 @@ export class WalletClient implements OMSWalletClient {
     redirectAuthStorage?: StorageManager;
     credentialSigner?: CredentialSigner;
     walletImportTrustedPcr0s?: ReadonlyArray<string>;
+    walletImportAttestationMode?: 'required' | 'temporarily-disabled-for-testing';
   }) {
     this.environment = params.environment;
     this.storage = params.storage ?? createDefaultStorage();
@@ -426,7 +427,9 @@ export class WalletClient implements OMSWalletClient {
     this.walletImportClient = params.walletImportTrustedPcr0s
       ? new WaasClient(
           params.environment.walletApiUrl,
-          createAttestedFetch(signedFetch, params.walletImportTrustedPcr0s)
+          params.walletImportAttestationMode === 'temporarily-disabled-for-testing'
+            ? signedFetch
+            : createAttestedFetch(signedFetch, params.walletImportTrustedPcr0s)
         )
       : undefined;
     this.publicClient = new WaasPublicClient(

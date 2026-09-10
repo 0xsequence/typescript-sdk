@@ -273,15 +273,162 @@ button.danger:active:not(:disabled) {
   text-align: center;
 }
 
-.inline-field-action {
+.management-action-card {
   display: grid;
-  grid-template-columns: minmax(120px, 0.55fr) minmax(0, 1fr) auto;
+  gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: var(--oms-radius-input);
+  background: var(--oms-surface);
+}
+
+.management-action-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.management-action-copy p {
+  color: var(--oms-muted-ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.management-action-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.management-action-heading .metadata-pill {
+  flex: 0 0 auto;
+}
+
+.management-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: end;
   gap: 10px;
 }
 
-.wallet-import-fields {
-  grid-template-columns: minmax(120px, 0.55fr) minmax(180px, 1.2fr) minmax(0, 1fr) auto;
+.management-form-wide,
+.management-form-action {
+  grid-column: 1 / -1;
+}
+
+.management-form-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-column: 1 / -1;
+  gap: 10px;
+}
+
+.temporary-test-warning {
+  padding: 10px 12px;
+  border: 1px solid var(--oms-orange-200);
+  border-radius: var(--oms-radius-input);
+  color: var(--oms-amber-700);
+  background: var(--oms-orange-50);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.import-progress {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.import-progress li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--oms-slate-200);
+  border-radius: var(--oms-radius-input);
+  background: var(--oms-slate-50);
+}
+
+.import-progress li > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.import-progress strong,
+.import-progress small {
+  line-height: 1.35;
+}
+
+.import-progress strong {
+  color: var(--oms-ink);
+  font-size: 13px;
+}
+
+.import-progress small {
+  color: var(--oms-muted-ink);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.import-progress-marker {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--oms-radius-pill);
+  color: var(--oms-slate-800);
+  background: var(--oms-slate-200);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.import-progress li[data-status='active'] {
+  border-color: var(--oms-purple-200);
+  background: var(--oms-purple-50);
+}
+
+.import-progress li[data-status='active'] .import-progress-marker,
+.import-progress li[data-status='complete'] .import-progress-marker {
+  color: var(--oms-surface);
+  background: var(--oms-brand);
+}
+
+.import-progress li[data-status='error'] {
+  border-color: var(--oms-red-200);
+  background: var(--oms-red-50);
+}
+
+.import-progress li[data-status='error'] .import-progress-marker {
+  color: var(--oms-surface);
+  background: var(--oms-red-600);
+}
+
+.import-error {
+  display: block;
+  color: var(--oms-red-800);
+  background: var(--oms-red-50);
+}
+
+.technical-details {
+  color: var(--oms-muted-ink);
+  font-size: 12px;
+}
+
+.technical-details summary {
+  width: fit-content;
+  color: var(--oms-slate-800);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.technical-details p {
+  margin-top: 8px;
+  line-height: 1.5;
 }
 
 .management-list {
@@ -480,7 +627,15 @@ button.danger:active:not(:disabled) {
 @media (max-width: 520px) {
   .balance-assets,
   .session-info,
-  .inline-field-action {
+  .management-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .management-form-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .management-action-heading {
+    display: grid;
   }
 }

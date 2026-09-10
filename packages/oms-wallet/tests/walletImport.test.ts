@@ -157,19 +157,31 @@ describe('wallet import', () => {
     expect(importWallet).toHaveBeenCalledOnce();
   });
 
-  it('configures managed Development attestation without caller-supplied PCRs', () => {
-    const fetchMock = vi.fn();
+  it('temporarily skips attestation only for Development sandbox imports', async () => {
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(new Headers(init?.headers).has('X-Attestation-Nonce')).toBe(false);
+      return jsonResponse({ keyId: 'key-1', publicKey: 'AQID' });
+    });
     vi.stubGlobal('fetch', fetchMock);
 
-    expect(
-      () =>
-        new OMSWallet({
-          publishableKey: 'pk_dev_sdbx_project_key',
-          storage: new MemoryStorageManager(),
-          credentialSigner: new MockSigner()
-        })
-    ).not.toThrow();
-    expect(fetchMock).not.toHaveBeenCalled();
+    const oms = new OMSWallet({
+      publishableKey: 'pk_dev_sdbx_project_key',
+      storage: new MemoryStorageManager(),
+      credentialSigner: new MockSigner()
+    });
+    (oms.wallet as any).persistSession('wallet-id', '0x1111111111111111111111111111111111111111', {
+      expiresAt: '2099-01-01T00:00:00Z',
+      auth: { type: 'email', email: 'user@example.com' },
+      signerCredentialId: `0x04${'11'.repeat(64)}`,
+      signerKeyType: 'ecdsa-p256-sha256'
+    });
+
+    await expect(
+      oms.wallet.getWalletImportRecipientKey({
+        cipherSuite: WalletImportCipherSuite.P256Sha256ChaCha20Poly1305
+      })
+    ).resolves.toMatchObject({ keyId: 'key-1', publicKey: 'AQID' });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it('activates an imported first wallet during manual wallet selection', async () => {

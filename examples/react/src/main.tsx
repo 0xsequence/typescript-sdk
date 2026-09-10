@@ -4,6 +4,7 @@ import { isAddress } from 'viem';
 import {
   Networks,
   WalletType,
+  WalletImportCipherSuite,
   OmsRelayOidcProviders,
   type FeeOptionSelection,
   type FeeOptionWithBalance,
@@ -52,11 +53,35 @@ type FeeSelectionController = {
   resolve: (selection: FeeOptionSelection) => void;
   reject: (error: Error) => void;
 };
+type PrivyBackendStatus = 'checking' | 'ready' | 'missing' | 'unavailable';
+type PrivyImportStepStatus = 'pending' | 'active' | 'complete' | 'error';
+type PrivyImportStep = 'recipient' | 'export' | 'import';
+type PrivyImportProgress = Record<PrivyImportStep, PrivyImportStepStatus>;
+
+interface PrivyWalletExportResponse {
+  ciphertext: string;
+  encapsulatedKey: string;
+}
+
+interface DisposablePrivyWallet {
+  walletId: string;
+  address: string;
+}
 
 const DEFAULT_MESSAGE = 'test';
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99';
 const MANUAL_WALLET_SELECTION_KEY = 'oms-demo-manual-wallet-selection';
 const SESSION_LIFETIME_SECONDS_KEY = 'oms-demo-session-lifetime-seconds-v2';
+const PRIVY_CREATE_PATH = '/api/privy-wallets';
+const PRIVY_EXPORT_PATH = '/api/privy-wallet-export';
+const PRIVY_STATUS_PATH = '/api/privy-wallet-export/status';
+const INITIAL_PRIVY_IMPORT_PROGRESS: PrivyImportProgress = {
+  recipient: 'pending',
+  export: 'pending',
+  import: 'pending'
+};
+const IS_TEMPORARY_WALLET_IMPORT_ATTESTATION_BYPASS =
+  SELECTED_DEMO_ENVIRONMENT.id === 'development';
 const supportedNetworks = Object.values(Networks);
 
 function App() {
@@ -82,6 +107,14 @@ function App() {
   const [importWalletType, setImportWalletType] = useState<WalletType>(WalletType.Ethereum);
   const [importWalletReference, setImportWalletReference] = useState('');
   const [importPrivateKey, setImportPrivateKey] = useState('');
+  const [privyWalletId, setPrivyWalletId] = useState('');
+  const [privyWalletReference, setPrivyWalletReference] = useState('');
+  const [privyWalletSetupStatus, setPrivyWalletSetupStatus] = useState('');
+  const [privyBackendStatus, setPrivyBackendStatus] = useState<PrivyBackendStatus>('checking');
+  const [privyImportProgress, setPrivyImportProgress] = useState<PrivyImportProgress>(
+    INITIAL_PRIVY_IMPORT_PROGRESS
+  );
+  const [privyImportError, setPrivyImportError] = useState('');
   const [accessGrants, setAccessGrants] = useState<AccessGrant[]>([]);
   const [pendingWalletSelection, setPendingWalletSelection] =
     useState<PendingWalletSelection | null>(null);
@@ -117,6 +150,22 @@ function App() {
 
   useEffect(() => {
     return omsWallet.wallet.onSessionExpired(showSessionExpired);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(PRIVY_STATUS_PATH, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Privy export endpoint unavailable');
+        const body = (await response.json()) as { configured?: unknown };
+        setPrivyBackendStatus(body.configured === true ? 'ready' : 'missing');
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setPrivyBackendStatus('unavailable');
+      });
+
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -503,6 +552,91 @@ function App() {
         );
       }
     );
+  }
+
+  async function createDisposablePrivyWallet() {
+    if (privyBackendStatus !== 'ready') return;
+
+    setPrivyImportError('');
+    setPrivyImportProgress(INITIAL_PRIVY_IMPORT_PROGRESS);
+    await run('Creating disposable Privy wallet...', setPrivyWalletSetupStatus, async () => {
+      const wallet = await requestDisposablePrivyWallet();
+      setPrivyWalletId(wallet.walletId);
+      setPrivyWalletSetupStatus(
+        `Created ${wallet.address}. Its authorization key is held until this local server restarts.`
+      );
+    });
+  }
+
+  async function importPrivyWallet() {
+    const walletId = privyWalletId.trim();
+    if (!walletId || privyBackendStatus !== 'ready') return;
+
+    let activeStep: PrivyImportStep = 'recipient';
+    setPrivyImportError('');
+    setPrivyImportProgress({
+      recipient: 'active',
+      export: 'pending',
+      import: 'pending'
+    });
+
+    await run('Importing Privy wallet...', setActiveWalletStatus, async () => {
+      try {
+        const recipient = await omsWallet.wallet.getWalletImportRecipientKey({
+          cipherSuite: WalletImportCipherSuite.P256Sha256ChaCha20Poly1305
+        });
+        activeStep = 'export';
+        setPrivyImportProgress({
+          recipient: 'complete',
+          export: 'active',
+          import: 'pending'
+        });
+
+        const encryptedWallet = await exportPrivyWallet(walletId, recipient.publicKey);
+        activeStep = 'import';
+        setPrivyImportProgress({
+          recipient: 'complete',
+          export: 'complete',
+          import: 'active'
+        });
+
+        const result = await omsWallet.wallet.importEncryptedWallet({
+          type: WalletType.Ethereum,
+          reference: privyWalletReference.trim() || undefined,
+          keyMaterial: {
+            keyId: recipient.keyId,
+            cipherSuite: recipient.cipherSuite,
+            encapsulatedKey: encryptedWallet.encapsulatedKey,
+            ciphertext: encryptedWallet.ciphertext
+          }
+        });
+        setWalletAddress(result.walletAddress);
+        setWalletTab('ethereum');
+        clearWalletOperationResults();
+        setAccessGrants([]);
+        setAccessStatus('');
+        setManagedWallets((current) => [
+          ...current.filter((wallet) => wallet.id !== result.wallet.id),
+          result.wallet
+        ]);
+        setWalletInventoryLoaded(true);
+        setPrivyWalletId('');
+        setPrivyWalletReference('');
+        setPrivyImportProgress({
+          recipient: 'complete',
+          export: 'complete',
+          import: 'complete'
+        });
+        setActiveWalletStatus(
+          `Imported and activated ${result.wallet.reference ?? 'Privy wallet'}.`
+        );
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setPrivyImportError(message);
+        setPrivyImportProgress((current) => ({ ...current, [activeStep]: 'error' }));
+        throw error;
+      }
+    });
   }
 
   async function activateWalletType(type: WalletType) {
@@ -924,87 +1058,6 @@ function App() {
                     Load wallets
                   </button>
                 </div>
-                <div className="inline-field-action">
-                  <label>
-                    Wallet type
-                    <span className="select-control">
-                      <select
-                        value={newWalletType}
-                        onChange={(event) => setNewWalletType(event.target.value as WalletType)}
-                        disabled={isBusy}
-                      >
-                        <option value={WalletType.Ethereum}>Ethereum</option>
-                        <option value={WalletType.Solana}>Solana</option>
-                      </select>
-                    </span>
-                  </label>
-                  <label>
-                    New wallet reference
-                    <input
-                      value={newWalletReference}
-                      onChange={(event) => setNewWalletReference(event.target.value)}
-                      placeholder="Optional label"
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => void createManagedWallet(newWalletType)}
-                    disabled={isBusy}
-                  >
-                    Create wallet
-                  </button>
-                </div>
-
-                <>
-                  <div className="inline-field-action wallet-import-fields">
-                    <label>
-                      Import wallet type
-                      <span className="select-control">
-                        <select
-                          value={importWalletType}
-                          onChange={(event) =>
-                            setImportWalletType(event.target.value as WalletType)
-                          }
-                          disabled={isBusy}
-                        >
-                          <option value={WalletType.Ethereum}>Ethereum</option>
-                          <option value={WalletType.Solana}>Solana</option>
-                        </select>
-                      </span>
-                    </label>
-                    <label>
-                      Private key
-                      <input
-                        type="password"
-                        value={importPrivateKey}
-                        onChange={(event) => setImportPrivateKey(event.target.value)}
-                        placeholder="Hex or base58 private key"
-                        autoComplete="off"
-                      />
-                    </label>
-                    <label>
-                      Imported wallet reference
-                      <input
-                        value={importWalletReference}
-                        onChange={(event) => setImportWalletReference(event.target.value)}
-                        placeholder="Optional label"
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => void importManagedWallet()}
-                      disabled={isBusy || !importPrivateKey.trim()}
-                    >
-                      Import wallet
-                    </button>
-                  </div>
-                  <p className="field-hint">
-                    The SDK encrypts the key to an attested WaaS enclave before sending it. Use a
-                    test key in this example.
-                  </p>
-                </>
 
                 {managedWallets.length > 0 ? (
                   <div className="management-list">
@@ -1050,6 +1103,211 @@ function App() {
                     Load wallets to switch or create another wallet for this account.
                   </p>
                 )}
+
+                <section className="management-action-card">
+                  <div className="management-action-copy">
+                    <h3>Create wallet</h3>
+                    <p>Create and activate another wallet for the signed-in account.</p>
+                  </div>
+                  <div className="management-form-grid">
+                    <label>
+                      Wallet type
+                      <span className="select-control">
+                        <select
+                          value={newWalletType}
+                          onChange={(event) => setNewWalletType(event.target.value as WalletType)}
+                          disabled={isBusy}
+                        >
+                          <option value={WalletType.Ethereum}>Ethereum</option>
+                          <option value={WalletType.Solana}>Solana</option>
+                        </select>
+                      </span>
+                    </label>
+                    <label>
+                      Wallet reference
+                      <input
+                        value={newWalletReference}
+                        onChange={(event) => setNewWalletReference(event.target.value)}
+                        placeholder="Optional label"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary management-form-action"
+                      onClick={() => void createManagedWallet(newWalletType)}
+                      disabled={isBusy}
+                    >
+                      Create wallet
+                    </button>
+                  </div>
+                </section>
+
+                <section className="management-action-card">
+                  <div className="management-action-copy">
+                    <h3>Import a private key</h3>
+                    <p>The SDK verifies the OMS enclave and encrypts the key before sending it.</p>
+                  </div>
+                  <div className="management-form-grid">
+                    <label>
+                      Wallet type
+                      <span className="select-control">
+                        <select
+                          value={importWalletType}
+                          onChange={(event) =>
+                            setImportWalletType(event.target.value as WalletType)
+                          }
+                          disabled={isBusy}
+                        >
+                          <option value={WalletType.Ethereum}>Ethereum</option>
+                          <option value={WalletType.Solana}>Solana</option>
+                        </select>
+                      </span>
+                    </label>
+                    <label>
+                      Wallet reference
+                      <input
+                        value={importWalletReference}
+                        onChange={(event) => setImportWalletReference(event.target.value)}
+                        placeholder="Optional label"
+                      />
+                    </label>
+                    <label className="management-form-wide">
+                      Test private key
+                      <input
+                        type="password"
+                        value={importPrivateKey}
+                        onChange={(event) => setImportPrivateKey(event.target.value)}
+                        placeholder="Hex or base58 private key"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary management-form-action"
+                      onClick={() => void importManagedWallet()}
+                      disabled={isBusy || !importPrivateKey.trim()}
+                    >
+                      Import private key
+                    </button>
+                  </div>
+                  <p className="field-hint">
+                    Development trusts a debug enclave measurement. Use only a disposable test key.
+                  </p>
+                </section>
+
+                <section className="management-action-card privy-import-card">
+                  <div className="management-action-heading">
+                    <div className="management-action-copy">
+                      <h3>Import from Privy</h3>
+                      <p>
+                        Move an Ethereum server wallet without exposing its private key to the
+                        browser.
+                      </p>
+                    </div>
+                    <span className="metadata-pill">{privyBackendLabel(privyBackendStatus)}</span>
+                  </div>
+
+                  {IS_TEMPORARY_WALLET_IMPORT_ATTESTATION_BYPASS && (
+                    <p className="temporary-test-warning">
+                      <strong>Temporary test mode:</strong> OMS attestation verification is disabled
+                      for the Development sandbox until the API CORS configuration is ready. This
+                      does not validate the final secure import flow.
+                    </p>
+                  )}
+
+                  <div className="management-form-grid">
+                    <label>
+                      Privy wallet ID
+                      <input
+                        value={privyWalletId}
+                        onChange={(event) => setPrivyWalletId(event.target.value)}
+                        placeholder="Privy wallet ID"
+                        autoComplete="off"
+                      />
+                    </label>
+                    <label>
+                      OMS wallet reference
+                      <input
+                        value={privyWalletReference}
+                        onChange={(event) => setPrivyWalletReference(event.target.value)}
+                        placeholder="Optional label"
+                      />
+                    </label>
+                    <div className="management-form-actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => void createDisposablePrivyWallet()}
+                        disabled={isBusy || privyBackendStatus !== 'ready'}
+                      >
+                        Create test wallet
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void importPrivyWallet()}
+                        disabled={isBusy || privyBackendStatus !== 'ready' || !privyWalletId.trim()}
+                      >
+                        Import Privy wallet
+                      </button>
+                    </div>
+                  </div>
+
+                  {privyWalletSetupStatus && <output>{privyWalletSetupStatus}</output>}
+
+                  {privyBackendStatus === 'missing' && (
+                    <p className="field-hint">
+                      Add <code>PRIVY_APP_ID</code> and <code>PRIVY_APP_SECRET</code> to{' '}
+                      <code>examples/react/.env.local</code>, then restart this example.
+                    </p>
+                  )}
+                  {privyBackendStatus === 'unavailable' && (
+                    <p className="field-hint">
+                      Privy import runs through the local example backend. Start it with{' '}
+                      <code>pnpm dev:example</code> on <code>localhost</code>.
+                    </p>
+                  )}
+
+                  <ol className="import-progress" aria-label="Privy wallet import progress">
+                    <PrivyImportProgressItem
+                      number="1"
+                      title={
+                        IS_TEMPORARY_WALLET_IMPORT_ATTESTATION_BYPASS
+                          ? 'Request OMS recipient key'
+                          : 'Verify OMS recipient key'
+                      }
+                      detail={
+                        IS_TEMPORARY_WALLET_IMPORT_ATTESTATION_BYPASS
+                          ? 'Development temporarily skips attestation verification for this test.'
+                          : 'The SDK checks the enclave attestation before accepting its public key.'
+                      }
+                      status={privyImportProgress.recipient}
+                    />
+                    <PrivyImportProgressItem
+                      number="2"
+                      title="Export encrypted key from Privy"
+                      detail="The local backend asks Privy to encrypt the wallet to that public key."
+                      status={privyImportProgress.export}
+                    />
+                    <PrivyImportProgressItem
+                      number="3"
+                      title="Import and activate in OMS"
+                      detail="The browser sends only Privy's HPKE ciphertext to OMS."
+                      status={privyImportProgress.import}
+                    />
+                  </ol>
+
+                  {privyImportError && <output className="import-error">{privyImportError}</output>}
+
+                  <details className="technical-details">
+                    <summary>Technical details</summary>
+                    <p>
+                      Uses P-256, SHA-256, and ChaCha20-Poly1305. Privy credentials stay in the
+                      localhost middleware; the browser receives only ciphertext and the
+                      encapsulated key.
+                    </p>
+                  </details>
+                </section>
+
                 {activeWalletStatus && <output>{activeWalletStatus}</output>}
               </div>
             </details>
@@ -1153,6 +1411,94 @@ function App() {
 
 function formatWalletKeyOrigin(wallet: WalletAccount): string {
   return wallet.keyOrigin === 'imported' ? 'Imported key' : 'Enclave key';
+}
+
+function PrivyImportProgressItem(props: {
+  number: string;
+  title: string;
+  detail: string;
+  status: PrivyImportStepStatus;
+}) {
+  return (
+    <li data-status={props.status}>
+      <span className="import-progress-marker" aria-hidden="true">
+        {props.status === 'complete' ? '✓' : props.status === 'error' ? '!' : props.number}
+      </span>
+      <span>
+        <strong>{props.title}</strong>
+        <small>{props.detail}</small>
+      </span>
+    </li>
+  );
+}
+
+function privyBackendLabel(status: PrivyBackendStatus): string {
+  switch (status) {
+    case 'ready':
+      return 'Local backend ready';
+    case 'missing':
+      return 'Setup required';
+    case 'unavailable':
+      return 'Local only';
+    default:
+      return 'Checking backend';
+  }
+}
+
+async function exportPrivyWallet(
+  walletId: string,
+  recipientPublicKey: string
+): Promise<PrivyWalletExportResponse> {
+  const response = await fetch(PRIVY_EXPORT_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ walletId, recipientPublicKey })
+  });
+  const body: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      isRecord(body) && typeof body.error === 'string'
+        ? body.error
+        : `Privy wallet export failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  if (
+    !isRecord(body) ||
+    typeof body.ciphertext !== 'string' ||
+    typeof body.encapsulatedKey !== 'string'
+  ) {
+    throw new Error('The local Privy backend returned an invalid encrypted wallet.');
+  }
+
+  return {
+    ciphertext: body.ciphertext,
+    encapsulatedKey: body.encapsulatedKey
+  };
+}
+
+async function requestDisposablePrivyWallet(): Promise<DisposablePrivyWallet> {
+  const response = await fetch(PRIVY_CREATE_PATH, { method: 'POST' });
+  const body: unknown = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      isRecord(body) && typeof body.error === 'string'
+        ? body.error
+        : `Privy wallet creation failed with status ${response.status}.`;
+    throw new Error(message);
+  }
+
+  if (!isRecord(body) || typeof body.walletId !== 'string' || typeof body.address !== 'string') {
+    throw new Error('The local Privy backend returned an invalid wallet.');
+  }
+
+  return { walletId: body.walletId, address: body.address };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 createRoot(document.getElementById('root')!).render(

@@ -4,6 +4,7 @@ interface PublishableKeyRoute {
   prefix: string;
   apiUrl: string;
   walletImportTrustedPcr0s: ReadonlyArray<string>;
+  walletImportAttestationMode?: 'temporarily-disabled-for-testing';
 }
 
 // Staging and Production measurements come from the corresponding WaaS GitHub releases. During
@@ -31,7 +32,10 @@ const publishableKeyRoutes: PublishableKeyRoute[] = [
   {
     prefix: 'pk_dev_sdbx_',
     apiUrl: 'https://sandbox-api.dev.polygon-dev.technology',
-    walletImportTrustedPcr0s: debugWalletImportPcr0s
+    walletImportTrustedPcr0s: debugWalletImportPcr0s,
+    // TEMPORARY: remove this bypass as soon as the Development API gateway allows
+    // X-Attestation-Nonce and exposes X-Attestation-Document to browser clients.
+    walletImportAttestationMode: 'temporarily-disabled-for-testing'
   },
   {
     prefix: 'pk_dev_live_',
@@ -66,6 +70,7 @@ export interface ParsedPublishableKey {
   indexerGatewayUrl: string;
   solanaIndexerGatewayUrl: string;
   walletImportTrustedPcr0s: ReadonlyArray<string>;
+  walletImportAttestationMode: 'required' | 'temporarily-disabled-for-testing';
 }
 
 export function parsePublishableKey(publishableKey: string): ParsedPublishableKey {
@@ -84,7 +89,8 @@ export function parsePublishableKey(publishableKey: string): ParsedPublishableKe
     walletApiUrl: route.apiUrl,
     indexerGatewayUrl: `${route.apiUrl}/v1/IndexerGateway/`,
     solanaIndexerGatewayUrl: `${route.apiUrl}/v1/SolanaIndexerGateway/`,
-    walletImportTrustedPcr0s: route.walletImportTrustedPcr0s
+    walletImportTrustedPcr0s: route.walletImportTrustedPcr0s,
+    walletImportAttestationMode: route.walletImportAttestationMode ?? 'required'
   };
 }
 
