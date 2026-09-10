@@ -5,7 +5,8 @@ How testing works in this repo. `AGENTS.md` points here so agents know how to ve
 > The SDK lives in `packages/oms-wallet`. Paths below (`tests/`, `type-tests/`, `src/`) are relative
 > to that package, and SDK-scoped commands (`vitest`, `tsc --noEmit`, `test:types`) run either from
 > inside `packages/oms-wallet` or from the repo root with `pnpm --filter @polygonlabs/oms-wallet …`.
-> The root `pnpm test` delegates to the SDK package.
+> The root `pnpm test` runs the release-helper unit tests, then delegates to both publishable
+> packages.
 
 ## Frameworks & tools
 
@@ -24,6 +25,8 @@ How testing works in this repo. `AGENTS.md` points here so agents know how to ve
 - **Run:** `pnpm exec vitest run` (or `pnpm test` which runs this then type tests)
 - **Package tests:** `packages/oms-wallet-wagmi-connector/tests/**/*.ts` run from that package with
   `pnpm --filter @polygonlabs/oms-wallet-wagmi-connector test`
+- **Release helper:** `scripts/stage-npm-packages.test.mjs` uses Node's built-in test runner to
+  validate fixed-package and packed-manifest safeguards without contacting npm
 
 ## Integration / type tests
 
@@ -40,6 +43,7 @@ How testing works in this repo. `AGENTS.md` points here so agents know how to ve
 |---|---|
 | Any change inside a workspace package | `pnpm exec changeset` (or `--empty` if non-shippable) |
 | Verifying a release-affecting change | `pnpm lint && pnpm test && pnpm build && pnpm check:exports` |
+| Changed staged-publishing logic | `pnpm test:release` plus a local `pnpm pack` manifest inspection |
 | Changed SDK behavior | `pnpm --filter @polygonlabs/oms-wallet exec vitest run` |
 | Changed wagmi connector behavior | `pnpm --filter @polygonlabs/oms-wallet-wagmi-connector test` |
 | Changed wagmi connector types/build | `pnpm --filter @polygonlabs/oms-wallet-wagmi-connector build` |
@@ -96,6 +100,7 @@ How testing works in this repo. `AGENTS.md` points here so agents know how to ve
 | Run unit tests | `pnpm exec vitest run` |
 | Run type tests | `pnpm test:types` |
 | Run everything | `pnpm test` |
+| Run release-helper tests | `pnpm test:release` |
 | Typecheck (no emit) | `pnpm exec tsc --noEmit` |
 | Check packaged declarations | `pnpm check:public-api` |
 | Watch mode | `pnpm test:watch` |
