@@ -72,6 +72,7 @@ const SESSION_LIFETIME_SECONDS_KEY = 'oms-demo-session-lifetime-seconds-v2';
 const PRIVY_BACKEND_URL = 'https://oms-privy-import-example.0xsequence.workers.dev';
 const PRIVY_EXPORT_URL = `${PRIVY_BACKEND_URL}/v1/disposable-wallets/export`;
 const PRIVY_STATUS_URL = `${PRIVY_BACKEND_URL}/health`;
+const PRIVY_IMPORT_STEP_MINIMUM_MS = 600;
 const INITIAL_PRIVY_IMPORT_PROGRESS: PrivyImportProgress = {
   recipient: 'pending',
   export: 'pending',
@@ -553,11 +554,13 @@ function App() {
 
     let activeStep: PrivyImportStep = 'recipient';
     setPrivyImportError('');
+    setPrivyWalletSetupStatus('');
     setPrivyImportProgress({
       recipient: 'active',
       export: 'pending',
       import: 'pending'
     });
+    const progressTimeline = createPrivyImportProgressTimeline(setPrivyImportProgress);
 
     await run('Importing Privy wallet...', setActiveWalletStatus, async () => {
       try {
@@ -565,22 +568,25 @@ function App() {
           cipherSuite: WalletImportCipherSuite.P256Sha256ChaCha20Poly1305
         });
         activeStep = 'export';
-        setPrivyImportProgress({
+        progressTimeline.show({
           recipient: 'complete',
           export: 'active',
           import: 'pending'
         });
 
         const encryptedWallet = await createAndExportPrivyWallet(recipient.publicKey);
-        setPrivyWalletSetupStatus(
-          `Created ${encryptedWallet.address} in Privy and received its encrypted export.`
-        );
         activeStep = 'import';
-        setPrivyImportProgress({
-          recipient: 'complete',
-          export: 'complete',
-          import: 'active'
-        });
+        progressTimeline.show(
+          {
+            recipient: 'complete',
+            export: 'complete',
+            import: 'active'
+          },
+          () =>
+            setPrivyWalletSetupStatus(
+              `Created ${encryptedWallet.address} in Privy and received its encrypted export.`
+            )
+        );
 
         const result = await omsWallet.wallet.importEncryptedWallet({
           type: WalletType.Ethereum,
@@ -595,6 +601,12 @@ function App() {
         if (!sameAddress(result.walletAddress, encryptedWallet.address)) {
           throw new Error('The imported OMS wallet address does not match the Privy wallet.');
         }
+        progressTimeline.show({
+          recipient: 'complete',
+          export: 'complete',
+          import: 'complete'
+        });
+        await progressTimeline.finished();
         setWalletAddress(result.walletAddress);
         setWalletTab('ethereum');
         clearWalletOperationResults();
@@ -606,18 +618,14 @@ function App() {
         ]);
         setWalletInventoryLoaded(true);
         setPrivyWalletReference('');
-        setPrivyImportProgress({
-          recipient: 'complete',
-          export: 'complete',
-          import: 'complete'
-        });
         setActiveWalletStatus(
           `Imported and activated ${result.wallet.reference ?? 'Privy wallet'}.`
         );
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        progressTimeline.show((current) => ({ ...current, [activeStep]: 'error' }));
+        await progressTimeline.finished();
         setPrivyImportError(message);
-        setPrivyImportProgress((current) => ({ ...current, [activeStep]: 'error' }));
         throw error;
       }
     });
@@ -1363,9 +1371,17 @@ function PrivyImportProgressItem(props: {
   status: PrivyImportStepStatus;
 }) {
   return (
-    <li data-status={props.status}>
+    <li data-status={props.status} aria-current={props.status === 'active' ? 'step' : undefined}>
       <span className="import-progress-marker" aria-hidden="true">
-        {props.status === 'complete' ? '✓' : props.status === 'error' ? '!' : props.number}
+        {props.status === 'complete' ? (
+          '✓'
+        ) : props.status === 'error' ? (
+          '!'
+        ) : props.status === 'active' ? (
+          <span className="import-progress-spinner" />
+        ) : (
+          props.number
+        )}
       </span>
       <span>
         <strong>{props.title}</strong>
@@ -1373,6 +1389,33 @@ function PrivyImportProgressItem(props: {
       </span>
     </li>
   );
+}
+
+function createPrivyImportProgressTimeline(
+  setProgress: React.Dispatch<React.SetStateAction<PrivyImportProgress>>
+) {
+  let activeSince = Date.now();
+  let timeline = Promise.resolve();
+
+  return {
+    show(
+      progress: PrivyImportProgress | ((current: PrivyImportProgress) => PrivyImportProgress),
+      onShown?: () => void
+    ) {
+      timeline = timeline.then(async () => {
+        const remaining = PRIVY_IMPORT_STEP_MINIMUM_MS - (Date.now() - activeSince);
+        if (remaining > 0) {
+          await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+        }
+        setProgress(progress);
+        onShown?.();
+        activeSince = Date.now();
+      });
+    },
+    finished() {
+      return timeline;
+    }
+  };
 }
 
 function privyBackendLabel(status: PrivyBackendStatus): string {

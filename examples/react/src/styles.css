@@ -388,6 +388,27 @@ button.danger:active:not(:disabled) {
   background: var(--oms-brand);
 }
 
+.import-progress-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: var(--oms-radius-pill);
+  animation: import-progress-spin 700ms linear infinite;
+}
+
+@keyframes import-progress-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .import-progress-spinner {
+    animation: none;
+  }
+}
+
 .import-progress li[data-status='error'] {
   border-color: var(--oms-red-200);
   background: var(--oms-red-50);
