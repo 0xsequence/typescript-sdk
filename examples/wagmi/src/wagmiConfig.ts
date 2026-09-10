@@ -66,7 +66,7 @@ export const wagmiConfig = createConfig({
     [mainnet.id]: http(),
     [sepolia.id]: http(),
     [polygon.id]: http(),
-    [polygonAmoy.id]: http(),
+    [polygonAmoy.id]: http('https://polygon-amoy.drpc.org'),
     [arbitrum.id]: http(),
     [arbitrumSepolia.id]: http(),
     [optimism.id]: http(),
