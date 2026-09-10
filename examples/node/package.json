@@ -11,8 +11,8 @@
     "@polygonlabs/oms-wallet": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^22.19.19",
-    "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "@types/node": "^26.4.1",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
   }
 }
