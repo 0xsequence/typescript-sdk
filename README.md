@@ -40,7 +40,8 @@ pnpm build:privy-import-worker # validate the Privy test-wallet Worker
 pnpm dev:smart-session-example # run the Worker + approval app + admin dashboard
 ```
 
-The React example uses the deployed [`examples/privy-import-worker`](examples/privy-import-worker)
+The React example uses the deployed
+[`examples/helpers/privy-import-worker`](examples/helpers/privy-import-worker)
 Cloudflare Worker to create and HPKE-export disposable Privy wallets from both localhost and GitHub
 Pages. Privy credentials remain in Worker secrets and generated wallet authorization keys are never
 persisted.

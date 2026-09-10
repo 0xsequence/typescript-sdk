@@ -110,6 +110,25 @@ importers:
         specifier: ^8.0.10
         version: 8.0.13(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.1)(yaml@2.9.0)
 
+  examples/helpers/privy-import-worker:
+    dependencies:
+      '@privy-io/node':
+        specifier: ^0.34.0
+        version: 0.34.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(viem@2.52.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.4.3))
+    devDependencies:
+      '@types/node':
+        specifier: ^22.19.19
+        version: 22.19.19
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@22.19.19)(vite@8.0.13(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.1)(yaml@2.9.0))
+      wrangler:
+        specifier: 4.120.1
+        version: 4.120.1(@cloudflare/workers-types@5.20260811.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+
   examples/node:
     dependencies:
       '@polygonlabs/oms-wallet':
@@ -150,25 +169,6 @@ importers:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
-
-  examples/privy-import-worker:
-    dependencies:
-      '@privy-io/node':
-        specifier: ^0.34.0
-        version: 0.34.0(@solana/kit@5.5.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6))(viem@2.52.2(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@4.4.3))
-    devDependencies:
-      '@types/node':
-        specifier: ^22.19.19
-        version: 22.19.19
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^4.1.6
-        version: 4.1.6(@types/node@22.19.19)(vite@8.0.13(@types/node@22.19.19)(esbuild@0.28.1)(jiti@2.6.1)(tsx@4.22.1)(yaml@2.9.0))
-      wrangler:
-        specifier: 4.120.1
-        version: 4.120.1(@cloudflare/workers-types@5.20260811.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
 
   examples/react:
     dependencies:
@@ -7060,7 +7060,7 @@ snapshots:
       '@types/debug': 4.1.13
       debug: 4.4.3
       pony-cause: 2.1.11
-      semver: 7.7.2
+      semver: 7.8.5
       uuid: 9.0.1
     transitivePeerDependencies:
       - supports-color
@@ -8150,7 +8150,7 @@ snapshots:
 
   '@scure/bip32@1.7.0':
     dependencies:
-      '@noble/curves': 1.9.1
+      '@noble/curves': 1.9.7
       '@noble/hashes': 1.8.0
       '@scure/base': 1.2.6
 

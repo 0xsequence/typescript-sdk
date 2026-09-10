@@ -17,8 +17,8 @@ pnpm dev:privy-import-worker
 Set `PRIVY_APP_ID` and `PRIVY_APP_SECRET` with `wrangler secret put` before deploying:
 
 ```bash
-pnpm --dir examples/privy-import-worker exec wrangler secret put PRIVY_APP_ID
-pnpm --dir examples/privy-import-worker exec wrangler secret put PRIVY_APP_SECRET
+pnpm --dir examples/helpers/privy-import-worker exec wrangler secret put PRIVY_APP_ID
+pnpm --dir examples/helpers/privy-import-worker exec wrangler secret put PRIVY_APP_SECRET
 pnpm deploy:privy-import-worker
 ```
 

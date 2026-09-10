@@ -1,6 +1,7 @@
 packages:
   - 'packages/*'
   - 'examples/*'
+  - 'examples/helpers/*'
 
 allowBuilds:
   '@reown/appkit': false

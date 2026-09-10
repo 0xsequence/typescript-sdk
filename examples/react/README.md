@@ -35,7 +35,7 @@ example performs three visible steps:
 
 The Worker holds the Privy credentials as Cloudflare secrets, restricts browser origins to this
 local example and the repository's GitHub Pages origin, and rate-limits disposable-wallet creation.
-Its source and deployment instructions are in `examples/privy-import-worker`.
+Its source and deployment instructions are in `examples/helpers/privy-import-worker`.
 
 The deployed example is available at `https://0xpolygon.github.io/oms-wallet-typescript-sdk/react-example/`.
 

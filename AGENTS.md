@@ -62,7 +62,7 @@ Repo-local agent skills live under `.agents/skills/` (agent-neutral); `.claude/s
 - `examples/trails-actions/`: Vite React demo for Trails swap, Earn deposit, and Earn withdrawal flows.
 - `examples/node/`: Interactive Node OTP/signing example.
 - `examples/node-contract-deploy-example/`: Interactive Node ERC-20 deployment example.
-- `examples/privy-import-worker/`: Cloudflare Worker used by the local and deployed React examples
+- `examples/helpers/privy-import-worker/`: Cloudflare Worker used by the local and deployed React examples
   to create and immediately HPKE-export disposable Privy wallets without exposing Privy secrets.
 - `examples/shared/`: Private `oms-example-shared` workspace package — shared browser-example design tokens, base styles, components, utilities, and Vite aliases. Declares its own `@polygonlabs/oms-wallet` and `react` dependencies so its source resolves inside each example build.
 - `examples/smart-session/`: Cloudflare Worker, D1 migrations, wallet-owner approval app, and admin dashboard demonstrating isolated backend-owned RACs with Polygon Amoy and mainnet smart sessions.
