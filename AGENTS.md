@@ -62,6 +62,8 @@ Repo-local agent skills live under `.agents/skills/` (agent-neutral); `.claude/s
 - `examples/trails-actions/`: Vite React demo for Trails swap, Earn deposit, and Earn withdrawal flows.
 - `examples/node/`: Interactive Node OTP/signing example.
 - `examples/node-contract-deploy-example/`: Interactive Node ERC-20 deployment example.
+- `examples/privy-import-worker/`: Cloudflare Worker used by the local and deployed React examples
+  to create and immediately HPKE-export disposable Privy wallets without exposing Privy secrets.
 - `examples/shared/`: Private `oms-example-shared` workspace package — shared browser-example design tokens, base styles, components, utilities, and Vite aliases. Declares its own `@polygonlabs/oms-wallet` and `react` dependencies so its source resolves inside each example build.
 - `examples/smart-session/`: Cloudflare Worker, D1 migrations, wallet-owner approval app, and admin dashboard demonstrating isolated backend-owned RACs with Polygon Amoy and mainnet smart sessions.
 - `packages/oms-wallet/docs/error-contracts.md`: Public error contract matrix and expectations.
@@ -93,6 +95,7 @@ Repo-local agent skills live under `.agents/skills/` (agent-neutral); `.claude/s
 - `pnpm build:wagmi-example`: Build the wagmi React example.
 - `pnpm build:node-example`: Typecheck the Node example.
 - `pnpm build:node-contract-deploy-example`: Typecheck the Node contract deploy example.
+- `pnpm build:privy-import-worker`: Typecheck and dry-run the Privy import Worker deployment.
 - `pnpm build:smart-session-example`: Typecheck and build the smart-session client and dashboard assets.
 - `pnpm dev:example`: Start the React demo dev server.
 - `pnpm dev:custom-google-redirect-example`: Start the local custom Google redirect React demo dev server on port `5173`.
@@ -101,6 +104,8 @@ Repo-local agent skills live under `.agents/skills/` (agent-neutral); `.claude/s
 - `pnpm dev:wagmi-example`: Start the wagmi React demo dev server.
 - `pnpm dev:node-example`: Run the interactive Node OTP example.
 - `pnpm dev:node-contract-deploy-example`: Run the interactive Node contract deploy example.
+- `pnpm dev:privy-import-worker`: Run the Privy import Worker locally on port `8788`.
+- `pnpm deploy:privy-import-worker`: Validate and deploy the Privy import Worker.
 - `pnpm dev:smart-session-example`: Run the smart-session Worker, client app, and dashboard on ports `8787`, `5173`, and `5174`.
 - `pnpm test:watch`: Run Vitest in watch mode during local development.
 

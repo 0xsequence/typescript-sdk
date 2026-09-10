@@ -9,6 +9,8 @@ yarn-error.log*
 .env.local
 .env.*.local
 examples/smart-session/.dev.vars
+examples/privy-import-worker/.dev.vars
+examples/privy-import-worker/.wrangler/
 examples/smart-session/.wrangler/
 examples/smart-session/.env.cloudflare.local
 examples/smart-session/wrangler.deploy.generated.json

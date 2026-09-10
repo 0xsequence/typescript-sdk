@@ -1,0 +1,23 @@
+{
+  "name": "privy-import-worker-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --port 8788",
+    "test": "vitest run",
+    "typecheck": "tsc -b",
+    "build": "pnpm typecheck && wrangler deploy --dry-run",
+    "cf-typegen": "wrangler types worker-configuration.d.ts",
+    "deploy": "pnpm build && wrangler deploy"
+  },
+  "dependencies": {
+    "@privy-io/node": "^0.34.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.19",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6",
+    "wrangler": "4.120.1"
+  }
+}

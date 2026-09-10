@@ -53,28 +53,25 @@ type FeeSelectionController = {
   resolve: (selection: FeeOptionSelection) => void;
   reject: (error: Error) => void;
 };
-type PrivyBackendStatus = 'checking' | 'ready' | 'missing' | 'unavailable';
+type PrivyBackendStatus = 'checking' | 'ready' | 'unavailable';
 type PrivyImportStepStatus = 'pending' | 'active' | 'complete' | 'error';
 type PrivyImportStep = 'recipient' | 'export' | 'import';
 type PrivyImportProgress = Record<PrivyImportStep, PrivyImportStepStatus>;
 
 interface PrivyWalletExportResponse {
-  ciphertext: string;
-  encapsulatedKey: string;
-}
-
-interface DisposablePrivyWallet {
   walletId: string;
   address: string;
+  ciphertext: string;
+  encapsulatedKey: string;
 }
 
 const DEFAULT_MESSAGE = 'test';
 const DEFAULT_TX_TO = '0xE5E8B483FfC05967FcFed58cc98D053265af6D99';
 const MANUAL_WALLET_SELECTION_KEY = 'oms-demo-manual-wallet-selection';
 const SESSION_LIFETIME_SECONDS_KEY = 'oms-demo-session-lifetime-seconds-v2';
-const PRIVY_CREATE_PATH = '/api/privy-wallets';
-const PRIVY_EXPORT_PATH = '/api/privy-wallet-export';
-const PRIVY_STATUS_PATH = '/api/privy-wallet-export/status';
+const PRIVY_BACKEND_URL = 'https://oms-privy-import-example.0xsequence.workers.dev';
+const PRIVY_EXPORT_URL = `${PRIVY_BACKEND_URL}/v1/disposable-wallets/export`;
+const PRIVY_STATUS_URL = `${PRIVY_BACKEND_URL}/health`;
 const INITIAL_PRIVY_IMPORT_PROGRESS: PrivyImportProgress = {
   recipient: 'pending',
   export: 'pending',
@@ -105,7 +102,6 @@ function App() {
   const [importWalletType, setImportWalletType] = useState<WalletType>(WalletType.Ethereum);
   const [importWalletReference, setImportWalletReference] = useState('');
   const [importPrivateKey, setImportPrivateKey] = useState('');
-  const [privyWalletId, setPrivyWalletId] = useState('');
   const [privyWalletReference, setPrivyWalletReference] = useState('');
   const [privyWalletSetupStatus, setPrivyWalletSetupStatus] = useState('');
   const [privyBackendStatus, setPrivyBackendStatus] = useState<PrivyBackendStatus>('checking');
@@ -152,11 +148,11 @@ function App() {
 
   useEffect(() => {
     const controller = new AbortController();
-    void fetch(PRIVY_STATUS_PATH, { signal: controller.signal })
+    void fetch(PRIVY_STATUS_URL, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error('Privy export endpoint unavailable');
-        const body = (await response.json()) as { configured?: unknown };
-        setPrivyBackendStatus(body.configured === true ? 'ready' : 'missing');
+        const body = (await response.json()) as { ready?: unknown };
+        setPrivyBackendStatus(body.ready === true ? 'ready' : 'unavailable');
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
@@ -552,23 +548,8 @@ function App() {
     );
   }
 
-  async function createDisposablePrivyWallet() {
-    if (privyBackendStatus !== 'ready') return;
-
-    setPrivyImportError('');
-    setPrivyImportProgress(INITIAL_PRIVY_IMPORT_PROGRESS);
-    await run('Creating disposable Privy wallet...', setPrivyWalletSetupStatus, async () => {
-      const wallet = await requestDisposablePrivyWallet();
-      setPrivyWalletId(wallet.walletId);
-      setPrivyWalletSetupStatus(
-        `Created ${wallet.address}. Its authorization key is held until this local server restarts.`
-      );
-    });
-  }
-
   async function importPrivyWallet() {
-    const walletId = privyWalletId.trim();
-    if (!walletId || privyBackendStatus !== 'ready') return;
+    if (privyBackendStatus !== 'ready') return;
 
     let activeStep: PrivyImportStep = 'recipient';
     setPrivyImportError('');
@@ -590,7 +571,10 @@ function App() {
           import: 'pending'
         });
 
-        const encryptedWallet = await exportPrivyWallet(walletId, recipient.publicKey);
+        const encryptedWallet = await createAndExportPrivyWallet(recipient.publicKey);
+        setPrivyWalletSetupStatus(
+          `Created ${encryptedWallet.address} in Privy and received its encrypted export.`
+        );
         activeStep = 'import';
         setPrivyImportProgress({
           recipient: 'complete',
@@ -608,6 +592,9 @@ function App() {
             ciphertext: encryptedWallet.ciphertext
           }
         });
+        if (!sameAddress(result.walletAddress, encryptedWallet.address)) {
+          throw new Error('The imported OMS wallet address does not match the Privy wallet.');
+        }
         setWalletAddress(result.walletAddress);
         setWalletTab('ethereum');
         clearWalletOperationResults();
@@ -618,7 +605,6 @@ function App() {
           result.wallet
         ]);
         setWalletInventoryLoaded(true);
-        setPrivyWalletId('');
         setPrivyWalletReference('');
         setPrivyImportProgress({
           recipient: 'complete',
@@ -1198,24 +1184,15 @@ function App() {
                     <div className="management-action-copy">
                       <h3>Import from Privy</h3>
                       <p>
-                        Move an Ethereum server wallet without exposing its private key to the
-                        browser.
+                        Create a disposable Ethereum server wallet and import it without exposing
+                        its private key to the browser.
                       </p>
                     </div>
                     <span className="metadata-pill">{privyBackendLabel(privyBackendStatus)}</span>
                   </div>
 
                   <div className="management-form-grid">
-                    <label>
-                      Privy wallet ID
-                      <input
-                        value={privyWalletId}
-                        onChange={(event) => setPrivyWalletId(event.target.value)}
-                        placeholder="Privy wallet ID"
-                        autoComplete="off"
-                      />
-                    </label>
-                    <label>
+                    <label className="management-form-wide">
                       OMS wallet reference
                       <input
                         value={privyWalletReference}
@@ -1223,37 +1200,21 @@ function App() {
                         placeholder="Optional label"
                       />
                     </label>
-                    <div className="management-form-actions">
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => void createDisposablePrivyWallet()}
-                        disabled={isBusy || privyBackendStatus !== 'ready'}
-                      >
-                        Create test wallet
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void importPrivyWallet()}
-                        disabled={isBusy || privyBackendStatus !== 'ready' || !privyWalletId.trim()}
-                      >
-                        Import Privy wallet
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="management-form-action"
+                      onClick={() => void importPrivyWallet()}
+                      disabled={isBusy || privyBackendStatus !== 'ready'}
+                    >
+                      Create and import test wallet
+                    </button>
                   </div>
 
                   {privyWalletSetupStatus && <output>{privyWalletSetupStatus}</output>}
 
-                  {privyBackendStatus === 'missing' && (
-                    <p className="field-hint">
-                      Add <code>PRIVY_APP_ID</code> and <code>PRIVY_APP_SECRET</code> to{' '}
-                      <code>examples/react/.env.local</code>, then restart this example.
-                    </p>
-                  )}
                   {privyBackendStatus === 'unavailable' && (
                     <p className="field-hint">
-                      Privy import runs through the local example backend. Start it with{' '}
-                      <code>pnpm dev:example</code> on <code>localhost</code>.
+                      The deployed Privy test backend is unavailable. Try again later.
                     </p>
                   )}
 
@@ -1266,8 +1227,8 @@ function App() {
                     />
                     <PrivyImportProgressItem
                       number="2"
-                      title="Export encrypted key from Privy"
-                      detail="The local backend asks Privy to encrypt the wallet to that public key."
+                      title="Create and export Privy wallet"
+                      detail="The test backend creates a disposable wallet and asks Privy to encrypt it to that public key."
                       status={privyImportProgress.export}
                     />
                     <PrivyImportProgressItem
@@ -1284,8 +1245,8 @@ function App() {
                     <summary>Technical details</summary>
                     <p>
                       Uses P-256, SHA-256, and ChaCha20-Poly1305. Privy credentials stay in the
-                      localhost middleware; the browser receives only ciphertext and the
-                      encapsulated key.
+                      Cloudflare Worker; the browser receives only ciphertext and the encapsulated
+                      key.
                     </p>
                   </details>
                 </section>
@@ -1417,24 +1378,21 @@ function PrivyImportProgressItem(props: {
 function privyBackendLabel(status: PrivyBackendStatus): string {
   switch (status) {
     case 'ready':
-      return 'Local backend ready';
-    case 'missing':
-      return 'Setup required';
+      return 'Test backend ready';
     case 'unavailable':
-      return 'Local only';
+      return 'Backend unavailable';
     default:
       return 'Checking backend';
   }
 }
 
-async function exportPrivyWallet(
-  walletId: string,
+async function createAndExportPrivyWallet(
   recipientPublicKey: string
 ): Promise<PrivyWalletExportResponse> {
-  const response = await fetch(PRIVY_EXPORT_PATH, {
+  const response = await fetch(PRIVY_EXPORT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ walletId, recipientPublicKey })
+    body: JSON.stringify({ recipientPublicKey })
   });
   const body: unknown = await response.json().catch(() => null);
 
@@ -1442,41 +1400,26 @@ async function exportPrivyWallet(
     const message =
       isRecord(body) && typeof body.error === 'string'
         ? body.error
-        : `Privy wallet export failed with status ${response.status}.`;
+        : `Privy test wallet export failed with status ${response.status}.`;
     throw new Error(message);
   }
 
   if (
     !isRecord(body) ||
+    typeof body.walletId !== 'string' ||
+    typeof body.address !== 'string' ||
     typeof body.ciphertext !== 'string' ||
     typeof body.encapsulatedKey !== 'string'
   ) {
-    throw new Error('The local Privy backend returned an invalid encrypted wallet.');
+    throw new Error('The Privy test backend returned an invalid encrypted wallet.');
   }
 
   return {
+    walletId: body.walletId,
+    address: body.address,
     ciphertext: body.ciphertext,
     encapsulatedKey: body.encapsulatedKey
   };
-}
-
-async function requestDisposablePrivyWallet(): Promise<DisposablePrivyWallet> {
-  const response = await fetch(PRIVY_CREATE_PATH, { method: 'POST' });
-  const body: unknown = await response.json().catch(() => null);
-
-  if (!response.ok) {
-    const message =
-      isRecord(body) && typeof body.error === 'string'
-        ? body.error
-        : `Privy wallet creation failed with status ${response.status}.`;
-    throw new Error(message);
-  }
-
-  if (!isRecord(body) || typeof body.walletId !== 'string' || typeof body.address !== 'string') {
-    throw new Error('The local Privy backend returned an invalid wallet.');
-  }
-
-  return { walletId: body.walletId, address: body.address };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
