@@ -138,7 +138,12 @@ export function SolanaExample({ walletAddress }: { walletAddress: string }) {
 
   async function waitForFeeOptionSelection(
     options: FeeOptionWithBalance[]
-  ): Promise<FeeOptionSelection> {
+  ): Promise<FeeOptionSelection | undefined> {
+    if (options.length === 0) {
+      setTransferStatus('Network fee sponsored. Sending transfer...');
+      return undefined;
+    }
+
     let availableBalance = balance;
     try {
       const snapshot = await getDevnetBalances(walletAddress);

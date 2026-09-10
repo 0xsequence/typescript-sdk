@@ -206,6 +206,8 @@ export function trailsAutoConvertErrorMessage(error: unknown): string {
 async function selectFirstAvailableFeeOption(
   options: Parameters<typeof FeeOptionSelector.firstAvailable>[0]
 ) {
+  if (options.length === 0) return undefined;
+
   const selection = await FeeOptionSelector.firstAvailable(options);
   if (!selection) throw new Error('No transaction fee option has enough balance.');
   return selection;

@@ -694,7 +694,14 @@ function App() {
     });
   }
 
-  function waitForFeeOptionSelection(options: FeeOptionWithBalance[]): Promise<FeeOptionSelection> {
+  function waitForFeeOptionSelection(
+    options: FeeOptionWithBalance[]
+  ): Promise<FeeOptionSelection | undefined> {
+    if (options.length === 0) {
+      setWalletStatus('Transaction fee sponsored. Sending transaction...');
+      return Promise.resolve(undefined);
+    }
+
     setFeeOptions(options);
     setWalletStatus('Choose a fee token to continue.');
     return new Promise((resolve, reject) => {

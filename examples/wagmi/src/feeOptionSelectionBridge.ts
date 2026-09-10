@@ -32,6 +32,10 @@ export function subscribeToFeeOptionSelection(
 export async function selectFeeOptionWithAppUi(
   options: FeeOptionWithBalance[]
 ): Promise<FeeOptionSelection | undefined> {
+  if (options.length === 0) {
+    return undefined;
+  }
+
   if (!listener) {
     const selection = FeeOptionSelector.firstAvailable(options);
     if (!selection) {
