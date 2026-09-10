@@ -9,7 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@auth0/auth0-react": "2.22.0",
+    "@auth0/auth0-react": "2.22.1",
     "@polygonlabs/oms-wallet": "workspace:*",
     "react": "19.2.7",
     "react-dom": "19.2.7"
