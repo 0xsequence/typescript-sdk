@@ -6,6 +6,6 @@
   "type": "module",
   "dependencies": {
     "@polygonlabs/oms-wallet": "workspace:*",
-    "react": "19.2.7"
+    "react": "19.2.8"
   }
 }
